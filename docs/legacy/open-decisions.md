@@ -1,6 +1,6 @@
 # Decisiones humanas pendientes
 
-Todas las decisiones salvo las reglas base de DEC-020 y DEC-021 están en estado `REQUIRES_HUMAN_APPROVAL`. La columna “comportamiento seguro para ensayo” preserva datos y evita correcciones automáticas; no es la decisión final. Las dos reglas base excepcionales ya están aprobadas por las restricciones obligatorias de `AGENTS.md`; sus detalles operativos siguen abiertos.
+Este inventario conserva la evidencia y las alternativas identificadas en FASE 0. Los estados de DEC-015, DEC-025, DEC-031 y DEC-032 se sincronizaron posteriormente con decisiones aprobadas por el propietario; no se alteró la evidencia histórica. La columna “comportamiento seguro para ensayo” preserva datos y evita correcciones automáticas cuando una parte continúa abierta.
 
 | ID | Decisión requerida | Evidencia/alternativas | Comportamiento seguro para ensayo | Estado |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ Todas las decisiones salvo las reglas base de DEC-020 y DEC-021 están en estado
 | DEC-012 | Normalización de personas | Variantes ortográficas y mayúsculas | Preservar original y generar candidatos, sin fusionar | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-013 | Normalización de canales | `Facebook`, `Facebook Marketplace`, 117 vacíos | Preservar; nulos permanecen desconocidos | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-014 | Fuente de precio vigente | Productos vs 76 filas de Inventario diferentes | Productos como precio actual solo si se aprueba; conservar snapshots de ambos | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Conservar costo por fila; margen `UNKNOWN` cuando costo no sea confiable | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Inventario define costo operativo inicial; conservar snapshots. Costos cero, variaciones, inconsistencias y margen no confiable requieren aprobación antes de import commit/analytics | `PARTIALLY_RESOLVED` |
 | DEC-016 | Estado de 401 líneas de venta | Q vacía; código las trata como Completado | Importar estado legacy nulo y una clasificación inferida separada | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar nulo; no derivar estado | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-018 | Método de pago histórico | Solo 32 líneas etiquetadas; código clasifica resto Digital | Importar `UNKNOWN`; conservar inferencia legacy aparte | `REQUIRES_HUMAN_APPROVAL` |
@@ -28,7 +28,7 @@ Todas las decisiones salvo las reglas base de DEC-020 y DEC-021 están en estado
 | DEC-022 | Ingresos automáticos en Finanzas | Tres filas legacy; código vigente las elimina y deriva ventas | Conservar como raw y excluir del agregado financiero para evitar doble conteo | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-023 | Fórmula de diferencia de cierre | No resta gastos; tolerancia 0.5 | Reproducir cálculo en reporte comparativo, no como regla final | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-024 | Tolerancia `Cuadrado` | `abs(diferencia) < 0.5` | Mantener como parámetro legacy visible | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-025 | Reapertura de cierre | No existe en legacy; objetivo propone ADMIN | No permitir reapertura hasta definir proceso/auditoría | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-025 | Reapertura de cierre | No existe en legacy; objetivo propone ADMIN | Dylan/Samantha pueden reabrir con motivo, actor, timestamp, historial y audit log; plazo, cierres posteriores y nueva aprobación siguen abiertos | `PARTIALLY_RESOLVED` |
 | DEC-026 | Importación CSV legacy | No idempotente, hard-coded a tres almacenes y contrato de delimitador contradictorio (`;` documentado, `,` implementado) | No ejecutarla sobre datos reales; sustituir por importador trazable con formato declarado | `REQUIRES_HUMAN_APPROVAL` |
 
 ## DEC-020 — confirmación de venta en tránsito
@@ -69,8 +69,47 @@ Los siguientes detalles permanecen `REQUIRES_HUMAN_APPROVAL` y no se infieren de
 | DEC-028 | Dashboard canónico | Dos implementaciones con cálculos diferentes | Conservar ambos resultados en comparación hasta reconciliar KPIs | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-029 | Regla de deduplicación de venta | Script ignora ID al formar huella | No ejecutar script; resolver cada candidato | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-030 | Fechas recuperadas desde ID | Script puede estimar hora de salida | Conservar original; derivado solo como campo marcado | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-031 | Tratamiento de datos privados en documentación/reportes | IDs, direcciones y observaciones reales | Reportes privados fuera de Git; docs versionadas solo con conteos/filas | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-032 | Fuentes documentales faltantes | No existe project brief ni arquitectura previa | Detener decisiones de FASE 1 que dependan de contexto no recuperado | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-031 | Tratamiento de datos privados en documentación/reportes | IDs, direcciones y observaciones reales | Fuentes, datos, respaldos, exports y reportes reales fuera de Git; documentación versionada sanitizada | `RESOLVED` |
+| DEC-032 | Fuentes documentales faltantes | No existía project brief ni arquitectura previa durante FASE 0 | `docs/project-brief.md` consolida fuentes y decisiones aprobadas; mejoras futuras no bloquean FASE 1 | `RESOLVED` |
+
+## Actualización aprobada posterior a FASE 0
+
+### DEC-015 — costo operativo inicial
+
+`APPROVED_BY_OWNER`:
+
+- Inventario es la fuente del costo operativo inicial;
+- se conserva el snapshot histórico;
+- otras fuentes divergentes no se sobrescriben silenciosamente.
+
+`REQUIRES_HUMAN_APPROVAL_BEFORE_IMPORT_COMMIT_OR_ANALYTICS`:
+
+- costos cero;
+- costos distintos para el mismo producto entre almacenes;
+- costos históricos inconsistentes;
+- definición de margen cuando el costo no sea confiable.
+
+### DEC-025 — reapertura de cierres
+
+`APPROVED_BY_OWNER`:
+
+- Dylan y Samantha pueden crear y reabrir cierres;
+- reapertura exige motivo, actor, fecha/hora, conservación del cierre anterior y su historial, `audit_log` y ausencia de borrado físico;
+- usuarios no autorizados no pueden reabrir.
+
+Permanece `REQUIRES_HUMAN_APPROVAL`:
+
+- límite temporal;
+- reapertura cuando existen cierres posteriores;
+- nueva aprobación después de modificar el cierre.
+
+### DEC-031 — privacidad
+
+`APPROVED_BY_OWNER` y `RESOLVED`: datos/fuentes internos no sanitizados, respaldos, exports y reportes reales permanecen fuera de Git. Los documentos versionados contienen solo reglas, conteos, referencias de fila, conclusiones sanitizadas, decisiones y arquitectura.
+
+### DEC-032 — fuentes documentales
+
+`RESOLVED`: `docs/project-brief.md` es la fuente autosuficiente de contexto aprobado para FASE 1. Una mejora documental futura no reabre este bloqueo.
 
 ## Aprobaciones prioritarias antes del esquema/importador
 

@@ -13,6 +13,7 @@ legacy/private/
 data/private/
 reports/private/
 backups/
+docs/business-sources/
 
 *.dump
 *.sql.gz
