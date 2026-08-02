@@ -1,0 +1,32 @@
+{
+  "name": "@sgi/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate --config prisma.config.ts",
+    "db:migrate": "prisma migrate dev --config prisma.config.ts",
+    "db:studio": "prisma studio --config prisma.config.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "pg": "8.22.0"
+  },
+  "devDependencies": {
+    "@sgi/config": "workspace:*",
+    "@types/pg": "8.20.3",
+    "dotenv": "17.4.2",
+    "prisma": "7.9.1"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "sgi-comarca",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24.13.0 <25",
+    "pnpm": "11.18.0"
+  },
+  "scripts": {
+    "dev": "pnpm db:generate && turbo run dev --parallel",
+    "build": "pnpm db:generate && turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @sgi/database db:generate",
+    "db:migrate": "pnpm --filter @sgi/database db:migrate",
+    "db:studio": "pnpm --filter @sgi/database db:studio"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "prettier": "3.9.6",
+    "turbo": "2.10.8",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

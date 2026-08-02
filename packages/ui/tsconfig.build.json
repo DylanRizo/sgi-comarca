@@ -1,0 +1,9 @@
+{
+  "extends": "@sgi/config/typescript/library",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

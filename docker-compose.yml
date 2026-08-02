@@ -1,0 +1,23 @@
+name: sgi-comarca
+
+services:
+  postgres:
+    image: postgres:18.1-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sgi_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sgi_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-sgi_comarca_dev}
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres_data:

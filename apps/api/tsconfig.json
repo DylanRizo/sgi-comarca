@@ -1,0 +1,7 @@
+{
+  "extends": "@sgi/config/typescript/nest",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

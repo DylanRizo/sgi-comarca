@@ -4,6 +4,9 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.turbo/
+*.tsbuildinfo
+packages/database/src/generated/
 
 .env
 .env.*

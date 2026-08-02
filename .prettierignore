@@ -1,0 +1,14 @@
+.next
+.turbo
+coverage
+dist
+node_modules
+next-env.d.ts
+packages/database/src/generated
+legacy/private
+docs/business-sources
+reports/private
+backups
+AGENTS.md
+docs
+pnpm-lock.yaml
