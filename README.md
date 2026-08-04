@@ -64,9 +64,13 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-El servicio usa PostgreSQL 18.1 Alpine, publica el puerto local `5433`, conserva
+El servicio usa PostgreSQL 18.4 Alpine, publica el puerto local `5433`, conserva
 datos en el volumen `sgi-comarca_postgres_data` y declara un healthcheck con
 `pg_isready`.
+
+La imagen se fija por la etiqueta `postgres:18.4-alpine`, sin digest, para que
+desarrollo local y CI compartan una referencia clara y única. El digest
+resuelto debe registrarse durante la verificación de cada actualización.
 
 Deténgalo sin eliminar el volumen:
 

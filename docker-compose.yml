@@ -2,7 +2,7 @@ name: sgi-comarca
 
 services:
   postgres:
-    image: postgres:18.1-alpine
+    image: postgres:18.4-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sgi_dev}
