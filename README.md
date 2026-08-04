@@ -65,8 +65,10 @@ docker compose ps
 ```
 
 El servicio usa PostgreSQL 18.4 Alpine, publica el puerto local `5433`, conserva
-datos en el volumen `sgi-comarca_postgres_data` y declara un healthcheck con
-`pg_isready`.
+el árbol persistente `/var/lib/postgresql` en el volumen
+`sgi-comarca_postgres_data` y declara un healthcheck con `pg_isready`. La imagen
+define `PGDATA=/var/lib/postgresql/18/docker`; montar el directorio padre evita
+que el clúster quede asociado a un volumen anónimo.
 
 La imagen se fija por la etiqueta `postgres:18.4-alpine`, sin digest, para que
 desarrollo local y CI compartan una referencia clara y única. El digest
