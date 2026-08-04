@@ -15,7 +15,7 @@ import {
   BootstrapConflictError,
 } from '../src/bootstrap/run-bootstrap.js';
 
-describe('FASE 3A bootstrap manifest', () => {
+describe('FASE 3B bootstrap manifest', () => {
   it('contains only the approved users, roles, permissions and warehouses', () => {
     expect(
       bootstrapUsers.map(({ loginIdentifier }) => loginIdentifier),
@@ -42,6 +42,10 @@ describe('FASE 3A bootstrap manifest', () => {
         'sales.confirm_in_transit',
         'sales.create',
         'transfers.create',
+        'users.credentials.revoke',
+        'users.invitations.create',
+        'users.sessions.revoke',
+        'users.status.manage',
       ].sort(),
     );
     expect(bootstrapWarehouses.map(({ code }) => code).sort()).toEqual(
@@ -58,12 +62,17 @@ describe('FASE 3A bootstrap manifest', () => {
         .sort(),
     ).toEqual(
       [
+        'dylan:ADMIN',
         'dylan:FINANCE',
         'dylan:INVENTORY_MANAGER',
+        'dylan:SALES',
         'jean:INVENTORY_MANAGER',
+        'jean:SALES',
         'luden:INVENTORY_MANAGER',
+        'luden:SALES',
         'samantha:FINANCE',
         'samantha:INVENTORY_MANAGER',
+        'samantha:SALES',
       ].sort(),
     );
     expect(
@@ -74,6 +83,10 @@ describe('FASE 3A bootstrap manifest', () => {
         .sort(),
     ).toEqual(
       [
+        'ADMIN:users.credentials.revoke',
+        'ADMIN:users.invitations.create',
+        'ADMIN:users.sessions.revoke',
+        'ADMIN:users.status.manage',
         'FINANCE:closings.create',
         'FINANCE:closings.read',
         'FINANCE:closings.reopen',
@@ -87,6 +100,10 @@ describe('FASE 3A bootstrap manifest', () => {
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
     ]);
+    expect(bootstrapPermissions).toHaveLength(14);
+    expect(bootstrapUserRoles).toHaveLength(11);
+    expect(bootstrapRolePermissions).toHaveLength(12);
+    expect(bootstrapUserPermissions).toHaveLength(1);
   });
 
   it('leaves transfers.create without grants and omits unapproved permissions', () => {

@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "auth:bootstrap-admin-invitation": "tsx src/auth/cli/bootstrap-admin-invitation.cli.ts",
+    "auth:recover-admin": "tsx src/auth/cli/recover-admin.cli.ts",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint .",

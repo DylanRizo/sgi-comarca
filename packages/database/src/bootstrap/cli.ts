@@ -11,7 +11,7 @@ const client = createDatabaseClient(process.env.DATABASE_URL ?? developmentUrl);
 try {
   const result = await runBootstrap(client);
   process.stdout.write(
-    JSON.stringify({ event: 'phase_3a_bootstrap', ...result }) + '\n',
+    JSON.stringify({ event: 'phase_3b_bootstrap', ...result }) + '\n',
   );
 } finally {
   await client.$disconnect();

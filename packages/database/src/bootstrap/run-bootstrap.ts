@@ -89,7 +89,7 @@ export async function runBootstrap(
 
       if (credentialCount !== 0 || sessionCount !== 0) {
         throw new BootstrapConflictError(
-          'FASE 3A bootstrap requires zero credentials and zero sessions.',
+          'Authentication bootstrap requires zero credentials and zero sessions.',
         );
       }
 
@@ -350,7 +350,7 @@ export async function runBootstrap(
             entityType: 'SYSTEM_BOOTSTRAP',
             metadata: {
               createdRecordCount: mutationCount,
-              phase: '3A',
+              phase: '3B',
             },
           },
         });

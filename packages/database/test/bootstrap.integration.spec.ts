@@ -19,14 +19,38 @@ if (!databaseUrl) {
   throw new Error('Integration database setup did not provide DATABASE_URL.');
 }
 
-describe('FASE 3A bootstrap', () => {
-  let client: DatabaseClient;
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
-  beforeAll(() => {
+describe.sequential('FASE 3B bootstrap', () => {
+  let client: DatabaseClient;
+  let releaseSuiteLock: (() => void) | undefined;
+  let suiteLockTask: Promise<unknown> | undefined;
+
+  beforeAll(async () => {
     client = createDatabaseClient(databaseUrl);
+    const ready = createDeferred();
+    const release = createDeferred();
+    releaseSuiteLock = release.resolve;
+    suiteLockTask = client.$transaction(
+      async (transaction) => {
+        await transaction.$executeRaw`SELECT pg_advisory_xact_lock(3200203)`;
+        ready.resolve();
+        await release.promise;
+      },
+      { timeout: 120_000 },
+    );
+    await Promise.race([ready.promise, suiteLockTask]);
   });
 
   afterAll(async () => {
+    releaseSuiteLock?.();
+    await suiteLockTask;
     await client.$disconnect();
   });
 
@@ -47,6 +71,8 @@ describe('FASE 3A bootstrap', () => {
       userPermissions,
       credentialCount,
       sessionCount,
+      invitationCount,
+      bootstrapAuditLogs,
     ] = await Promise.all([
       client.user.findMany({ orderBy: { loginIdentifier: 'asc' } }),
       client.role.findMany({ orderBy: { code: 'asc' } }),
@@ -66,6 +92,11 @@ describe('FASE 3A bootstrap', () => {
       }),
       client.passwordCredential.count(),
       client.session.count(),
+      client.userInvitation.count(),
+      client.auditLog.findMany({
+        where: { action: 'SYSTEM_BOOTSTRAP_APPLIED' },
+        select: { beforeData: true, afterData: true, metadata: true },
+      }),
     ]);
 
     expect(
@@ -134,25 +165,54 @@ describe('FASE 3A bootstrap', () => {
 
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
+    expect(invitationCount).toBe(0);
+    expect(permissions).toHaveLength(14);
+    expect(userRoles).toHaveLength(11);
+    expect(rolePermissions).toHaveLength(12);
+    expect(userPermissions).toHaveLength(1);
+    expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
+      1,
+    );
+    expect(
+      userRoles.find(({ role }) => role.code === 'ADMIN')?.user.loginIdentifier,
+    ).toBe('dylan');
+    expect(bootstrapAuditLogs).toHaveLength(1);
+    expect(bootstrapAuditLogs[0]).toEqual({
+      afterData: null,
+      beforeData: null,
+      metadata: { createdRecordCount: 51, phase: '3B' },
+    });
   });
 
   it('leaves restricted roles empty and transfers.create ungranted', async () => {
     const [
       restrictedRoleAssignments,
-      restrictedRolePermissions,
+      administrativeRoleAssignments,
+      administrativeRolePermissions,
+      salesRoleAssignments,
+      salesRolePermissions,
       transferGrants,
     ] = await Promise.all([
       client.userRole.count({
         where: {
           revokedAt: null,
-          role: { code: { in: ['ADMIN', 'PARTNER', 'READ_ONLY', 'SALES'] } },
+          role: { code: { in: ['PARTNER', 'READ_ONLY'] } },
         },
+      }),
+      client.userRole.count({
+        where: { revokedAt: null, role: { code: 'ADMIN' } },
       }),
       client.rolePermission.count({
         where: {
           revokedAt: null,
-          role: { code: { in: ['ADMIN', 'PARTNER', 'READ_ONLY'] } },
+          role: { code: 'ADMIN' },
         },
+      }),
+      client.userRole.count({
+        where: { revokedAt: null, role: { code: 'SALES' } },
+      }),
+      client.rolePermission.count({
+        where: { revokedAt: null, role: { code: 'SALES' } },
       }),
       Promise.all([
         client.rolePermission.count({
@@ -171,7 +231,88 @@ describe('FASE 3A bootstrap', () => {
     ]);
 
     expect(restrictedRoleAssignments).toBe(0);
-    expect(restrictedRolePermissions).toBe(0);
+    expect(administrativeRoleAssignments).toBe(1);
+    expect(administrativeRolePermissions).toBe(4);
+    expect(salesRoleAssignments).toBe(4);
+    expect(salesRolePermissions).toBe(2);
     expect(transferGrants).toEqual([0, 0]);
+  });
+
+  it('rolls back every partial change when the matrix is incompatible', async () => {
+    const admin = await client.role.findUniqueOrThrow({
+      where: { code: 'ADMIN' },
+    });
+    const statusPermission = await client.permission.findUniqueOrThrow({
+      where: { code: 'users.status.manage' },
+    });
+    const samantha = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'samantha' },
+    });
+    const salesCancel = await client.permission.findUniqueOrThrow({
+      where: { code: 'sales.cancel' },
+    });
+
+    await client.rolePermission.deleteMany({
+      where: { roleId: admin.id, permissionId: statusPermission.id },
+    });
+    const unexpectedGrant = await client.userPermission.create({
+      data: { userId: samantha.id, permissionId: salesCancel.id },
+    });
+    const auditCountBefore = await client.auditLog.count();
+
+    await expect(runBootstrap(client)).rejects.toThrow(
+      'unexpected active records exist',
+    );
+
+    expect(
+      await client.rolePermission.count({
+        where: {
+          roleId: admin.id,
+          permissionId: statusPermission.id,
+          revokedAt: null,
+        },
+      }),
+    ).toBe(0);
+    expect(await client.auditLog.count()).toBe(auditCountBefore);
+
+    await client.userPermission.delete({ where: { id: unexpectedGrant.id } });
+    await runBootstrap(client);
+  });
+
+  it('refuses to reactivate a revoked grant', async () => {
+    const dylan = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    const salesCancel = await client.permission.findUniqueOrThrow({
+      where: { code: 'sales.cancel' },
+    });
+    const grant = await client.userPermission.findFirstOrThrow({
+      where: {
+        userId: dylan.id,
+        permissionId: salesCancel.id,
+        revokedAt: null,
+      },
+    });
+    const revokedAt = new Date();
+    await client.userPermission.update({
+      where: { id: grant.id },
+      data: { revokedAt },
+    });
+
+    await expect(runBootstrap(client)).rejects.toThrow(
+      'will not reactivate a revoked user permission',
+    );
+    expect(
+      (
+        await client.userPermission.findUniqueOrThrow({
+          where: { id: grant.id },
+        })
+      ).revokedAt,
+    ).toEqual(revokedAt);
+
+    await client.userPermission.update({
+      where: { id: grant.id },
+      data: { revokedAt: null },
+    });
   });
 });

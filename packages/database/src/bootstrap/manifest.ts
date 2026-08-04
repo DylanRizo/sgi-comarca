@@ -33,6 +33,22 @@ export const bootstrapRoles = [
 
 export const bootstrapPermissions = [
   {
+    code: 'users.invitations.create',
+    description: 'Crear invitaciones de activación para usuarios.',
+  },
+  {
+    code: 'users.credentials.revoke',
+    description: 'Revocar credenciales de usuarios.',
+  },
+  {
+    code: 'users.sessions.revoke',
+    description: 'Revocar sesiones de usuarios.',
+  },
+  {
+    code: 'users.status.manage',
+    description: 'Administrar el estado de usuarios.',
+  },
+  {
     code: 'finances.read',
     description: 'Consultar información financiera autorizada.',
   },
@@ -88,15 +104,30 @@ export const bootstrapWarehouses = [
 ] as const;
 
 export const bootstrapUserRoles = [
+  { loginIdentifier: 'dylan', roleCode: 'ADMIN' },
   { loginIdentifier: 'dylan', roleCode: 'FINANCE' },
   { loginIdentifier: 'samantha', roleCode: 'FINANCE' },
   { loginIdentifier: 'dylan', roleCode: 'INVENTORY_MANAGER' },
   { loginIdentifier: 'samantha', roleCode: 'INVENTORY_MANAGER' },
   { loginIdentifier: 'jean', roleCode: 'INVENTORY_MANAGER' },
   { loginIdentifier: 'luden', roleCode: 'INVENTORY_MANAGER' },
+  { loginIdentifier: 'dylan', roleCode: 'SALES' },
+  { loginIdentifier: 'samantha', roleCode: 'SALES' },
+  { loginIdentifier: 'jean', roleCode: 'SALES' },
+  { loginIdentifier: 'luden', roleCode: 'SALES' },
 ] as const;
 
 export const bootstrapRolePermissions = [
+  {
+    roleCode: 'ADMIN',
+    permissionCode: 'users.invitations.create',
+  },
+  {
+    roleCode: 'ADMIN',
+    permissionCode: 'users.credentials.revoke',
+  },
+  { roleCode: 'ADMIN', permissionCode: 'users.sessions.revoke' },
+  { roleCode: 'ADMIN', permissionCode: 'users.status.manage' },
   { roleCode: 'FINANCE', permissionCode: 'finances.read' },
   { roleCode: 'FINANCE', permissionCode: 'finances.manual.create' },
   { roleCode: 'FINANCE', permissionCode: 'closings.read' },

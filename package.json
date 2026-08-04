@@ -9,6 +9,8 @@
     "pnpm": "11.18.0"
   },
   "scripts": {
+    "auth:bootstrap-admin-invitation": "pnpm --filter @sgi/api auth:bootstrap-admin-invitation",
+    "auth:recover-admin": "pnpm --filter @sgi/api auth:recover-admin",
     "dev": "pnpm db:generate && turbo run dev --parallel",
     "build": "pnpm db:generate && turbo run build",
     "lint": "turbo run lint",
