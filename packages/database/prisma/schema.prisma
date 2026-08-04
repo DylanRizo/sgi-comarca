@@ -106,8 +106,12 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  passwordCredential          PasswordCredential?
+  passwordCredential          PasswordCredential?   @relation("PasswordCredentialUser")
+  credentialRevocationsIssued PasswordCredential[]  @relation("PasswordCredentialRevokedBy")
   sessions                    Session[]
+  invitations                 UserInvitation[]       @relation("UserInvitationTarget")
+  invitationsCreated          UserInvitation[]       @relation("UserInvitationCreatedBy")
+  invitationsInvalidated      UserInvitation[]       @relation("UserInvitationInvalidatedBy")
   userRoles                   UserRole[]              @relation("UserRoleUser")
   roleGrantsIssued            UserRole[]              @relation("UserRoleGrantedBy")
   roleRevocationsIssued       UserRole[]              @relation("UserRoleRevokedBy")
@@ -212,33 +216,80 @@ model UserPermission {
 }
 
 model PasswordCredential {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @unique(map: "password_credentials_user_id_key") @map("user_id") @db.Uuid
-  passwordHash      String   @map("password_hash") @db.VarChar(255)
-  passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamptz(6)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @unique(map: "password_credentials_user_id_key") @map("user_id") @db.Uuid
+  passwordHash      String    @map("password_hash") @db.VarChar(255)
+  passwordChangedAt DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId   String?   @map("revoked_by_user_id") @db.Uuid
+  revokeReason      String?   @map("revoke_reason") @db.VarChar(300)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user      User  @relation("PasswordCredentialUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revokedBy User? @relation("PasswordCredentialRevokedBy", fields: [revokedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([revokedAt], map: "password_credentials_revoked_at_idx")
+  @@index([revokedByUserId, revokedAt], map: "password_credentials_revoker_time_idx")
 
   @@map("password_credentials")
 }
 
 model Session {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  tokenHash    String    @unique(map: "sessions_token_hash_key") @map("token_hash") @db.VarChar(255)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastSeenAt   DateTime? @map("last_seen_at") @db.Timestamptz(6)
-  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
-  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
-  revokeReason String?   @map("revoke_reason") @db.VarChar(300)
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  tokenHash         String    @unique(map: "sessions_token_hash_key") @map("token_hash") @db.Char(64)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  idleExpiresAt     DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP + '00:30:00'::interval)")) @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP + '08:00:00'::interval)")) @map("absolute_expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason      String?   @map("revoke_reason") @db.VarChar(300)
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
-  @@index([userId, expiresAt], map: "sessions_user_expires_at_idx")
-  @@index([expiresAt, revokedAt], map: "sessions_expires_revoked_at_idx")
+  @@index([userId, absoluteExpiresAt], map: "sessions_user_absolute_expires_at_idx")
+  @@index([idleExpiresAt, revokedAt], map: "sessions_idle_expires_revoked_at_idx")
+  @@index([absoluteExpiresAt, revokedAt], map: "sessions_absolute_expires_revoked_at_idx")
   @@map("sessions")
+}
+
+model UserInvitation {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  tokenHash           String    @unique(map: "user_invitations_token_hash_key") @map("token_hash") @db.Char(64)
+  expiresAt           DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP + '24:00:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  consumedAt          DateTime? @map("consumed_at") @db.Timestamptz(6)
+  invalidatedAt       DateTime? @map("invalidated_at") @db.Timestamptz(6)
+  createdByUserId     String?   @map("created_by_user_id") @db.Uuid
+  invalidatedByUserId String?   @map("invalidated_by_user_id") @db.Uuid
+  invalidationReason  String?   @map("invalidation_reason") @db.VarChar(300)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user          User  @relation("UserInvitationTarget", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy     User? @relation("UserInvitationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invalidatedBy User? @relation("UserInvitationInvalidatedBy", fields: [invalidatedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([expiresAt], map: "user_invitations_expires_at_idx")
+  @@index([userId, consumedAt, invalidatedAt], map: "user_invitations_user_status_idx")
+  @@map("user_invitations")
+}
+
+model LoginThrottle {
+  id                   String    @id @default(uuid()) @db.Uuid
+  normalizedIdentifier String    @map("normalized_identifier") @db.VarChar(64)
+  originHash           String    @map("origin_hash") @db.Char(64)
+  failedAttemptCount   Int       @default(0) @map("failed_attempt_count") @db.SmallInt
+  windowStartedAt      DateTime  @default(now()) @map("window_started_at") @db.Timestamptz(6)
+  lastFailedAt         DateTime? @map("last_failed_at") @db.Timestamptz(6)
+  blockedUntil         DateTime? @map("blocked_until") @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([normalizedIdentifier, originHash], map: "login_throttles_identifier_origin_key")
+  @@index([blockedUntil], map: "login_throttles_blocked_until_idx")
+  @@index([updatedAt], map: "login_throttles_updated_at_idx")
+  @@map("login_throttles")
 }
 
 model AuditLog {

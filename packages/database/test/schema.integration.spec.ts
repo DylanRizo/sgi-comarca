@@ -18,6 +18,7 @@ const applicationTables = [
   'inventory_movements',
   'legacy_records',
   'legacy_sources',
+  'login_throttles',
   'password_credentials',
   'permissions',
   'product_warehouse_valuations',
@@ -30,6 +31,7 @@ const applicationTables = [
   'sales',
   'sessions',
   'units',
+  'user_invitations',
   'user_permissions',
   'user_roles',
   'users',
@@ -114,7 +116,7 @@ async function insertSaleFixture(
   return { saleId, saleItemId };
 }
 
-describe('FASE 3A PostgreSQL structure', () => {
+describe('PostgreSQL structure through FASE 3B', () => {
   beforeAll(async () => {
     await pool.query('SELECT 1');
   });
@@ -123,7 +125,7 @@ describe('FASE 3A PostgreSQL structure', () => {
     await pool.end();
   });
 
-  it('has exactly 23 application tables and only the Prisma technical table', async () => {
+  it('has exactly 25 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -139,17 +141,19 @@ describe('FASE 3A PostgreSQL structure', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(23);
+    expect(actualApplicationTables).toHaveLength(25);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved function and exactly two non-internal triggers', async () => {
+  it('has the approved functions and exactly three non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
-        "WHERE n.nspname = 'public' AND p.proname = 'prevent_immutable_row_change'",
+        "WHERE n.nspname = 'public'",
+        "AND p.proname IN ('enforce_session_lifecycle', 'prevent_immutable_row_change')",
+        'ORDER BY p.proname',
       ].join(' '),
     );
     const triggers = await pool.query<{
@@ -167,6 +171,7 @@ describe('FASE 3A PostgreSQL structure', () => {
     );
 
     expect(functions.rows).toEqual([
+      { proname: 'enforce_session_lifecycle' },
       { proname: 'prevent_immutable_row_change' },
     ]);
     expect(triggers.rows).toEqual([
@@ -174,6 +179,10 @@ describe('FASE 3A PostgreSQL structure', () => {
       {
         table_name: 'inventory_movements',
         trigger_name: 'inventory_movements_immutable',
+      },
+      {
+        table_name: 'sessions',
+        trigger_name: 'sessions_lifecycle_guard',
       },
     ]);
   });
