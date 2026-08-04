@@ -6,7 +6,7 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 |---|---|---|---|---|
 | DEC-001 | Moneda canónica y símbolo | UI mezcla `$` y `C$`; datos no declaran moneda | Guardar valores sin conversión y moneda `UNKNOWN`/configurable | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-002 | Usuarios reales y vinculación de nombres | Vendedores, entregadores, responsables y emails legacy | Preservar texto original; no crear cuentas automáticamente | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | Denegar por defecto; Finanzas solo ADMIN/FINANCE hasta aprobación | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | FASE 3A crea solo diez permisos explícitos; ADMIN/PARTNER/READ_ONLY vacíos, SALES sin usuarios y transfers.create sin grants | `PARTIALLY_RESOLVED` |
 | DEC-004 | Duplicado `DGGR-X` | Productos filas 29–30 | Importar ambas como raw; bloquear resolución de código único | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-005 | Duplicados `CCWH-L` | Dos filas por Casa Dylan y dos por Casa Luden con valores distintos | Preservar cuatro filas en staging de importación; no sumar ni elegir “última” | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-006 | Cuatro líneas de venta duplicadas | Pares en filas 124–125, 176/179, 214–215, 255/257 | Importar con marca `duplicate_candidate`; excluir de totales aprobados | `REQUIRES_HUMAN_APPROVAL` |
@@ -73,6 +73,21 @@ Los siguientes detalles permanecen `REQUIRES_HUMAN_APPROVAL` y no se infieren de
 | DEC-032 | Fuentes documentales faltantes | No existía project brief ni arquitectura previa durante FASE 0 | `docs/project-brief.md` consolida fuentes y decisiones aprobadas; mejoras futuras no bloquean FASE 1 | `RESOLVED` |
 
 ## Actualización aprobada posterior a FASE 0
+
+### DEC-003 — bootstrap de permisos de FASE 3A
+
+`APPROVED_BY_OWNER`:
+
+- FINANCE se asigna a Dylan y Samantha;
+- INVENTORY_MANAGER se asigna a Dylan, Samantha, Jean y Luden;
+- SALES queda sin usuarios;
+- ADMIN, PARTNER y READ_ONLY quedan sin usuarios ni privilegios implícitos;
+- sales.cancel se asigna directamente solo a Dylan;
+- transfers.create existe sin grants;
+- no se crea roles.manage_financial_access.
+
+La asignación futura de SALES, ADMIN, PARTNER o transfers.create continúa
+requiriendo aprobación explícita.
 
 ### DEC-015 — costo operativo inicial
 

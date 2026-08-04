@@ -111,7 +111,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("transfer:create")
-authorize transfer permission (currently pending except ADMIN)
+require transfers.create (no user or role has this grant in FASE 3A)
 validate origin != destination and quantity > 0
 lock origin and destination balances in deterministic order
 if origin.quantity < quantity: raise INSUFFICIENT_STOCK
@@ -151,7 +151,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("sale:create")
-require SALES/ADMIN; validate seller, channel/payment fields and non-empty items
+require sales.create; validate seller, channel/payment fields and non-empty items
 load active products and authoritative current prices/costs from operational model
 group required quantity by product–warehouse
 lock all balances in deterministic order
@@ -225,7 +225,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("sale:confirm")
-require SALES/ADMIN
+require sales.confirm_in_transit
 lock sale row
 if CANCELLED: raise INVALID_SALE_STATE
 if COMPLETED: return existing completed representation without effects

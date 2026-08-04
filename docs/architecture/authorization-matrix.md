@@ -15,7 +15,7 @@ Asignación mínima derivada de aprobaciones:
 
 | Usuario | Roles/capacidades iniciales confirmadas | Pendiente |
 |---|---|---|
-| Dylan | `FINANCE`, `INVENTORY_MANAGER`; permisos explícitos `sales.cancel` y `roles.manage_financial_access` | `ADMIN`, `SALES` y `PARTNER` requieren asignación explícita |
+| Dylan | `FINANCE`, `INVENTORY_MANAGER`; permiso directo `sales.cancel` | `ADMIN`, `SALES` y `PARTNER` requieren asignación explícita |
 | Samantha | `FINANCE`, `INVENTORY_MANAGER` | `SALES`/`PARTNER` según responsabilidad aprobada |
 | Jean | `INVENTORY_MANAGER` | `SALES`/`PARTNER`; sin Finanzas inicialmente |
 | Luden | `INVENTORY_MANAGER` | `SALES`/`PARTNER`; sin Finanzas inicialmente |
@@ -68,4 +68,7 @@ Leyenda: `R` lectura, `W` escritura, `A` administración, `—` denegado. Las po
 
 ## Cambios de permisos
 
-ADMIN modifica roles generales. El permiso limitado `roles.manage_financial_access`, asignado inicialmente a Dylan, permite conceder o revocar acceso financiero sin otorgarle por inferencia todas las capacidades de ADMIN. Cada cambio invalida o reevalúa sesiones según el diseño de FASE 5 y genera audit log. La autorización se evalúa por capacidades técnicas, no mediante comparaciones de nombres.
+FASE 3A no crea permisos de administración de roles ni concede capacidades
+implícitas a `ADMIN`. Una futura administración de acceso requiere decisión y
+permiso técnico explícitos. La autorización se evalúa por capacidades, no
+mediante comparaciones de nombres.

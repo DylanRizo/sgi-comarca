@@ -188,6 +188,9 @@ importers:
       prisma:
         specifier: 7.9.1
         version: 7.9.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
+      tsx:
+        specifier: 4.23.4
+        version: 4.23.4
 
   packages/ui:
     devDependencies:

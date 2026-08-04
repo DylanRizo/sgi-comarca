@@ -8,4 +8,572 @@ datasource db {
   provider = "postgresql"
 }
 
-// FASE 2 intentionally defines no persistent models. Business entities begin in FASE 3.
+enum UserStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  DISABLED
+
+  @@map("user_status")
+}
+
+enum InventoryMovementType {
+  INITIAL_BALANCE
+  LEGACY
+  RECEIPT
+  ADJUSTMENT
+  TRANSFER_OUT
+  TRANSFER_IN
+  SALE
+  SALE_CANCELLATION
+
+  @@map("inventory_movement_type")
+}
+
+enum SaleStatus {
+  LEGACY_UNKNOWN
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+
+  @@map("sale_status")
+}
+
+enum PaymentStatus {
+  UNKNOWN
+  PENDING
+  PAID
+
+  @@map("payment_status")
+}
+
+enum LegacySourceType {
+  XLSX
+  GOOGLE_SHEETS
+  APPS_SCRIPT
+
+  @@map("legacy_source_type")
+}
+
+enum ImportMode {
+  DRY_RUN
+  COMMIT
+
+  @@map("import_mode")
+}
+
+enum ImportStatus {
+  PENDING
+  RUNNING
+  COMMITTED
+  FAILED
+  ROLLED_BACK
+
+  @@map("import_status")
+}
+
+enum LegacyRecordStatus {
+  STAGED
+  IMPORTED
+  REJECTED
+  REQUIRES_HUMAN_APPROVAL
+
+  @@map("legacy_record_status")
+}
+
+enum ReconciliationSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+
+  @@map("reconciliation_severity")
+}
+
+enum ReconciliationStatus {
+  OPEN
+  REQUIRES_HUMAN_APPROVAL
+  RESOLVED
+
+  @@map("reconciliation_status")
+}
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  loginIdentifier String     @unique(map: "users_login_identifier_key") @map("login_identifier") @db.VarChar(64)
+  displayName     String     @map("display_name") @db.VarChar(160)
+  status          UserStatus @default(PENDING_ACTIVATION)
+  activatedAt     DateTime?  @map("activated_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  passwordCredential          PasswordCredential?
+  sessions                    Session[]
+  userRoles                   UserRole[]              @relation("UserRoleUser")
+  roleGrantsIssued            UserRole[]              @relation("UserRoleGrantedBy")
+  roleRevocationsIssued       UserRole[]              @relation("UserRoleRevokedBy")
+  userPermissions             UserPermission[]        @relation("UserPermissionUser")
+  permissionGrantsIssued      UserPermission[]        @relation("UserPermissionGrantedBy")
+  permissionRevocationsIssued UserPermission[]        @relation("UserPermissionRevokedBy")
+  rolePermissionGrantsIssued  RolePermission[]        @relation("RolePermissionGrantedBy")
+  rolePermissionRevocations   RolePermission[]        @relation("RolePermissionRevokedBy")
+  auditLogs                   AuditLog[]               @relation("AuditLogActor")
+  inventoryMovements          InventoryMovement[]     @relation("InventoryMovementActor")
+  sales                       Sale[]                  @relation("SaleSeller")
+  saleCancellations           SaleCancellation[]      @relation("SaleCancellationActor")
+  inTransitConfirmations      InTransitConfirmation[] @relation("InTransitConfirmationActor")
+  resolvedIssues              ReconciliationIssue[]   @relation("ReconciliationIssueResolver")
+
+  @@index([status], map: "users_status_idx")
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique(map: "roles_code_key") @db.VarChar(64)
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(300)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique(map: "permissions_code_key") @db.VarChar(96)
+  description String   @db.VarChar(300)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  roleId          String    @map("role_id") @db.Uuid
+  grantedAt       DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  grantedByUserId String?   @map("granted_by_user_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+
+  user      User  @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy User? @relation("UserRoleGrantedBy", fields: [grantedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revokedBy User? @relation("UserRoleRevokedBy", fields: [revokedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, revokedAt], map: "user_roles_user_revoked_at_idx")
+  @@index([roleId, revokedAt], map: "user_roles_role_revoked_at_idx")
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id              String    @id @default(uuid()) @db.Uuid
+  roleId          String    @map("role_id") @db.Uuid
+  permissionId    String    @map("permission_id") @db.Uuid
+  grantedAt       DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  grantedByUserId String?   @map("granted_by_user_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy  User?      @relation("RolePermissionGrantedBy", fields: [grantedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revokedBy  User?      @relation("RolePermissionRevokedBy", fields: [revokedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([roleId, revokedAt], map: "role_permissions_role_revoked_at_idx")
+  @@index([permissionId, revokedAt], map: "role_permissions_permission_revoked_at_idx")
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  permissionId    String    @map("permission_id") @db.Uuid
+  grantedAt       DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  grantedByUserId String?   @map("granted_by_user_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+
+  user       User       @relation("UserPermissionUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy  User?      @relation("UserPermissionGrantedBy", fields: [grantedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revokedBy  User?      @relation("UserPermissionRevokedBy", fields: [revokedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, revokedAt], map: "user_permissions_user_revoked_at_idx")
+  @@index([permissionId, revokedAt], map: "user_permissions_permission_revoked_at_idx")
+  @@map("user_permissions")
+}
+
+model PasswordCredential {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique(map: "password_credentials_user_id_key") @map("user_id") @db.Uuid
+  passwordHash      String   @map("password_hash") @db.VarChar(255)
+  passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("password_credentials")
+}
+
+model Session {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique(map: "sessions_token_hash_key") @map("token_hash") @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt   DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason String?   @map("revoke_reason") @db.VarChar(300)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, expiresAt], map: "sessions_user_expires_at_idx")
+  @@index([expiresAt, revokedAt], map: "sessions_expires_revoked_at_idx")
+  @@map("sessions")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String   @db.VarChar(120)
+  entityType  String   @map("entity_type") @db.VarChar(120)
+  entityId    String?  @map("entity_id") @db.Uuid
+  beforeData  Json?    @map("before_data") @db.JsonB
+  afterData   Json?    @map("after_data") @db.JsonB
+  requestId   String?  @map("request_id") @db.Uuid
+  metadata    Json?    @db.JsonB
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  actor User? @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([entityType, entityId, occurredAt], map: "audit_logs_entity_occurred_at_idx")
+  @@index([actorUserId, occurredAt], map: "audit_logs_actor_occurred_at_idx")
+  @@map("audit_logs")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique(map: "warehouses_code_key") @db.VarChar(64)
+  name      String   @db.VarChar(160)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  inventoryBalances          InventoryBalance[]
+  productWarehouseValuations ProductWarehouseValuation[]
+  inventoryMovements         InventoryMovement[]
+  saleItems                  SaleItem[]
+  legacyRecords              LegacyRecord[]             @relation("LegacyRecordWarehouse")
+
+  @@index([active, name], map: "warehouses_active_name_idx")
+  @@map("warehouses")
+}
+
+model Unit {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique(map: "units_code_key") @db.VarChar(64)
+  name      String   @db.VarChar(120)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products      Product[]
+  legacyRecords LegacyRecord[] @relation("LegacyRecordUnit")
+
+  @@index([active, name], map: "units_active_name_idx")
+  @@map("units")
+}
+
+model Product {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique(map: "products_code_key") @db.VarChar(64)
+  name         String   @db.VarChar(200)
+  description  String?
+  unitId       String?  @map("unit_id") @db.Uuid
+  minimumStock Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  unit                       Unit?                       @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  inventoryBalances          InventoryBalance[]
+  productWarehouseValuations ProductWarehouseValuation[]
+  inventoryMovements         InventoryMovement[]
+  saleItems                  SaleItem[]
+  legacyRecords              LegacyRecord[]             @relation("LegacyRecordProduct")
+
+  @@index([name], map: "products_name_idx")
+  @@index([unitId, active], map: "products_unit_active_idx")
+  @@map("products")
+}
+
+model InventoryBalance {
+  id                  String   @id @default(uuid()) @db.Uuid
+  productId           String   @map("product_id") @db.Uuid
+  warehouseId         String   @map("warehouse_id") @db.Uuid
+  quantity            Decimal  @db.Decimal(18, 4)
+  currentUnitPrice    Decimal? @map("current_unit_price") @db.Decimal(18, 2)
+  currentUnitCost     Decimal? @map("current_unit_cost") @db.Decimal(18, 2)
+  priceReviewRequired Boolean  @default(false) @map("price_review_required")
+  costReviewRequired  Boolean  @default(false) @map("cost_review_required")
+  version             Int      @default(1)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecords LegacyRecord[] @relation("LegacyRecordInventoryBalance")
+
+  @@unique([productId, warehouseId], map: "inventory_balances_product_warehouse_key")
+  @@index([warehouseId, productId], map: "inventory_balances_warehouse_product_idx")
+  @@map("inventory_balances")
+}
+
+model ProductWarehouseValuation {
+  id                  String    @id @default(uuid()) @db.Uuid
+  productId           String    @map("product_id") @db.Uuid
+  warehouseId         String    @map("warehouse_id") @db.Uuid
+  unitPrice           Decimal?  @map("unit_price") @db.Decimal(18, 2)
+  unitCost            Decimal?  @map("unit_cost") @db.Decimal(18, 2)
+  currencyCode        String    @default("NIO") @map("currency_code") @db.VarChar(3)
+  observedAt          DateTime  @map("observed_at") @db.Timestamptz(6)
+  effectiveAt         DateTime? @map("effective_at") @db.Timestamptz(6)
+  legacyRecordId      String?   @map("legacy_record_id") @db.Uuid
+  requiresHumanReview Boolean   @default(false) @map("requires_human_review")
+  reviewReason        String?   @map("review_reason") @db.VarChar(500)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecord LegacyRecord? @relation(fields: [legacyRecordId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([productId, warehouseId, observedAt(sort: Desc)], map: "product_warehouse_valuations_history_idx")
+  @@index([legacyRecordId], map: "product_warehouse_valuations_legacy_record_idx")
+  @@index([requiresHumanReview], map: "product_warehouse_valuations_review_idx")
+  @@map("product_warehouse_valuations")
+}
+
+model InventoryMovement {
+  id            String                @id @default(uuid()) @db.Uuid
+  productId     String                @map("product_id") @db.Uuid
+  warehouseId   String                @map("warehouse_id") @db.Uuid
+  type          InventoryMovementType
+  quantityDelta Decimal               @map("quantity_delta") @db.Decimal(18, 4)
+  balanceBefore Decimal               @map("balance_before") @db.Decimal(18, 4)
+  balanceAfter  Decimal               @map("balance_after") @db.Decimal(18, 4)
+  occurredAt    DateTime              @map("occurred_at") @db.Timestamptz(6)
+  actorUserId   String?               @map("actor_user_id") @db.Uuid
+  sourceType    String?               @map("source_type") @db.VarChar(80)
+  sourceId      String?               @map("source_id") @db.Uuid
+  saleItemId    String?               @map("sale_item_id") @db.Uuid
+  observation   String?
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor         User?          @relation("InventoryMovementActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  saleItem      SaleItem?      @relation(fields: [saleItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecords LegacyRecord[] @relation("LegacyRecordInventoryMovement")
+
+  @@index([productId, warehouseId, occurredAt], map: "inventory_movements_product_warehouse_time_idx")
+  @@index([type, occurredAt], map: "inventory_movements_type_time_idx")
+  @@index([saleItemId], map: "inventory_movements_sale_item_idx")
+  @@index([actorUserId], map: "inventory_movements_actor_idx")
+  @@map("inventory_movements")
+}
+
+model Sale {
+  id                 String        @id @default(uuid()) @db.Uuid
+  saleNumber         String        @unique(map: "sales_sale_number_key") @map("sale_number") @db.VarChar(80)
+  businessDate       DateTime      @map("business_date") @db.Date
+  status             SaleStatus
+  paymentStatus      PaymentStatus @default(UNKNOWN) @map("payment_status")
+  departureAt        DateTime?     @map("departure_at") @db.Timestamptz(6)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
+  sellerUserId       String?       @map("seller_user_id") @db.Uuid
+  legacySellerText   String?       @map("legacy_seller_text") @db.VarChar(200)
+  delivererText      String?       @map("deliverer_text") @db.VarChar(200)
+  salesChannelText   String?       @map("sales_channel_text") @db.VarChar(160)
+  paymentMethodText  String?       @map("payment_method_text") @db.VarChar(160)
+  deliveryPlace      String?       @map("delivery_place")
+  shippingAmount     Decimal       @default(0) @map("shipping_amount") @db.Decimal(18, 2)
+  subtotal           Decimal       @db.Decimal(18, 2)
+  total              Decimal       @db.Decimal(18, 2)
+  currencyCode       String        @default("NIO") @map("currency_code") @db.VarChar(3)
+  observations       String?
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  seller                User?                  @relation("SaleSeller", fields: [sellerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  items                 SaleItem[]
+  cancellation          SaleCancellation?
+  inTransitConfirmation InTransitConfirmation?
+  legacyRecords         LegacyRecord[]         @relation("LegacyRecordSale")
+
+  @@index([businessDate], map: "sales_business_date_idx")
+  @@index([status, businessDate], map: "sales_status_business_date_idx")
+  @@index([sellerUserId, businessDate], map: "sales_seller_business_date_idx")
+  @@map("sales")
+}
+
+model SaleItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleId             String   @map("sale_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  warehouseId        String   @map("warehouse_id") @db.Uuid
+  quantity           Decimal  @db.Decimal(18, 4)
+  unitPriceSnapshot  Decimal? @map("unit_price_snapshot") @db.Decimal(18, 2)
+  unitCostSnapshot   Decimal? @map("unit_cost_snapshot") @db.Decimal(18, 2)
+  lineSubtotal       Decimal  @map("line_subtotal") @db.Decimal(18, 2)
+  shippingAllocation Decimal  @default(0) @map("shipping_allocation") @db.Decimal(18, 2)
+  legacyRecordId     String?  @map("legacy_record_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sale               Sale                @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse          Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecord       LegacyRecord?       @relation(fields: [legacyRecordId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  inventoryMovements InventoryMovement[]
+
+  @@index([saleId], map: "sale_items_sale_idx")
+  @@index([productId, warehouseId], map: "sale_items_product_warehouse_idx")
+  @@index([legacyRecordId], map: "sale_items_legacy_record_idx")
+  @@map("sale_items")
+}
+
+model SaleCancellation {
+  id                String   @id @default(uuid()) @db.Uuid
+  saleId            String   @unique(map: "sale_cancellations_sale_id_key") @map("sale_id") @db.Uuid
+  reason            String   @db.VarChar(500)
+  cancelledByUserId String   @map("cancelled_by_user_id") @db.Uuid
+  cancelledAt       DateTime @map("cancelled_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sale        Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cancelledBy User @relation("SaleCancellationActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([cancelledByUserId, cancelledAt], map: "sale_cancellations_actor_time_idx")
+  @@map("sale_cancellations")
+}
+
+model InTransitConfirmation {
+  id                String   @id @default(uuid()) @db.Uuid
+  saleId            String   @unique(map: "in_transit_confirmations_sale_id_key") @map("sale_id") @db.Uuid
+  confirmedByUserId String   @map("confirmed_by_user_id") @db.Uuid
+  confirmedAt       DateTime @map("confirmed_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sale        Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  confirmedBy User @relation("InTransitConfirmationActor", fields: [confirmedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([confirmedByUserId, confirmedAt], map: "in_transit_confirmations_actor_time_idx")
+  @@map("in_transit_confirmations")
+}
+
+model LegacySource {
+  id        String           @id @default(uuid()) @db.Uuid
+  code      String           @unique(map: "legacy_sources_code_key") @db.VarChar(64)
+  name      String           @db.VarChar(200)
+  type      LegacySourceType
+  metadata  Json?            @db.JsonB
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  importBatches ImportBatch[]
+  legacyRecords LegacyRecord[]
+
+  @@map("legacy_sources")
+}
+
+model ImportBatch {
+  id               String       @id @default(uuid()) @db.Uuid
+  legacySourceId   String       @map("legacy_source_id") @db.Uuid
+  mode             ImportMode
+  status           ImportStatus @default(PENDING)
+  sourceChecksum   String       @map("source_checksum") @db.VarChar(128)
+  mappingVersion   String?      @map("mapping_version") @db.VarChar(120)
+  startedAt        DateTime     @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?    @map("completed_at") @db.Timestamptz(6)
+  summary          Json?        @db.JsonB
+  failureCode      String?      @map("failure_code") @db.VarChar(120)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  legacySource         LegacySource          @relation(fields: [legacySourceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecords        LegacyRecord[]
+  reconciliationIssues ReconciliationIssue[]
+
+  @@index([legacySourceId, status, startedAt], map: "import_batches_source_status_started_idx")
+  @@index([sourceChecksum], map: "import_batches_checksum_idx")
+  @@map("import_batches")
+}
+
+model LegacyRecord {
+  id                       String             @id @default(uuid()) @db.Uuid
+  legacySourceId           String             @map("legacy_source_id") @db.Uuid
+  importBatchId            String             @map("import_batch_id") @db.Uuid
+  sourceEntity             String             @map("source_entity") @db.VarChar(120)
+  legacyId                 String?            @map("legacy_id") @db.VarChar(160)
+  legacyRowNumber          Int                @map("legacy_row_number")
+  rawData                  Json               @map("raw_data") @db.JsonB
+  rawHash                  String             @map("raw_hash") @db.VarChar(128)
+  status                   LegacyRecordStatus @default(STAGED)
+  targetWarehouseId        String?            @map("target_warehouse_id") @db.Uuid
+  targetUnitId             String?            @map("target_unit_id") @db.Uuid
+  targetProductId          String?            @map("target_product_id") @db.Uuid
+  targetInventoryBalanceId String?            @map("target_inventory_balance_id") @db.Uuid
+  targetInventoryMovementId String?           @map("target_inventory_movement_id") @db.Uuid
+  targetSaleId             String?            @map("target_sale_id") @db.Uuid
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  legacySource            LegacySource              @relation(fields: [legacySourceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  importBatch             ImportBatch               @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetWarehouse         Warehouse?                @relation("LegacyRecordWarehouse", fields: [targetWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetUnit              Unit?                     @relation("LegacyRecordUnit", fields: [targetUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetProduct           Product?                  @relation("LegacyRecordProduct", fields: [targetProductId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetInventoryBalance  InventoryBalance?         @relation("LegacyRecordInventoryBalance", fields: [targetInventoryBalanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetInventoryMovement InventoryMovement?        @relation("LegacyRecordInventoryMovement", fields: [targetInventoryMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetSale              Sale?                     @relation("LegacyRecordSale", fields: [targetSaleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  valuations              ProductWarehouseValuation[]
+  saleItems               SaleItem[]
+  reconciliationIssues    ReconciliationIssue[]
+
+  @@index([importBatchId, sourceEntity, legacyRowNumber], map: "legacy_records_batch_entity_row_idx")
+  @@index([legacySourceId, legacyId], map: "legacy_records_source_legacy_id_idx")
+  @@map("legacy_records")
+}
+
+model ReconciliationIssue {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  importBatchId         String                 @map("import_batch_id") @db.Uuid
+  legacyRecordId        String?                @map("legacy_record_id") @db.Uuid
+  code                  String                 @db.VarChar(120)
+  severity              ReconciliationSeverity
+  status                ReconciliationStatus   @default(OPEN)
+  requiresHumanApproval Boolean                @default(false) @map("requires_human_approval")
+  message               String
+  details               Json?                  @db.JsonB
+  entityType            String?                @map("entity_type") @db.VarChar(120)
+  entityId              String?                @map("entity_id") @db.Uuid
+  resolvedAt            DateTime?              @map("resolved_at") @db.Timestamptz(6)
+  resolvedByUserId      String?                @map("resolved_by_user_id") @db.Uuid
+  resolutionNote        String?                @map("resolution_note")
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  importBatch  ImportBatch  @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecord LegacyRecord? @relation(fields: [legacyRecordId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  resolvedBy   User?         @relation("ReconciliationIssueResolver", fields: [resolvedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([importBatchId, status, severity], map: "reconciliation_issues_batch_status_severity_idx")
+  @@index([legacyRecordId], map: "reconciliation_issues_legacy_record_idx")
+  @@map("reconciliation_issues")
+}

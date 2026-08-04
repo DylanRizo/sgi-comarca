@@ -14,7 +14,19 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['apps/**/*.integration.spec.ts'],
+    globalSetup: fileURLToPath(
+      new URL(
+        './packages/database/test/integration-global-setup.ts',
+        import.meta.url,
+      ),
+    ),
+    include: [
+      'apps/**/*.integration.spec.ts',
+      'packages/**/*.integration.spec.ts',
+    ],
+    setupFiles: fileURLToPath(
+      new URL('./packages/database/test/integration-setup.ts', import.meta.url),
+    ),
     testTimeout: 30_000,
     hookTimeout: 30_000,
     passWithNoTests: false,

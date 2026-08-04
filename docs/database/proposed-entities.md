@@ -1,5 +1,10 @@
 # Entidades PostgreSQL propuestas
 
+> Alcance aplicado: FASE 3A está definida de forma autoritativa en
+> `docs/database/phase-3a-structural-model.md` y crea únicamente sus 23
+> entidades. Las demás entidades de este documento son propuestas para fases
+> posteriores y no forman parte de la migración inicial.
+
 ## Convenciones
 
 - PK técnicas UUID; identificadores legibles (`sale_number`, `transfer_number`) separados.
@@ -13,7 +18,8 @@
 
 | Entidad | Campos esenciales | Constraints/índices |
 |---|---|---|
-| `users` | id, display_name, login identifier, password_hash, status, activated_at, timestamps | identidad normalizada única; hash nunca se expone |
+| `users` | id, display_name, login identifier, status, activated_at, timestamps | identidad normalizada única; no contiene password_hash |
+| `password_credentials` | id, user_id, password_hash, password_changed_at, timestamps | uno por usuario; estructura vacía en FASE 3A |
 | `roles` | id, code, name | `code` único; códigos iniciales aprobados |
 | `permissions` | id, code, description | `code` único |
 | `role_permissions` | role_id, permission_id | PK compuesta |
@@ -39,7 +45,8 @@
 | Entidad | Campos esenciales | Constraints/índices |
 |---|---|---|
 | `products` | id, code, name, description, unit_id, product_group_id, minimum_stock, current_price, current_cost, currency_code, active, legacy fields | `code` único después de resolución; índice búsqueda/nombre/grupo |
-| `inventory_balances` | id, product_id, warehouse_id, quantity, version, price_evidence, cost_evidence, legacy fields | único `(product_id, warehouse_id)`; check quantity >= 0 |
+| `inventory_balances` | id, product_id, warehouse_id, quantity, current_unit_price, current_unit_cost, price_review_required, cost_review_required, version, timestamps | único `(product_id, warehouse_id)`; check quantity >= 0 |
+| `product_warehouse_valuations` | id, product_id, warehouse_id, unit_price, unit_cost, currency_code, observed_at, effective_at, legacy_record_id, requires_human_review, review_reason, created_at | historial append-only; múltiples filas por producto–almacén; índices por fecha/evidencia/revisión |
 | `stock_movements` | id, product_id, warehouse_id, quantity_delta, type, source_type, source_id, occurred_at, actor_id, observation, legacy_resulting_stock, legacy fields | append-only; índices por producto/almacén/fecha/tipo/source |
 | `inventory_adjustments` | id, number, product_id, warehouse_id, previous_quantity, new_quantity, delta, reason, actor_id, occurred_at, idempotency_key | delta coherente; número único |
 | `stock_receipts` | id, receipt_number, occurred_at, warehouse_id, actor_id, notes, idempotency_key, legacy fields | número y clave únicos según alcance |

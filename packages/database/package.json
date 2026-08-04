@@ -15,7 +15,10 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate --config prisma.config.ts",
+    "db:validate": "prisma validate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
+    "db:bootstrap": "tsx src/bootstrap/cli.ts",
     "db:studio": "prisma studio --config prisma.config.ts"
   },
   "dependencies": {
@@ -27,6 +30,7 @@
     "@sgi/config": "workspace:*",
     "@types/pg": "8.20.3",
     "dotenv": "17.4.2",
-    "prisma": "7.9.1"
+    "prisma": "7.9.1",
+    "tsx": "4.23.4"
   }
 }

@@ -9,10 +9,11 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 0 | Auditoría funcional y de datos | Completada; evidencia inmutable | 9 hojas, funciones y anomalías cubiertas |
 | 1 | Arquitectura, brief, trazabilidad y ADR | Permisos parciales; decisiones abiertas con conducta segura | Cero funcionalidades sin destino; revisión contra FASE 0 |
 | 2 | Base reproducible del monorepo | Versiones estables compatibles; sin módulos de negocio | install/lint/typecheck/test/build y health/readiness |
-| 3 | Perfilador y esquema PostgreSQL | Precisión Decimal, constraints y modelo de variaciones | PostgreSQL real; toda fila representable |
+| 3A | Modelo estructural y migración inicial | 23 entidades exactas, Decimal, constraints, permisos y bootstrap técnico | PostgreSQL real; migración reproducible, 23 tablas de aplicación y grants exactos |
+| 3B | Perfilador reproducible | Lectura XLSX sin modificación y controles legacy | Nueve hojas perfiladas; reportes privados; sin importación |
 | 4 | Importador XLSX dry-run/reconciliación | Resoluciones individuales DEC-004–010; mapeos versionados | baseline reproducida, no pérdida, idempotencia |
 | 5 | Auth, usuarios y permisos | Asignación SALES y permisos de transferencias; tiempos de sesión/rate limit | rutas anónimas denegadas y matriz probada |
-| 6 | Catálogos e inventario | Mapeo Unidad/Unidades; permisos de transferencias | concurrencia, stock no negativo, flujos atómicos |
+| 6 | Catálogos e inventario | Mapeo Unidad/Unidades; permisos de transferencias; protección append-only de ProductWarehouseValuation resuelta antes de cualquier escritura operacional | concurrencia, stock no negativo, flujos atómicos; la fase no se aprueba con la protección de valoraciones pendiente |
 | 7 | Ventas | Estados/pagos históricos; asignación SALES; precio/costo operativo | venta, confirmación y cancelación E2E/idempotentes |
 | 8 | Finanzas y cierres | Fórmula, tolerancia, pendientes y política de reapertura detallada | no doble conteo; cierres/roles/zona probados |
 | 9 | Auditoría, reportes y analytics | Dashboard/KPIs canónicos y permisos de aprobación de auditoría | KPIs contra SQL y exportaciones verificadas |
@@ -49,6 +50,7 @@ flowchart LR
 | Usuarios iniciales | Parcial; identidades cerradas, cuentas explícitas | FASE 5 |
 | Finanzas/ajustes/cancelación/cierres | Cerradas en alcance indicado | FASE 5–8 |
 | Transferencias y SALES | Abierta | antes de pruebas de permisos FASE 5/6 |
+| Protección append-only de ProductWarehouseValuation | Abierta; sin trigger ni escritores operacionales en FASE 3A | entrada a FASE 6, antes de cualquier escritura de precios, costos o valoraciones |
 | Duplicados/anomalías individuales | Abiertas por registro | antes de importación commit/rehearsal |
 | Unidad/personas/canales/estados históricos | Abiertas | antes del commit de las entidades afectadas |
 | Fórmula/tolerancia/cierre con tránsito | Abiertas | antes de FASE 8 completa |

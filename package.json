@@ -18,7 +18,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @sgi/database db:generate",
+    "db:validate": "pnpm --filter @sgi/database db:validate",
     "db:migrate": "pnpm --filter @sgi/database db:migrate",
+    "db:migrate:deploy": "pnpm --filter @sgi/database db:migrate:deploy",
+    "db:bootstrap": "pnpm --filter @sgi/database db:bootstrap",
     "db:studio": "pnpm --filter @sgi/database db:studio"
   },
   "devDependencies": {

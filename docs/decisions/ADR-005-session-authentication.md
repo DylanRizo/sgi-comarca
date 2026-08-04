@@ -39,11 +39,13 @@ Costos:
 
 ## Asignación inicial aprobada
 
-- Dylan: FINANCE e INVENTORY_MANAGER; permisos explícitos `sales.cancel` y `roles.manage_financial_access`.
+- Dylan: FINANCE e INVENTORY_MANAGER; permiso directo `sales.cancel`.
 - Samantha: FINANCE e INVENTORY_MANAGER.
 - Jean y Luden: INVENTORY_MANAGER, sin Finanzas inicialmente.
 - SALES se asignará explícitamente a vendedores autorizados; no se deriva del legacy.
-- La asignación inicial de ADMIN y los permisos de transferencias permanecen pendientes; staging los deniega salvo una capacidad aprobada explícitamente.
+- ADMIN, PARTNER y READ_ONLY quedan sin usuarios ni permisos en FASE 3A.
+- `transfers.create` existe como capacidad técnica sin grants.
+- No se crea `roles.manage_financial_access`.
 
 ## Alternativas rechazadas
 

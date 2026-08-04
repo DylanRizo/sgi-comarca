@@ -8,7 +8,7 @@ SGI La Comarca será el sistema operacional para productos, inventario, ventas, 
 
 | Actor | Interacción |
 |---|---|
-| Dylan | Inventario, Finanzas, cierres, administración del acceso financiero y cancelación de ventas; ventas solo si se le asigna SALES |
+| Dylan | Inventario, Finanzas, cierres y cancelación de ventas; ventas solo si se le asigna SALES |
 | Samantha | Inventario, ventas autorizadas, Finanzas y cierres |
 | Jean | Inventario y demás permisos asignados; sin Finanzas inicialmente |
 | Luden | Inventario y demás permisos asignados; sin Finanzas inicialmente |

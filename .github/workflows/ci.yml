@@ -57,6 +57,14 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Deploy database migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Bootstrap technical reference data
+        run: |
+          pnpm db:bootstrap
+          pnpm db:bootstrap
+
       - name: Lint
         run: pnpm lint
 

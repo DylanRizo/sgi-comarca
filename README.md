@@ -1,9 +1,10 @@
 # SGI La Comarca
 
-Base técnica del nuevo Sistema de Gestión Integral de La Comarca. Esta fase
-contiene únicamente el monorepo, la aplicación web técnica, la API de salud,
-la conexión a PostgreSQL y las herramientas de calidad. No implementa todavía
-autenticación ni módulos de productos, inventario, ventas, finanzas o migración.
+Base técnica del nuevo Sistema de Gestión Integral de La Comarca. FASE 3A añade
+el modelo estructural inicial de 23 entidades, su migración reproducible y un
+bootstrap técnico de identidades, permisos y almacenes. No implementa
+autenticación operativa, importación legacy ni servicios de inventario, ventas,
+transferencias, finanzas o cierres.
 
 ## Requisitos para Windows
 
@@ -97,16 +98,40 @@ Genere el cliente después de instalar dependencias o modificar el esquema:
 pnpm db:generate
 ```
 
-FASE 2 no define entidades ni tablas persistentes. Los comandos disponibles
-para fases posteriores son:
+FASE 3A define exactamente 23 tablas de aplicación. Prisma añade su tabla
+técnica `_prisma_migrations`, que no cuenta como entidad de aplicación.
+
+Valide, genere y aplique las migraciones de forma explícita:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate:deploy
+```
+
+El bootstrap no se ejecuta durante build ni automáticamente con las
+migraciones. Ejecútelo manualmente y puede repetirlo para comprobar
+idempotencia:
+
+```powershell
+pnpm db:bootstrap
+pnpm db:bootstrap
+```
+
+Para desarrollo de una migración nueva permanece disponible:
 
 ```powershell
 pnpm db:migrate
 pnpm db:studio
 ```
 
-No ejecute una migración sin revisar primero el esquema y disponer de una base
-local activa.
+No ejecute una migración sin revisar primero el esquema, el SQL manual y
+disponer de una base local activa.
+
+El bootstrap de FASE 3A crea únicamente Dylan, Samantha, Jean y Luden en estado
+pendiente de activación, los roles/permisos aprobados y Casa Dylan, Casa Luden
+y Casa Jean. No crea contraseñas ni sesiones y no registra datos privados en
+logs.
 
 ## Desarrollo
 

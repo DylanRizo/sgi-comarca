@@ -43,14 +43,16 @@ Construir una aplicación segura, consistente, mantenible y trazable que:
 
 | Persona o grupo | Participación aprobada |
 |---|---|
-| Dylan | Usuario inicial; acceso financiero; puede crear/reabrir cierres, administrar el acceso financiero y es la única persona autorizada inicialmente para cancelar ventas |
+| Dylan | Usuario inicial; acceso financiero; puede crear/reabrir cierres y es la única persona autorizada inicialmente para cancelar ventas |
 | Samantha | Usuario inicial; acceso financiero; puede crear/reabrir cierres |
 | Jean | Usuario inicial; puede realizar ajustes; sin acceso financiero inicial |
 | Luden | Usuario inicial; puede realizar ajustes; sin acceso financiero inicial |
 | Propietario y socios | Aprueban resoluciones de datos, permisos, staging, corte y estabilización |
 | Equipo de migración | Implementa, prueba, documenta y reconcilia sin decidir reglas no aprobadas |
 
-Los nombres personales no sustituyen roles. La configuración inicial asignará roles técnicos y permisos explícitos.
+Los nombres personales no sustituyen roles. La configuración inicial asignará
+roles técnicos y permisos explícitos. FASE 3A no crea una capacidad para
+administrar acceso financiero.
 
 ## 6. Alcance obligatorio de V1
 
@@ -117,7 +119,11 @@ La hoja Inventario es la fuente inicial aprobada para cantidad, precio y costo o
 
 El perfil de FASE 0 confirma que un mismo producto puede tener costos distintos entre almacenes en 19 códigos y precios distintos en 9 códigos. Por ello el modelo conservará evidencia por fila y snapshots históricos; la definición posterior de precio/costo global no eliminará la variación original.
 
-Todos los usuarios iniciales pueden realizar ajustes. Cada ajuste requiere motivo, responsable, timestamp, cantidad anterior, cantidad nueva, movimiento inmutable y audit log. Los permisos detallados de transferencias permanecen abiertos.
+Todos los usuarios iniciales pueden realizar ajustes. Cada ajuste requiere
+motivo, responsable, timestamp, cantidad anterior, cantidad nueva, movimiento
+inmutable y audit log. La capacidad técnica transfers.create existe, pero
+permanece sin grants para usuarios o roles. Una asignación futura requiere
+aprobación explícita.
 
 ## 11. Ventas
 
