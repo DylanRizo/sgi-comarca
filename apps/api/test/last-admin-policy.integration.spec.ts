@@ -37,7 +37,7 @@ describe.sequential('last ADMIN policy', () => {
         ready.resolve();
         await release.promise;
       },
-      { timeout: 120_000 },
+      { maxWait: 120_000, timeout: 120_000 },
     );
     await Promise.race([ready.promise, suiteLockTask]);
     await client.session.deleteMany();

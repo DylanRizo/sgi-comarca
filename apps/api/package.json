@@ -20,6 +20,7 @@
     "@nestjs/swagger": "11.4.6",
     "@sgi/contracts": "workspace:*",
     "@sgi/database": "workspace:*",
+    "argon2": "0.45.1",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "nestjs-pino": "4.6.1",
