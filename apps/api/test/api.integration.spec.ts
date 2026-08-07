@@ -19,6 +19,7 @@ describe('technical endpoints', () => {
   it('reports process health', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/health')
+      .set('Host', 'localhost:3001')
       .expect(200);
 
     expect(response.body).toMatchObject({
@@ -29,6 +30,7 @@ describe('technical endpoints', () => {
   it('reports PostgreSQL readiness', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/ready')
+      .set('Host', 'localhost:3001')
       .expect(200);
 
     expect(response.body).toMatchObject({

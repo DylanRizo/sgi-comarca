@@ -3,6 +3,7 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { ApiSuccess, HealthData, ReadinessData } from '@sgi/contracts';
 import { randomUUID } from 'node:crypto';
 
+import { PublicRoute } from '../auth/decorators/public-route.decorator.js';
 import { HealthService } from './health.service.js';
 
 function requestId(incomingRequestId: string | undefined): string {
@@ -18,6 +19,7 @@ export class HealthController {
   ) {}
 
   @Get('health')
+  @PublicRoute()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Confirma que el proceso de la API responde.' })
   @ApiOkResponse({ description: 'Proceso activo.' })
@@ -31,6 +33,7 @@ export class HealthController {
   }
 
   @Get('ready')
+  @PublicRoute()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Comprueba disponibilidad de PostgreSQL.' })
   @ApiOkResponse({ description: 'API y PostgreSQL disponibles.' })

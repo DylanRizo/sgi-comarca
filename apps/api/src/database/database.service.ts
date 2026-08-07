@@ -23,6 +23,10 @@ export class DatabaseService implements OnModuleDestroy {
     await checkDatabaseConnection(this.client);
   }
 
+  instantiateProvider<T>(factory: (client: DatabaseClient) => T): T {
+    return factory(this.client);
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.client.$disconnect();
   }

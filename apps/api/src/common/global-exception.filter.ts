@@ -24,29 +24,41 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
     const requestId = this.readRequestId(request);
     const internalError = status >= HttpStatus.INTERNAL_SERVER_ERROR;
+    const authenticationFailure =
+      status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
 
     if (internalError) {
       this.logger.error({
-        error:
-          exception instanceof Error ? exception.message : 'Unknown exception',
+        errorType:
+          exception instanceof Error ? exception.constructor.name : 'Unknown',
         method: request.method,
-        path: request.originalUrl,
+        path: request.path,
         requestId,
       });
     }
 
     const body: ApiErrorBody = {
       error: {
-        code: internalError ? 'INTERNAL_ERROR' : 'REQUEST_FAILED',
+        code: internalError
+          ? 'INTERNAL_ERROR'
+          : authenticationFailure
+            ? 'ACCESS_DENIED'
+            : 'REQUEST_FAILED',
         details: [],
         message: internalError
-          ? 'Ocurrió un error interno.'
-          : 'La solicitud no pudo procesarse.',
+          ? 'Ocurrio un error interno.'
+          : authenticationFailure
+            ? 'No fue posible autorizar la solicitud.'
+            : 'La solicitud no pudo procesarse.',
         requestId,
       },
     };
 
-    response.status(status).setHeader('x-request-id', requestId).json(body);
+    response
+      .status(status)
+      .setHeader('Cache-Control', 'no-store')
+      .setHeader('x-request-id', requestId)
+      .json(body);
   }
 
   private readRequestId(request: Request): string {

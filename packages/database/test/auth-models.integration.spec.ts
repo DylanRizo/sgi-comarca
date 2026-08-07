@@ -270,4 +270,58 @@ describe('FASE 3B authentication persistence constraints', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
   });
+
+  it('defaults direct permission decisions to GRANT and keeps one active decision', async () => {
+    await inRollback(async (client) => {
+      const userId = await insertUser(client);
+      const permissionId = randomUUID();
+      await client.query(
+        [
+          'INSERT INTO permissions (id, code, description, updated_at)',
+          'VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
+        ].join(' '),
+        [permissionId, `test.effect.${permissionId}`, 'Effect test'],
+      );
+      const inserted = await client.query<{ effect: string }>(
+        [
+          'INSERT INTO user_permissions (id, user_id, permission_id)',
+          'VALUES ($1, $2, $3) RETURNING effect::text',
+        ].join(' '),
+        [randomUUID(), userId, permissionId],
+      );
+      expect(inserted.rows[0]?.effect).toBe('GRANT');
+
+      await expect(
+        client.query(
+          [
+            'INSERT INTO user_permissions',
+            '(id, user_id, permission_id, effect)',
+            "VALUES ($1, $2, $3, 'DENY'::permission_effect)",
+          ].join(' '),
+          [randomUUID(), userId, permissionId],
+        ),
+      ).rejects.toMatchObject({ constraint: 'user_permissions_active_key' });
+    });
+  });
+
+  it('adds PermissionEffect only to direct user permissions', async () => {
+    const columns = await pool.query<{
+      column_default: string | null;
+      table_name: string;
+    }>(
+      [
+        'SELECT table_name, column_default',
+        'FROM information_schema.columns',
+        "WHERE table_schema = 'public'",
+        "AND table_name IN ('user_permissions', 'role_permissions')",
+        "AND column_name = 'effect'",
+      ].join(' '),
+    );
+    expect(columns.rows).toEqual([
+      {
+        column_default: "'GRANT'::permission_effect",
+        table_name: 'user_permissions',
+      },
+    ]);
+  });
 });

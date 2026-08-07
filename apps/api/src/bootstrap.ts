@@ -1,22 +1,27 @@
-import {
-  ValidationPipe,
-  VersioningType,
-  type INestApplication,
-} from '@nestjs/common';
+import { ValidationPipe, VersioningType, type Type } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module.js';
 import { GlobalExceptionFilter } from './common/global-exception.filter.js';
 import { appConfig } from './config/app.config.js';
 
-export async function createApplication(): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+export async function createApplication(
+  rootModule: Type<unknown> = AppModule,
+): Promise<NestExpressApplication> {
+  const app = await NestFactory.create<NestExpressApplication>(rootModule, {
+    bufferLogs: true,
+  });
   const configuration = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
   app.useLogger(app.get(Logger));
+  app.set('trust proxy', configuration.trustProxyHops || false);
+  app.use(helmet());
+  app.use(cookieParser());
   app.setGlobalPrefix('api');
   app.enableVersioning({
     defaultVersion: '1',
@@ -31,22 +36,25 @@ export async function createApplication(): Promise<INestApplication> {
   );
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.enableCors({
+    allowedHeaders: [
+      'Content-Type',
+      'X-CSRF-Token',
+      'X-Request-ID',
+      'Idempotency-Key',
+    ],
     credentials: true,
-    origin: configuration.webOrigin,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    origin: (origin, callback) => {
+      if (!origin || configuration.webOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      // The OriginGuard produces the uniform 403; CORS only withholds headers.
+      callback(null, false);
+    },
   });
   app.enableShutdownHooks();
 
-  if (configuration.swaggerEnabled) {
-    const document = SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder()
-        .setTitle('SGI La Comarca API')
-        .setDescription('Contratos técnicos de la base del monorepo.')
-        .setVersion('1.0')
-        .build(),
-    );
-    SwaggerModule.setup('api/docs', app, document);
-  }
-
+  // OpenAPI is intentionally not mounted until it has an authenticated gate.
   return app;
 }
