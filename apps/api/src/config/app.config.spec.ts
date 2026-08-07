@@ -33,6 +33,10 @@ describe('API security configuration', () => {
     process.env.AUTH_CSRF_HMAC_SECRET_BASE64 = Buffer.alloc(32, 0x41).toString(
       'base64',
     );
+    process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64 = Buffer.alloc(
+      32,
+      0x42,
+    ).toString('base64');
     delete process.env.SESSION_COOKIE_NAME;
 
     const result = appConfig();
@@ -45,5 +49,28 @@ describe('API security configuration', () => {
     process.env.TRUST_PROXY_HOPS = '1';
     process.env.SESSION_COOKIE_NAME = 'sgi_session';
     expect(() => appConfig()).toThrow(/__Host-sgi_session/u);
+  });
+
+  it('requires independent canonical Origin and CSRF HMAC secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://unused';
+    process.env.API_PUBLIC_URL = 'https://api.example.test';
+    process.env.TRUST_PROXY_HOPS = '1';
+    process.env.AUTH_CSRF_HMAC_SECRET_BASE64 = Buffer.alloc(32, 0x41).toString(
+      'base64',
+    );
+    delete process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64;
+
+    expect(() => appConfig()).toThrow(/AUTH_ORIGIN_HMAC_SECRET_BASE64/u);
+    process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64 = 'not-canonical-base64';
+    expect(() => appConfig()).toThrow(/canonical Base64/u);
+    process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64 = Buffer.alloc(
+      32,
+      0x42,
+    ).toString('base64');
+
+    const result = appConfig();
+    expect(result.originHmacSecret).toEqual(Buffer.alloc(32, 0x42));
+    expect(result.originHmacSecret).not.toEqual(result.csrfHmacSecret);
   });
 });

@@ -10,14 +10,16 @@ import type {
 } from '../domain/authentication.ports.js';
 import { SystemClock, SystemSleeper } from '../domain/authentication.ports.js';
 import { IdentifierNormalizer } from '../domain/identifier-normalizer.js';
-import type { SecretToken } from '../infrastructure/auth-token.service.js';
 import type { OriginHasher } from '../infrastructure/origin-hasher.js';
 import { AuthAuditService } from './auth-audit.service.js';
+import type { AuthenticationResult } from './authentication-result.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { SessionService } from './session.service.js';
 
 type LoginCandidate = {
+  displayName: string;
   id: string;
+  loginIdentifier: string;
   passwordCredential: { passwordHash: string; revokedAt: Date | null } | null;
   status: 'ACTIVE' | 'DISABLED' | 'PENDING_ACTIVATION';
 };
@@ -64,7 +66,7 @@ export class LoginService {
     identifier: string,
     password: string,
     canonicalOrigin: string,
-  ): Promise<SecretToken> {
+  ): Promise<AuthenticationResult> {
     const normalizedIdentifier = this.normalizedThrottleKey(identifier);
     const originHash = this.dependencies.originHasher.hash(canonicalOrigin);
     const blockedUntil = await this.throttle.blockedUntil(
@@ -79,7 +81,9 @@ export class LoginService {
     const candidate = await this.client.user.findUnique({
       where: { loginIdentifier: normalizedIdentifier },
       select: {
+        displayName: true,
         id: true,
+        loginIdentifier: true,
         passwordCredential: {
           select: { passwordHash: true, revokedAt: true },
         },
@@ -112,6 +116,9 @@ export class LoginService {
         const current = await transaction.user.findUnique({
           where: { id: usableCandidate.id },
           select: {
+            displayName: true,
+            id: true,
+            loginIdentifier: true,
             passwordCredential: {
               select: { passwordHash: true, revokedAt: true },
             },
@@ -125,7 +132,7 @@ export class LoginService {
           current.passwordCredential.passwordHash !==
             usableCandidate.passwordCredential.passwordHash
         ) {
-          return false;
+          return null;
         }
 
         await this.throttle.resetInTransaction(
@@ -134,7 +141,7 @@ export class LoginService {
           originHash,
           now,
         );
-        await this.sessions.createInTransaction(
+        const session = await this.sessions.createInTransaction(
           transaction,
           usableCandidate.id,
           generatedSession,
@@ -146,14 +153,24 @@ export class LoginService {
           entityId: usableCandidate.id,
           occurredAt: now,
         });
-        return true;
+        return {
+          session,
+          user: {
+            displayName: current.displayName,
+            id: current.id,
+            identifier: current.loginIdentifier,
+            status: 'ACTIVE' as const,
+          },
+        };
       },
       { isolationLevel: 'Serializable' },
     );
-    if (!authenticated) {
-      await this.failLogin(normalizedIdentifier, originHash);
-    }
-    return generatedSession.secret;
+    if (!authenticated) return this.failLogin(normalizedIdentifier, originHash);
+    return {
+      secret: generatedSession.secret,
+      session: authenticated.session,
+      user: authenticated.user,
+    };
   }
 
   private usableCandidate(candidate: LoginCandidate | null):
@@ -174,7 +191,9 @@ export class LoginService {
 
   private normalizedThrottleKey(identifier: string): string {
     const normalized = this.identifiers.normalize(identifier);
-    return [...normalized].slice(0, 64).join('');
+    const length = [...normalized].length;
+    if (length === 0 || length > 64) throw new AuthenticationError();
+    return normalized;
   }
 
   private async failLogin(

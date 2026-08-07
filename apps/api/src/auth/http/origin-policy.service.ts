@@ -1,8 +1,9 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import type { Request } from 'express';
 
 import { appConfig } from '../../config/app.config.js';
+import { AuthHttpException } from './auth-http.exception.js';
 
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -20,21 +21,32 @@ export class OriginPolicyService {
   assertRequestAllowed(request: Request): void {
     const host = request.header('host')?.toLowerCase();
     if (host !== this.configuration.expectedHost) {
-      throw new ForbiddenException('Request origin is not allowed.');
+      throw AuthHttpException.requestVerificationFailed();
     }
 
     const origin = request.header('origin');
     if (!origin) {
       if (safeMethods.has(request.method.toUpperCase())) return;
-      throw new ForbiddenException('Request origin is not allowed.');
+      throw AuthHttpException.requestVerificationFailed();
     }
 
     if (
       origin === 'null' ||
       !this.allowedOrigins.has(this.canonicalOrigin(origin))
     ) {
-      throw new ForbiddenException('Request origin is not allowed.');
+      throw AuthHttpException.requestVerificationFailed();
     }
+  }
+
+  canonicalRequestOrigin(request: Request): string {
+    this.assertRequestAllowed(request);
+    const origin = request.header('origin');
+    if (!origin) throw AuthHttpException.requestVerificationFailed();
+    const canonical = this.canonicalOrigin(origin);
+    if (!canonical || !this.allowedOrigins.has(canonical)) {
+      throw AuthHttpException.requestVerificationFailed();
+    }
+    return canonical;
   }
 
   isCorsOriginAllowed(origin: string | undefined): boolean {

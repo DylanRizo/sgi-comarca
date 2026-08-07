@@ -10,6 +10,8 @@ import type { ApiErrorBody } from '@sgi/contracts';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
+import { AuthHttpException } from '../auth/http/auth-http.exception.js';
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -26,6 +28,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const internalError = status >= HttpStatus.INTERNAL_SERVER_ERROR;
     const authenticationFailure =
       status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
+    const publicAuthenticationError =
+      exception instanceof AuthHttpException ? exception : null;
+    const invalidRequest = status === HttpStatus.BAD_REQUEST;
 
     if (internalError) {
       this.logger.error({
@@ -39,17 +44,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const body: ApiErrorBody = {
       error: {
-        code: internalError
-          ? 'INTERNAL_ERROR'
-          : authenticationFailure
-            ? 'ACCESS_DENIED'
-            : 'REQUEST_FAILED',
+        code: publicAuthenticationError
+          ? publicAuthenticationError.publicCode
+          : internalError
+            ? 'INTERNAL_ERROR'
+            : invalidRequest
+              ? 'INVALID_REQUEST'
+              : authenticationFailure
+                ? 'ACCESS_DENIED'
+                : 'REQUEST_FAILED',
         details: [],
-        message: internalError
-          ? 'Ocurrio un error interno.'
-          : authenticationFailure
-            ? 'No fue posible autorizar la solicitud.'
-            : 'La solicitud no pudo procesarse.',
+        message: publicAuthenticationError
+          ? publicAuthenticationError.publicMessage
+          : internalError
+            ? 'Ocurrio un error interno.'
+            : invalidRequest
+              ? 'La solicitud no es valida.'
+              : authenticationFailure
+                ? 'No fue posible autorizar la solicitud.'
+                : 'La solicitud no pudo procesarse.',
         requestId,
       },
     };

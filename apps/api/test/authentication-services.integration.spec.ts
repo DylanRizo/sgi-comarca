@@ -185,11 +185,14 @@ async function activateDylan(
     user.id,
     byte,
   );
-  const sessionSecret = await context.activation.activate(
+  const authentication = await context.activation.activate(
     invitationToken,
     approvedPassword,
   );
-  return { sessionToken: sessionSecret.revealOnce(), userId: user.id };
+  return {
+    sessionToken: authentication.secret.revealOnce(),
+    userId: user.id,
+  };
 }
 
 describe.sequential('authentication services', () => {
@@ -250,7 +253,7 @@ describe.sequential('authentication services', () => {
     );
     const sessionToken = (
       await context.activation.activate(invitationToken, approvedPassword)
-    ).revealOnce();
+    ).secret.revealOnce();
 
     const [user, credential, invitation, session, audit] = await Promise.all([
       client.user.findUniqueOrThrow({ where: { id: dylan.id } }),
@@ -419,6 +422,56 @@ describe.sequential('authentication services', () => {
     });
   });
 
+  it('commits a failed login before waiting so caller cancellation cannot erase it', async () => {
+    const context = createServiceContext(client);
+    await activateDylan(client, context, 0x4f);
+    const sleepStarted = createDeferred();
+    const releaseSleep = createDeferred();
+    const blockingSleeper: Sleeper = {
+      sleep: async () => {
+        sleepStarted.resolve();
+        await releaseSleep.promise;
+      },
+    };
+    const login = new LoginService(client, {
+      audit: context.audit,
+      clock: context.clock,
+      originHasher: context.originHasher,
+      passwordHasher: context.passwordHasher,
+      sessions: context.sessions,
+      sleeper: blockingSleeper,
+      throttle: context.throttle,
+    });
+
+    const attempt = login.login(
+      'dylan',
+      'controlled incorrect phrase',
+      'https://controlled-origin.test',
+    );
+    await sleepStarted.promise;
+    const originHash = context.originHasher.hash(
+      'https://controlled-origin.test',
+    );
+    expect(
+      await client.loginThrottle.findUnique({
+        where: {
+          normalizedIdentifier_originHash: {
+            normalizedIdentifier: 'dylan',
+            originHash,
+          },
+        },
+      }),
+    ).toMatchObject({ failedAttemptCount: 1 });
+    expect(
+      await client.auditLog.count({
+        where: { action: 'AUTH_LOGIN_FAILED' },
+      }),
+    ).toBeGreaterThan(0);
+
+    releaseSleep.resolve();
+    await expect(attempt).rejects.toBeInstanceOf(AuthenticationError);
+  });
+
   it('uses one public authentication error and equivalent Argon2 verification across invalid categories', async () => {
     const context = createServiceContext(client);
     const dylan = await client.user.findUniqueOrThrow({
@@ -516,7 +569,7 @@ describe.sequential('authentication services', () => {
 
     const sessionToken = (
       await context.login.login(' DYLAN ', approvedPassword, '203.0.113.15')
-    ).revealOnce();
+    ).secret.revealOnce();
     const originHash = context.originHasher.hash('203.0.113.15');
     const throttle = await client.loginThrottle.findUniqueOrThrow({
       where: {
@@ -591,12 +644,18 @@ describe.sequential('authentication services', () => {
   it('makes logout idempotent and supports individual and global revocation', async () => {
     const context = createServiceContext(client);
     const { sessionToken, userId } = await activateDylan(client, context, 0x79);
-    await context.sessions.logout(sessionToken);
+    const previousLogoutAudits = await client.auditLog.count({
+      where: { action: 'AUTH_LOGOUT', actorUserId: userId },
+    });
+    await Promise.all([
+      context.sessions.logout(sessionToken),
+      context.sessions.logout(sessionToken),
+    ]);
     await context.sessions.logout(sessionToken);
     const logoutAudits = await client.auditLog.count({
       where: { action: 'AUTH_LOGOUT', actorUserId: userId },
     });
-    expect(logoutAudits).toBeGreaterThanOrEqual(1);
+    expect(logoutAudits - previousLogoutAudits).toBe(1);
 
     const firstSecret = await context.sessions.create(userId);
     const secondSecret = await context.sessions.create(userId);
@@ -701,7 +760,7 @@ describe.sequential('authentication services', () => {
     );
     const sessionToken = (
       await context.activation.activate(invitationToken, approvedPassword)
-    ).revealOnce();
+    ).secret.revealOnce();
     await context.sessions.logout(sessionToken);
     let publicError = '';
     try {

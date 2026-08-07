@@ -41,12 +41,12 @@ export class SessionService {
     userId: string,
     generated: GeneratedToken,
     now: Date,
-  ): Promise<void> {
+  ): Promise<ActiveSession> {
     const absoluteExpiresAt = new Date(now.getTime() + ABSOLUTE_LIFETIME_MS);
     const idleExpiresAt = new Date(
       Math.min(now.getTime() + IDLE_LIFETIME_MS, absoluteExpiresAt.getTime()),
     );
-    await transaction.session.create({
+    const session = await transaction.session.create({
       data: {
         absoluteExpiresAt,
         createdAt: now,
@@ -55,7 +55,21 @@ export class SessionService {
         tokenHash: generated.tokenHash,
         userId,
       },
+      select: {
+        absoluteExpiresAt: true,
+        id: true,
+        idleExpiresAt: true,
+        lastSeenAt: true,
+        userId: true,
+      },
     });
+    return {
+      absoluteExpiresAt: session.absoluteExpiresAt,
+      idleExpiresAt: session.idleExpiresAt,
+      lastSeenAt: session.lastSeenAt,
+      sessionId: session.id,
+      userId: session.userId,
+    };
   }
 
   async create(userId: string): Promise<SecretToken> {

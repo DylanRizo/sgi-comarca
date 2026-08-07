@@ -4,11 +4,9 @@ import { ActivationError } from '../domain/authentication.errors.js';
 import type { Clock, PasswordHasher } from '../domain/authentication.ports.js';
 import { SystemClock } from '../domain/authentication.ports.js';
 import { PasswordPolicy } from '../domain/password-policy.js';
-import {
-  AuthTokenService,
-  type SecretToken,
-} from '../infrastructure/auth-token.service.js';
+import { AuthTokenService } from '../infrastructure/auth-token.service.js';
 import { AuthAuditService } from './auth-audit.service.js';
+import type { AuthenticationResult } from './authentication-result.js';
 import { SessionService } from './session.service.js';
 
 type ConsumedInvitation = { userId: string };
@@ -16,7 +14,25 @@ type ConsumedInvitation = { userId: string };
 function isExpectedActivationConflict(error: unknown): boolean {
   if (error instanceof ActivationError) return true;
   if (!error || typeof error !== 'object' || !('code' in error)) return false;
-  return error.code === 'P2002' || error.code === 'P2034';
+  if (error.code === 'P2002' || error.code === 'P2034') return true;
+  if (!('meta' in error)) return false;
+  const meta = error.meta;
+  if (!meta || typeof meta !== 'object' || !('driverAdapterError' in meta)) {
+    return false;
+  }
+  const driverError = meta.driverAdapterError;
+  if (
+    !driverError ||
+    typeof driverError !== 'object' ||
+    !('cause' in driverError)
+  ) {
+    return false;
+  }
+  const cause = driverError.cause;
+  if (!cause || typeof cause !== 'object' || !('originalCode' in cause)) {
+    return false;
+  }
+  return ['23505', '40001', '40P01'].includes(String(cause.originalCode));
 }
 
 export class ActivationService {
@@ -33,7 +49,7 @@ export class ActivationService {
   async activate(
     invitationToken: string,
     password: string,
-  ): Promise<SecretToken> {
+  ): Promise<AuthenticationResult> {
     const invitationHash = this.tokens.hashValidatedToken(invitationToken);
     if (!invitationHash) throw new ActivationError();
 
@@ -72,7 +88,7 @@ export class ActivationService {
     const now = this.clock.now();
 
     try {
-      await this.client.$transaction(
+      const committed = await this.client.$transaction(
         async (transaction) => {
           const consumed = await transaction.$queryRaw<ConsumedInvitation[]>`
             UPDATE user_invitations
@@ -120,6 +136,7 @@ export class ActivationService {
           } else {
             await transaction.passwordCredential.create({
               data: {
+                createdAt: now,
                 passwordChangedAt: now,
                 passwordHash,
                 userId: user.id,
@@ -127,11 +144,16 @@ export class ActivationService {
             });
           }
 
-          await transaction.user.update({
+          const activatedUser = await transaction.user.update({
             where: { id: user.id },
             data: { activatedAt: now, status: 'ACTIVE' },
+            select: {
+              displayName: true,
+              id: true,
+              loginIdentifier: true,
+            },
           });
-          await this.sessions.createInTransaction(
+          const session = await this.sessions.createInTransaction(
             transaction,
             user.id,
             generatedSession,
@@ -143,14 +165,26 @@ export class ActivationService {
             entityId: user.id,
             occurredAt: now,
           });
+          return {
+            session,
+            user: {
+              displayName: activatedUser.displayName,
+              id: activatedUser.id,
+              identifier: activatedUser.loginIdentifier,
+              status: 'ACTIVE' as const,
+            },
+          };
         },
         { isolationLevel: 'Serializable' },
       );
+      return {
+        secret: generatedSession.secret,
+        session: committed.session,
+        user: committed.user,
+      };
     } catch (error) {
       if (isExpectedActivationConflict(error)) throw new ActivationError();
       throw error;
     }
-
-    return generatedSession.secret;
   }
 }

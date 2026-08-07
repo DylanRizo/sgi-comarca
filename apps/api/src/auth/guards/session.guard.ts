@@ -1,7 +1,6 @@
 import {
   Inject,
   Injectable,
-  UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
@@ -15,6 +14,7 @@ import {
   attachAuthenticatedContext,
   type AuthenticatedRequest,
 } from '../http/auth-http-context.js';
+import { AuthHttpException } from '../http/auth-http.exception.js';
 import { SessionCookieService } from '../http/session-cookie.service.js';
 
 @Injectable()
@@ -42,7 +42,7 @@ export class SessionGuard implements CanActivate {
     const request = http.getRequest<AuthenticatedRequest>();
     const response = http.getResponse<Response>();
     const token = this.cookies.read(request);
-    if (!token) throw new UnauthorizedException('Authentication required.');
+    if (!token) throw AuthHttpException.sessionInvalid();
 
     try {
       const session = await this.sessions.validateAndRenew(token);
@@ -52,7 +52,7 @@ export class SessionGuard implements CanActivate {
     } catch (error) {
       if (!(error instanceof SessionError)) throw error;
       this.cookies.clear(response);
-      throw new UnauthorizedException('Authentication required.');
+      throw AuthHttpException.sessionInvalid();
     }
   }
 }

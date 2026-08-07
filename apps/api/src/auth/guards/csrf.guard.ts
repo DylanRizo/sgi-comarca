@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Inject,
   Injectable,
   type CanActivate,
@@ -9,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 
 import { PUBLIC_ROUTE_METADATA } from '../decorators/public-route.decorator.js';
 import type { AuthenticatedRequest } from '../http/auth-http-context.js';
+import { AuthHttpException } from '../http/auth-http.exception.js';
 import { CsrfTokenService } from '../http/csrf-token.service.js';
 import { SessionCookieService } from '../http/session-cookie.service.js';
 
@@ -40,7 +40,7 @@ export class CsrfGuard implements CanActivate {
     const sessionToken = this.cookies.read(request);
     const csrfToken = request.header('x-csrf-token');
     if (!sessionToken || !this.tokens.verify(sessionToken, csrfToken)) {
-      throw new ForbiddenException('Request verification failed.');
+      throw AuthHttpException.requestVerificationFailed();
     }
     return true;
   }

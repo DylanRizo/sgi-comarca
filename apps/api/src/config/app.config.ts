@@ -71,17 +71,17 @@ function parseWebOrigins(value: string | undefined): readonly string[] {
   ]);
 }
 
-function parseCsrfSecret(
+function parseHmacSecret(
   encoded: string | undefined,
   nodeEnvironment: string,
+  name: string,
+  developmentFallback: () => Buffer,
 ): Buffer {
   if (!encoded) {
     if (nodeEnvironment === 'production') {
-      throw new Error(
-        'AUTH_CSRF_HMAC_SECRET_BASE64 is required in production.',
-      );
+      throw new Error(`${name} is required in production.`);
     }
-    return randomBytes(32);
+    return developmentFallback();
   }
 
   if (
@@ -89,13 +89,11 @@ function parseCsrfSecret(
       encoded,
     )
   ) {
-    throw new Error('AUTH_CSRF_HMAC_SECRET_BASE64 must be canonical Base64.');
+    throw new Error(`${name} must be canonical Base64.`);
   }
   const secret = Buffer.from(encoded, 'base64');
   if (secret.length < 32 || secret.toString('base64') !== encoded) {
-    throw new Error(
-      'AUTH_CSRF_HMAC_SECRET_BASE64 must decode to at least 32 bytes.',
-    );
+    throw new Error(`${name} must decode to at least 32 bytes.`);
   }
   return secret;
 }
@@ -168,14 +166,22 @@ export const appConfig = registerAs('app', () => {
   return {
     apiPort: parsePort(process.env.API_PORT),
     apiOrigin,
-    csrfHmacSecret: parseCsrfSecret(
+    csrfHmacSecret: parseHmacSecret(
       process.env.AUTH_CSRF_HMAC_SECRET_BASE64,
       nodeEnvironment,
+      'AUTH_CSRF_HMAC_SECRET_BASE64',
+      () => randomBytes(32),
     ),
     databaseUrl: databaseUrl(nodeEnvironment),
     expectedHost: apiUrl.host.toLowerCase(),
     logLevel: process.env.LOG_LEVEL ?? 'info',
     nodeEnvironment,
+    originHmacSecret: parseHmacSecret(
+      process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64,
+      nodeEnvironment,
+      'AUTH_ORIGIN_HMAC_SECRET_BASE64',
+      () => Buffer.from('sgi-local-origin-hmac-development-only-v1', 'utf8'),
+    ),
     secureCookies: apiUrl.protocol === 'https:',
     sessionCookieName: sessionCookieName(nodeEnvironment),
     // Swagger remains intentionally disabled until it has an authenticated gate.
