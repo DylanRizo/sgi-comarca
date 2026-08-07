@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TB
     B["Navegador<br/>desktop/móvil"] -->|"HTTPS + cookie de sesión"| W["apps/web<br/>Next.js + TypeScript"]
-    W -->|"REST JSON /api/v1<br/>CSRF + Idempotency-Key"| A["apps/api<br/>NestJS modular + OpenAPI"]
+    W -->|"REST JSON /api/v1<br/>CSRF + Idempotency-Key"| A["apps/api<br/>NestJS modular + contratos"]
     A -->|"Prisma transactions"| P[("PostgreSQL")]
     A --> C["packages/contracts<br/>contratos compartidos"]
     W --> C
@@ -23,7 +23,7 @@ flowchart TB
 | Contenedor/paquete | Responsabilidad | No debe hacer |
 |---|---|---|
 | `apps/web` | Rutas, vistas, formularios, tablas, queries, estados UI y accesibilidad | Autorizar por sí solo, calcular stock definitivo o acceder a DB |
-| `apps/api` | Autenticación, autorización, servicios de aplicación, transacciones, OpenAPI y errores | Incrustar reglas en controladores o confiar en cálculos cliente |
+| `apps/api` | Autenticación, autorización, servicios de aplicación, transacciones, contratos y errores | Incrustar reglas en controladores o confiar en cálculos cliente |
 | `packages/database` | Prisma, migraciones, acceso transaccional y utilidades Decimal | Ejecutar importación en una migración de esquema |
 | `packages/contracts` | DTO/esquemas compartidos y tipos públicos | Exponer modelos internos, hashes o secretos |
 | `packages/ui` | Componentes visuales reutilizables y accesibles | Contener catálogos o reglas de negocio hard-coded |
@@ -43,3 +43,7 @@ flowchart TB
 ## Separación de ambientes
 
 Desarrollo usa Docker Compose. CI usa servicios efímeros. Staging y producción tendrán web, API y PostgreSQL independientes; no comparten base de datos, cookies, secretos ni dominio de sesión.
+
+Swagger/OpenAPI HTTP no está montado en FASE 3B. La arquitectura conserva
+OpenAPI como objetivo, pero solo podrá exponerse detrás de una puerta
+autenticada aprobada.

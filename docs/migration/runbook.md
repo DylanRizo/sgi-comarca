@@ -480,7 +480,12 @@ Después:
 
 ---
 
-# FASE 3 — Perfilador reproducible y esquema PostgreSQL
+# FASE 3 histórica — Perfilador y esquema combinados (`SUPERSEDED`)
+
+> Esta sección conserva el prompt original y no debe ejecutarse como una fase
+> vigente. El esquema se completó en FASE 3A, autenticación en FASE 3B y el
+> perfilador se trasladó a FASE 3C. Consulte el roadmap reconciliado y el
+> [informe de cierre de 3B](../reviews/phase-3b-completion-report.md).
 
 ```powershell
 git checkout -b migration/03-database-schema
@@ -574,6 +579,33 @@ Puerta:
 
 ---
 
+# FASE 3A — Modelo estructural (`COMPLETE`)
+
+El modelo, migración y bootstrap estructural están cerrados en el commit
+`a10b6f09d84a459b40e2aad3e79d5be5751d4e2e`. Su documentación histórica se
+conserva en `docs/reviews/phase-3a-final-plan.md`.
+
+# FASE 3B — Autenticación y sesiones (`COMPLETE`)
+
+La autenticación, autorización, administración limitada y frontend auth están
+cerrados. No vuelva a ejecutar la antigua FASE 5. Use como fuentes:
+
+- `docs/reviews/phase-3b-completion-report.md`;
+- `docs/decisions/ADR-007-phase-3b-authentication-authorization.md`;
+- `docs/deployment/phase-3b-auth-operations.md`.
+
+# FASE 3C — Perfilador reproducible (`NEXT`)
+
+Objetivo: leer el XLSX privado sin modificarlo y generar perfiles/reconciliación
+sanitizados. No importar datos, no ejecutar CLI administrativas y no modificar
+la base persistente durante el perfilado. Esta fase requiere planificación y
+aprobación separadas antes de iniciar.
+
+Puerta: nueve hojas perfiladas, controles conocidos verificados, reportes
+privados fuera de Git y cero escritura en el XLSX o base operacional.
+
+---
+
 # FASE 4 — Importador dry-run y reconciliación
 
 ```powershell
@@ -659,7 +691,12 @@ Puerta:
 
 ---
 
-# FASE 5 — Autenticación, usuarios y permisos
+# ANTIGUA FASE 5 — Autenticación, usuarios y permisos
+
+Estado: `ABSORBIDA_EN_FASE_3B`. La sección siguiente es historia del plan
+original y no debe programarse o ejecutarse nuevamente. La UI administrativa
+que proponía no forma parte de FASE 3B; solo existen la API administrativa
+limitada y el frontend de autenticación descritos en el informe de cierre.
 
 ```powershell
 git checkout -b migration/05-auth
@@ -879,7 +916,7 @@ IMPLEMENTA
 - estado
 - encargado
 - observaciones
-- reapertura solo por ADMIN con auditoría
+- reapertura exige `closings.reopen`, motivo y auditoría; ADMIN no implica grant
 
 MIGRACIÓN
 - transformar Datos JSON a detalles
@@ -1098,7 +1135,8 @@ IMPLEMENTA
 - dominios
 - health checks
 - pre-deploy para prisma migrate deploy
-- seed seguro para primer ADMIN
+- migraciones y bootstrap manual verificados; invitación del primer ADMIN según
+  el runbook de FASE 3B, nunca mediante contraseña o seed predeterminados
 - logs
 - GitHub deployment
 - migraciones reproducibles

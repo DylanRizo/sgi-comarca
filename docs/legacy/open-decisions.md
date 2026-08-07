@@ -5,8 +5,8 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | ID | Decisión requerida | Evidencia/alternativas | Comportamiento seguro para ensayo | Estado |
 |---|---|---|---|---|
 | DEC-001 | Moneda canónica y símbolo | UI mezcla `$` y `C$`; datos no declaran moneda | Guardar valores sin conversión y moneda `UNKNOWN`/configurable | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-002 | Usuarios reales y vinculación de nombres | Vendedores, entregadores, responsables y emails legacy | Preservar texto original; no crear cuentas automáticamente | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | FASE 3A crea solo diez permisos explícitos; ADMIN/PARTNER/READ_ONLY vacíos, SALES sin usuarios y transfers.create sin grants | `PARTIALLY_RESOLVED` |
+| DEC-002 | Usuarios reales y vinculación de nombres | Vendedores, entregadores, responsables y emails legacy | Cuatro cuentas explícitas aprobadas; preservar otros textos sin crear cuentas automáticamente | `RESOLVED_IN_PHASE_3B` |
+| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | La matriz inicial se cerró en ADR-007; `transfers.create` permanece sin grants | `PARTIALLY_RESOLVED` |
 | DEC-004 | Duplicado `DGGR-X` | Productos filas 29–30 | Importar ambas como raw; bloquear resolución de código único | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-005 | Duplicados `CCWH-L` | Dos filas por Casa Dylan y dos por Casa Luden con valores distintos | Preservar cuatro filas en staging de importación; no sumar ni elegir “última” | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-006 | Cuatro líneas de venta duplicadas | Pares en filas 124–125, 176/179, 214–215, 255/257 | Importar con marca `duplicate_candidate`; excluir de totales aprobados | `REQUIRES_HUMAN_APPROVAL` |
@@ -88,6 +88,28 @@ Los siguientes detalles permanecen `REQUIRES_HUMAN_APPROVAL` y no se infieren de
 
 La asignación futura de SALES, ADMIN, PARTNER o transfers.create continúa
 requiriendo aprobación explícita.
+
+### DEC-002/003 — actualización aprobada en FASE 3B
+
+La sección anterior conserva la fotografía histórica de FASE 3A. En FASE 3B
+el propietario aprobó posteriormente:
+
+- las únicas cuentas iniciales son Dylan, Samantha, Jean y Luden;
+- Dylan recibe `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, `SALES` y
+  `sales.cancel` directo;
+- Samantha recibe `FINANCE`, `INVENTORY_MANAGER` y `SALES`;
+- Jean y Luden reciben `INVENTORY_MANAGER` y `SALES`;
+- `ADMIN` recibe exactamente cuatro permisos administrativos explícitos;
+- `SALES` recibe exactamente `sales.create` y
+  `sales.confirm_in_transit`;
+- `PARTNER` y `READ_ONLY` siguen sin usuarios y `transfers.create` sigue sin
+  grants.
+
+DEC-002 queda resuelta para las identidades iniciales. DEC-003 queda resuelta
+para la matriz inicial de FASE 3B, pero continúa parcialmente abierta para
+capacidades de módulos futuros, especialmente transferencias. Consulte
+[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md) y el
+[informe de cierre](../reviews/phase-3b-completion-report.md).
 
 ### DEC-015 — costo operativo inicial
 

@@ -72,7 +72,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("inventory-adjustment:create")
-require INVENTORY_MANAGER/ADMIN, reason and non-zero signed delta
+require permission inventory.adjust, reason and non-zero signed delta
 lock target balance
 read previous_quantity
 calculate new_quantity = previous_quantity + delta
@@ -305,7 +305,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("financial-transaction:create")
-require FINANCE/ADMIN
+require permission finances.manual.create
 validate date, type INCOME|EXPENSE, category, responsible user and amount > 0
 create financial_transaction(source=MANUAL, amount Decimal, currency=NIO)
 append audit_log
@@ -337,7 +337,7 @@ sequenceDiagram
 ```text
 begin
 claim idempotency("daily-closing:create")
-require FINANCE/ADMIN (Dylan or Samantha initially)
+require permission closings.create (Dylan or Samantha initially)
 derive Managua local date boundaries and lock unique closing date/key
 reject if a current closing already exists
 read completed sales and manual expenses inside one consistent snapshot
@@ -349,7 +349,7 @@ create daily_closing and normalized details
 append audit_log; complete idempotency; commit
 ```
 
-La fórmula final de diferencia, tolerancia y tratamiento de gastos permanece abierta. Hasta aprobarse, staging almacena componentes y resultado comparativo legacy claramente versionado; no declara un cierre `BALANCED` mediante una regla inventada. Reapertura es otra mutación idempotente, solo ADMIN/FINANCE (Dylan/Samantha), con motivo, versión y audit log.
+La fórmula final de diferencia, tolerancia y tratamiento de gastos permanece abierta. Hasta aprobarse, staging almacena componentes y resultado comparativo legacy claramente versionado; no declara un cierre `BALANCED` mediante una regla inventada. Reapertura es otra mutación idempotente, exige `closings.reopen` (Dylan/Samantha inicialmente), motivo, versión y audit log.
 
 ```mermaid
 sequenceDiagram

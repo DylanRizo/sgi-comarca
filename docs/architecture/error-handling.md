@@ -26,6 +26,25 @@ Los errores deben distinguir validación, autorización, conflicto de dominio, d
 | `IMPORT_CRITICAL_ERROR` | 422 | lote no puede confirmarse |
 | `INTERNAL_ERROR` | 500 | fallo inesperado |
 
+## Autenticación y administración implementadas
+
+| Código público | HTTP | Condición pública |
+|---|---:|---|
+| `AUTHENTICATION_FAILED` | 401 | login inválido, sin revelar existencia o estado |
+| `ACTIVATION_FAILED` | 400 | token de activación inválido, expirado, consumido o invalidado |
+| `SESSION_INVALID` | 401 | cookie/sesión ausente, expirada o revocada |
+| `REQUEST_VERIFICATION_FAILED` | 403 | Host, Origin o CSRF inválido |
+| `PASSWORD_POLICY_REJECTED` | 400 | contraseña no cumple la política aprobada |
+| `INVALID_REQUEST` | 400 | DTO, UUID o body inválido |
+| `ADMIN_USER_NOT_FOUND` | 404 | usuario objetivo inexistente |
+| `ADMIN_USER_STATE_CONFLICT` | 409 | estado incompatible con el comando |
+| `LAST_ADMIN_PROTECTED` | 409 | la operación dejaría sin ADMIN habilitado |
+| `ADMIN_OPERATION_CONFLICT` | 409 | conflicto concurrente administrativo |
+
+Estos códigos nunca incorporan mensajes internos, SQL, stack, roles, tokens,
+hashes, credenciales o sesiones. Los endpoints administrativos usan
+`Cache-Control: no-store`.
+
 ## Errores de dominio
 
 Los servicios lanzan errores tipados con código estable y datos seguros estructurados. No usan strings como control de flujo. Un filtro global traduce errores a HTTP y agrega `requestId`; solo errores inesperados generan stack en logs internos.

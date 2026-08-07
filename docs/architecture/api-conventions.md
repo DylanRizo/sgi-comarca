@@ -3,7 +3,8 @@
 ## Base y recursos
 
 - Prefijo: `/api/v1`.
-- JSON UTF-8; OpenAPI generado desde contratos validados.
+- JSON UTF-8 y contratos públicos validados. Swagger/OpenAPI HTTP no está
+  montado hasta que exista una puerta autenticada aprobada.
 - Recursos en plural y nombres de código en inglés.
 - Controladores delgados; comandos delegados a servicios de aplicación.
 - Fechas/hora de API en ISO 8601 UTC; fechas de negocio locales como `YYYY-MM-DD` cuando representen un día Managua.
@@ -54,12 +55,34 @@ La clave se almacena con usuario, operación, hash canónico del payload, estado
 
 Actualizaciones ordinarias usan versionado optimista (`version`/ETag) cuando un conflicto de edición sea posible. Stock usa bloqueo pesimista dentro de transacción.
 
-## Endpoints propuestos
+## Endpoints implementados en FASE 3B
+
+Todas las rutas usan el prefijo `/api/v1`. Solo health, ready, activación y
+login son públicas.
+
+| Módulo | Endpoint | Acceso |
+|---|---|---|
+| health | `GET /api/v1/health`, `GET /api/v1/ready` | Público explícito |
+| auth | `POST /api/v1/auth/activate`, `POST /api/v1/auth/login` | Público explícito, Origin requerido |
+| auth | `GET /api/v1/auth/session`, `GET /api/v1/auth/csrf` | Sesión vigente |
+| auth | `POST /api/v1/auth/logout`, `POST /api/v1/auth/change-password`, `POST /api/v1/auth/sessions/revoke-all` | Sesión, Origin y CSRF |
+| users | `POST /api/v1/users/:id/invitations` | `users.invitations.create` |
+| users | `POST /api/v1/users/:id/credentials/revoke` | `users.credentials.revoke` |
+| users | `POST /api/v1/users/:id/sessions/revoke` | `users.sessions.revoke` |
+| users | `POST /api/v1/users/:id/deactivate` | `users.status.manage` |
+
+Las respuestas sensibles usan `Cache-Control: no-store`. La invitación
+administrativa devuelve exclusivamente el token de un uso después del commit;
+los otros comandos administrativos devuelven `204`.
+
+## Endpoints futuros propuestos
+
+La tabla siguiente conserva destinos arquitectónicos para módulos aún no
+construidos. No describe rutas actualmente disponibles.
 
 | Módulo | Endpoints principales |
 |---|---|
-| auth | `POST /auth/login`, `/auth/logout`, `/auth/activate`, `GET /auth/session` |
-| users/roles | `GET/POST /users`, `PATCH /users/{id}`, `PUT /users/{id}/roles`, `DELETE /sessions/{id}` |
+| users/roles | listados, creación, edición de perfil y asignación de roles por definir; no implementados en FASE 3B |
 | products | `GET/POST /products`, `GET/PATCH /products/{id}`, `POST /products/{id}/deactivate`, `GET /products/search` |
 | catalogs | `GET/POST/PATCH /units`, `/product-groups`, `/warehouses` |
 | inventory | `GET /inventory-balances`, `GET /inventory-balances/{id}`, `GET /stock-movements`, `POST /inventory-adjustments` |
@@ -74,7 +97,8 @@ Actualizaciones ordinarias usan versionado optimista (`version`/ETag) cuando un 
 | imports | `POST /imports/dry-run`, `POST /imports/{id}/commit`, `GET /imports/{id}/report` |
 | settings/audit | `GET/PATCH /settings`, `GET /audit-logs` |
 
-Los nombres son contratos propuestos para FASE 1; OpenAPI definitivo se genera al implementar cada fase.
+Estos nombres son propuestas históricas de FASE 1. Cada fase debe promover solo
+las rutas realmente implementadas y probadas. Swagger permanece sin montar.
 
 ## Estados HTTP
 

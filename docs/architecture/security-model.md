@@ -1,88 +1,111 @@
 # Modelo de seguridad
 
+Estado vigente: FASE 3B completa. Las decisiones se formalizan en
+[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md) y su
+evidencia en el [informe de cierre](../reviews/phase-3b-completion-report.md).
+
 ## Principios
 
-- autenticación obligatoria para toda ruta operacional;
-- autorización backend denegada por defecto;
-- privilegio mínimo y roles combinables;
+- rutas privadas por defecto y allowlist pública explícita;
+- autorización backend denegada por defecto y permisos explícitos;
+- privilegio mínimo, roles combinables y `DENY` directo prevalente;
 - sesiones revocables, secretos fuera del repositorio y logs redactados;
-- defensa contra CSRF, XSS, fuerza bruta y doble envío;
-- auditoría de eventos de seguridad y mutaciones importantes.
+- CSRF, Host/Origin, CORS exacto, Helmet y protección contra fuerza bruta;
+- auditoría transaccional de seguridad y mutaciones importantes.
 
 ## Alta e invitación
 
-1. Un ADMIN crea una invitación para una identidad explícita.
-2. Se almacena solo el hash de un token aleatorio, con uso único y expiración.
-3. El usuario abre la invitación, define contraseña y activa la cuenta.
-4. La API aplica Argon2id con parámetros vigentes definidos en configuración y crea una sesión nueva.
-5. La invitación queda consumida atómicamente.
+La primera invitación del único ADMIN se genera mediante CLI local TTY. Después
+de activarlo, un usuario con `users.invitations.create` puede crear o regenerar
+invitaciones HTTP únicamente para usuarios `PENDING_ACTIVATION`. El token es
+Base64URL de 32 bytes, dura 24 horas y PostgreSQL almacena solo su SHA-256.
+Regenerar invalida invitaciones pendientes anteriores y el consumo es atómico
+y de un solo uso.
 
-Los nombres legacy nunca crean cuentas ni asignan roles. Los cuatro usuarios iniciales se configurarán de manera explícita.
+El frontend recibe el token mediante `/activate#token=<TOKEN>` y elimina el
+fragmento inmediatamente. No existe entrega o recuperación por correo.
+
+## Contraseñas y login
+
+- 12–128 puntos de código Unicode, normalización NFC y espacios preservados;
+- sin trim, truncamiento, rotación periódica o reglas arbitrarias de
+  composición;
+- blocklist local versionada y similitud determinista con el identificador;
+- Argon2id `memoryCost=65536 KiB`, `timeCost=3`, `parallelism=4`,
+  `hashLength=32`, con parámetros en el formato PHC;
+- respuesta uniforme y hash ficticio para usuarios inexistentes, pendientes,
+  deshabilitados o sin credencial utilizable.
+
+El throttle reside en PostgreSQL y usa la combinación identificador
+normalizado + HMAC-SHA-256 del origen canónico. Permite cuatro fallos en 15
+minutos, aplica retrasos `0/500/1000/2000 ms` y bloquea 15 minutos después del
+cuarto. Un éxito reinicia la fila y nunca existe bloqueo permanente automático.
 
 ## Sesiones
 
-- Identificador opaco aleatorio de alta entropía.
-- La base almacena hash del token, usuario, fechas de creación/último uso/expiración, revocación y metadatos mínimos.
-- Cookie en producción: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` y nombre con prefijo seguro cuando la topología lo permita.
-- Rotación al autenticar y ante cambios sensibles; revocación en logout, cierre de todas las sesiones, desactivación o cambio de contraseña.
-- Expiración absoluta y por inactividad serán configurables; sus duraciones exactas se fijarán y probarán en FASE 5.
-- No se usan JWT ni tokens en `localStorage`.
+- token opaco Base64URL de 32 bytes; solo SHA-256 en PostgreSQL;
+- 30 minutos de inactividad y 8 horas absolutas;
+- renovación condicional sin superar el límite absoluto;
+- sesiones expiradas o revocadas no se reactivan;
+- logout idempotente y revocación global tras cambio/revocación de contraseña o
+  desactivación;
+- cookie `HttpOnly`, `SameSite=Lax`, `Path=/`, sin `Domain`; producción usa
+  `Secure` y `__Host-sgi_session`;
+- sin JWT, `localStorage` o `sessionStorage` para autenticación.
 
-## CSRF y origen
+## Frontera HTTP
 
-La cookie de sesión autentica automáticamente, por lo que toda mutación exige:
+`OriginGuard`, `SessionGuard`, `CsrfGuard` y `PermissionGuard` son globales. El
+Host debe coincidir con `API_PUBLIC_URL`. Las mutaciones requieren un Origin
+incluido en `WEB_ORIGINS`; CORS con credenciales nunca usa wildcard. Las
+lecturas seguras pueden omitir Origin, pero mantienen validación de Host.
 
-- `SameSite=Lax` como primera barrera;
-- validación estricta de `Origin`/`Host` contra el frontend configurado;
-- token CSRF asociado a sesión para `POST`, `PUT`, `PATCH` y `DELETE`;
-- CORS restringido al origen exacto de cada ambiente, sin comodines con credenciales.
+`trust proxy` se configura como `false` localmente o como un número positivo y
+explícito de saltos en producción, nunca como `true`. Helmet está activo. El
+CSRF se deriva de la sesión con un secreto independiente del HMAC de origen y
+vive solo en memoria del frontend. Respuestas sensibles usan
+`Cache-Control: no-store`. Swagger permanece sin montar.
+
+Superficie pública aprobada:
+
+- `GET /api/v1/health`;
+- `GET /api/v1/ready`;
+- `POST /api/v1/auth/activate`;
+- `POST /api/v1/auth/login`.
+
+Añadir otra ruta pública requiere decisión explícita y `PublicRoute`.
 
 ## Autorización
 
-Los guards NestJS resuelven sesión, usuario activo, roles y permisos. Los servicios vuelven a comprobar políticas dependientes del recurso, por ejemplo estado de venta, pertenencia del almacén o permiso financiero.
+`EffectivePermissionsService` consulta grants activos por rol y usuario. Un
+`UserPermission DENY` directo activo elimina el permiso aunque exista un grant
+por rol. No hay wildcard, herencia, prefijo, superusuario ADMIN ni comparación
+de nombres. `PermissionGuard` exige el código exacto declarado por
+`RequirePermission`; los servicios aplican además políticas de recurso y
+concurrencia.
 
-Permisos aprobados:
+## Último ADMIN y recuperación
 
-- Dylan y Samantha: Finanzas y crear/reabrir cierres;
-- los cuatro usuarios: ajustes de inventario;
-- vendedores autorizados: confirmar ventas en tránsito;
-- Dylan: cancelar ventas elegibles;
-- transferencias: denegadas hasta asignar un permiso aprobado.
+La política consulta roles y estados dentro de la transacción. Impide dejar
+cero ADMIN habilitados, desactivar al último ADMIN o revocar
+administrativamente su credencial. Permite revocar sus sesiones, logout y
+cambio normal de contraseña. La CLI local `auth:recover-admin` es la única
+excepción break-glass y no crea otro ADMIN.
 
-Los nombres se usan solo para la asignación inicial; el código autoriza capacidades, no compara nombres personales.
+## Auditoría, secretos y errores
 
-## Login y contraseñas
+`audit_logs` registra actor, acción, entidad, timestamp UTC y metadatos
+permitidos dentro de la transacción. Nunca acepta password, token, hash, cookie,
+CSRF, Origin original, credencial o sesión completa. El logger redacta headers
+sensibles y los errores externos no incluyen SQL, stack, roles o configuración.
 
-- Hash Argon2id; nunca se registra ni devuelve el hash.
-- Validación de credenciales con respuesta genérica para no enumerar usuarios.
-- Rate limiting por identidad y origen, con límites exactos a definir en FASE 5.
-- Registro auditado de login exitoso/fallido, logout, revocación, invitación, activación y cambios de rol.
-- Recuperación de contraseña requerirá un flujo seguro antes de habilitarse; no se inventan canales no aprobados.
+En producción son obligatorios secretos independientes de al menos 32 bytes
+para `AUTH_CSRF_HMAC_SECRET_BASE64` y
+`AUTH_ORIGIN_HMAC_SECRET_BASE64`. Los secretos reales se administran fuera de
+Git.
 
-## Seguridad de aplicación
+## Verificación
 
-- DTOs validados y propiedades desconocidas rechazadas.
-- Renderizado de observaciones como texto, CSP restrictiva y sin HTML no confiable.
-- Prisma parametriza SQL; consultas raw excepcionales requieren parámetros y revisión.
-- Cabeceras: CSP, `frame-ancestors`, `X-Content-Type-Options`, Referrer-Policy y HSTS en producción.
-- Errores externos no incluyen stack, SQL, IDs privados ni configuración.
-- Logs JSON incluyen request/correlation ID y actor ID, pero no cookies, tokens, contraseñas, direcciones completas ni observaciones sensibles.
-
-## Auditoría
-
-`audit_logs` registra actor, acción, entidad, ID, cambios permitidos, request ID, timestamp UTC y metadatos de origen mínimos. Contraseñas, tokens y secretos se excluyen siempre. Los registros son append-only y se escriben en la transacción de la mutación cuando corresponda.
-
-## Secretos y ambientes
-
-Cada ambiente tiene secretos y cookies independientes. Variables se configuran en Railway/GitHub; `.env*` real no se versiona. PostgreSQL no se expone públicamente salvo acceso temporal controlado y documentado.
-
-## Verificación mínima
-
-- rutas anónimas rechazadas;
-- permisos verticales y horizontales probados;
-- Finanzas denegada a Jean/Luden;
-- CSRF, revocación y expiración probados;
-- rate limiting de login;
-- texto malicioso no se ejecuta;
-- doble solicitud no duplica mutaciones;
-- audit log presente y sin secretos.
+Las suites cubren rutas públicas/privadas, matriz de cuatro usuarios, DENY,
+último ADMIN, login uniforme, throttle concurrente, CSRF, Host/Origin, cookies,
+revocación, expiración idle/absoluta, administración API y ausencia de secretos.

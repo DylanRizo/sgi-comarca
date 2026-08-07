@@ -1,74 +1,78 @@
 # Matriz de autorización
 
-## Roles y composición inicial
+Estado vigente: FASE 3B completa. La fuente de decisión es
+[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
 
-| Rol | Propósito |
+## Modelo de evaluación
+
+- `RolePermission` concede un permiso explícito a un rol.
+- `UserPermission GRANT` concede directamente un permiso.
+- `UserPermission DENY` activo prevalece sobre grants directos o por rol.
+- Grants revocados no tienen efecto.
+- Ausencia de grant significa denegación.
+- No existen herencia, wildcard, prefijos o bypass de `ADMIN`.
+
+`ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente los
+cuatro grants administrativos más cualquier rol o grant adicional asignado de
+forma explícita.
+
+## Roles y RolePermission iniciales
+
+| Rol | Permisos activos exactos |
 |---|---|
-| `ADMIN` | Administración general, seguridad y permisos; su asignación inicial permanece pendiente |
-| `PARTNER` | Lectura operacional amplia no financiera; no concede mutaciones sensibles por sí solo |
-| `INVENTORY_MANAGER` | Productos/inventario/entradas/ajustes y, cuando se apruebe, transferencias |
-| `SALES` | Registrar ventas y confirmar tránsito |
-| `FINANCE` | Finanzas y cierres, incluida reapertura auditada |
-| `READ_ONLY` | Lectura no financiera permitida, sin mutaciones |
+| `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
+| `PARTNER` | Ninguno |
+| `INVENTORY_MANAGER` | `inventory.adjust` |
+| `SALES` | `sales.create`, `sales.confirm_in_transit` |
+| `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen` |
+| `READ_ONLY` | Ninguno |
 
-Asignación mínima derivada de aprobaciones:
+Existen 12 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, uno
+INVENTORY_MANAGER y dos SALES. `transfers.create` existe como permiso técnico,
+pero no tiene grants.
 
-| Usuario | Roles/capacidades iniciales confirmadas | Pendiente |
+## UserRole y UserPermission iniciales
+
+| Usuario | Roles activos exactos | UserPermission activo |
 |---|---|---|
-| Dylan | `FINANCE`, `INVENTORY_MANAGER`; permiso directo `sales.cancel` | `ADMIN`, `SALES` y `PARTNER` requieren asignación explícita |
-| Samantha | `FINANCE`, `INVENTORY_MANAGER` | `SALES`/`PARTNER` según responsabilidad aprobada |
-| Jean | `INVENTORY_MANAGER` | `SALES`/`PARTNER`; sin Finanzas inicialmente |
-| Luden | `INVENTORY_MANAGER` | `SALES`/`PARTNER`; sin Finanzas inicialmente |
+| Dylan | `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, `SALES` | `GRANT sales.cancel` |
+| Samantha | `FINANCE`, `INVENTORY_MANAGER`, `SALES` | Ninguno |
+| Jean | `INVENTORY_MANAGER`, `SALES` | Ninguno |
+| Luden | `INVENTORY_MANAGER`, `SALES` | Ninguno |
 
-La configuración inicial debe registrar estas asignaciones. Ninguna se deriva de textos de vendedores, responsables o emails legacy.
+`PARTNER` y `READ_ONLY` no tienen usuarios. Dylan es el único ADMIN inicial,
+pero ninguna política de autorización depende de su nombre, login o ID.
 
-## Matriz por operación
+## Permisos efectivos iniciales
 
-Leyenda: `R` lectura, `W` escritura, `A` administración, `—` denegado. Las políticas de recurso pueden restringir aún más.
+| Capacidad | Dylan | Samantha | Jean | Luden |
+|---|---:|---:|---:|---:|
+| `users.invitations.create` | Sí | No | No | No |
+| `users.credentials.revoke` | Sí | No | No | No |
+| `users.sessions.revoke` | Sí | No | No | No |
+| `users.status.manage` | Sí | No | No | No |
+| `finances.read` | Sí | Sí | No | No |
+| `finances.manual.create` | Sí | Sí | No | No |
+| `closings.read` | Sí | Sí | No | No |
+| `closings.create` | Sí | Sí | No | No |
+| `closings.reopen` | Sí | Sí | No | No |
+| `inventory.adjust` | Sí | Sí | Sí | Sí |
+| `sales.create` | Sí | Sí | Sí | Sí |
+| `sales.confirm_in_transit` | Sí | Sí | Sí | Sí |
+| `sales.cancel` | Sí | No | No | No |
+| `transfers.create` | No | No | No | No |
+| Total | 13 | 8 | 3 | 3 |
 
-| Módulo/operación | ADMIN | PARTNER | INVENTORY_MANAGER | SALES | FINANCE | READ_ONLY |
-|---|---:|---:|---:|---:|---:|---:|
-| Dashboard operacional | R | R | R | R | R | R |
-| Usuarios/roles/sesiones ajenas | A | — | — | — | — | — |
-| Productos listar/detalle | R | R | R | R | R | R |
-| Productos crear/editar/desactivar | W | — | W | — | — | — |
-| Unidades/grupos administrar | A | — | W | — | — | — |
-| Almacenes administrar | A | — | — | — | — | — |
-| Inventario/alertas/historial | R | R | R | R | R | R |
-| Entrada de productos | W | — | W | — | — | — |
-| Ajuste positivo/negativo | W | — | W | — | — | — |
-| Transferencia | W | — | `PENDING` | — | — | — |
-| Venta registrar | W | — | — | W | — | — |
-| Venta en tránsito listar | R | R | R | R | R | R |
-| Confirmar tránsito | W | — | — | W | — | — |
-| Cancelar venta elegible | —* | —* | —* | —* | —* | —* |
-| Finanzas leer/importes | R | — | — | — | R | — |
-| Ingreso/gasto manual | W | — | — | — | W | — |
-| Cierre leer/crear/reabrir | W | — | — | — | W | — |
-| Auditoría física capturar | W | — | W | — | — | — |
-| Auditoría aprobar/aplicar | A | — | `PENDING` | — | — | — |
-| Reportes no financieros | R | R | R | R | R | R |
-| Reportes financieros | R | — | — | — | R | — |
-| Analytics no financiero | R | R | R | R | R | R |
-| Analytics financiero | R | — | — | — | R | — |
-| Importaciones/mapeos | A | — | — | — | — | — |
-| Settings sensibles | A | — | — | — | — | — |
-| Audit logs | R | — | — | — | — | — |
-
-`PENDING` significa denegado hasta aprobación y asignación explícita. `*` La cancelación requiere el permiso técnico `sales.cancel`, asignado inicialmente solo a Dylan; no se deriva automáticamente de ningún rol.
+La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
+refleja en la siguiente solicitud y su revocación restaura inmediatamente el
+grant que continúe vigente.
 
 ## Políticas de recurso
 
-- Confirmación: solo `IN_TRANSIT`; no toca stock; repetición devuelve el mismo resultado sin efecto.
-- Cancelación: requiere permiso `sales.cancel`, actor Dylan inicialmente, motivo, venta no pagada/en tránsito y reposición completa.
-- Cierre: solo ADMIN/FINANCE; reapertura exige motivo y auditoría.
-- Finanzas: la API filtra antes de consultar/proyectar importes; ocultar UI no es suficiente.
-- Ajuste: requiere motivo y captura anterior/nueva dentro de la transacción.
-- Desactivación: producto con historial nunca se borra físicamente.
+Conceder una capacidad no evita las reglas del recurso. La cancelación exige
+venta elegible y motivo; confirmación solo aplica a tránsito y no vuelve a
+descontar stock. Los módulos futuros deben exigir códigos de permiso exactos,
+no listas del tipo `FINANCE/ADMIN` o `INVENTORY_MANAGER/ADMIN`.
 
-## Cambios de permisos
-
-FASE 3A no crea permisos de administración de roles ni concede capacidades
-implícitas a `ADMIN`. Una futura administración de acceso requiere decisión y
-permiso técnico explícitos. La autorización se evalúa por capacidades, no
-mediante comparaciones de nombres.
+Asignar otro ADMIN, editar roles/permisos o reactivar usuarios deshabilitados no
+forma parte de FASE 3B y requiere una decisión posterior.

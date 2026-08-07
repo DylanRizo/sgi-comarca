@@ -8,11 +8,11 @@ SGI La Comarca será el sistema operacional para productos, inventario, ventas, 
 
 | Actor | Interacción |
 |---|---|
-| Dylan | Inventario, Finanzas, cierres y cancelación de ventas; ventas solo si se le asigna SALES |
-| Samantha | Inventario, ventas autorizadas, Finanzas y cierres |
-| Jean | Inventario y demás permisos asignados; sin Finanzas inicialmente |
-| Luden | Inventario y demás permisos asignados; sin Finanzas inicialmente |
-| Administrador | Invita usuarios, asigna roles, revoca sesiones y configura catálogos |
+| Dylan | ADMIN inicial; Inventario, Finanzas, cierres, ventas y cancelación de ventas |
+| Samantha | Inventario, ventas, Finanzas y cierres |
+| Jean | Inventario y ventas; sin Finanzas inicialmente |
+| Luden | Inventario y ventas; sin Finanzas inicialmente |
+| Administrador autorizado | Invita, revoca credenciales/sesiones y desactiva usuarios mediante permisos explícitos; FASE 3B no edita roles |
 | Equipo de migración | Ejecuta perfilado, dry-run, importación, reconciliación y rollback |
 | GitHub Actions | Valida y despliega versiones aprobadas |
 | Railway | Ejecuta web, API y PostgreSQL separados por ambiente |
@@ -28,7 +28,7 @@ SGI La Comarca será el sistema operacional para productos, inventario, ventas, 
 ```mermaid
 flowchart LR
     U["Usuarios autorizados<br/>computadora o teléfono"] -->|"HTTPS"| SGI["SGI La Comarca"]
-    A["Administrador"] -->|"invitaciones, roles y configuración"| SGI
+    A["Administrador"] -->|"invitaciones, revocación y estado"| SGI
     M["Equipo de migración"] -->|"dry-run, commit y reconciliación"| SGI
     LEG["Google Sheets legacy<br/>solo lectura tras cutover"] -->|"XLSX controlado"| M
     GH["GitHub privado / Actions"] -->|"artefactos aprobados"| R["Railway staging/producción"]
@@ -82,7 +82,7 @@ Google Sheets no será consultado por operaciones normales después del corte. N
 | 13 | UTC/Managua | instantes UTC y fechas/días presentados en `America/Managua` |
 | 14 | Productos con historial no se borran | `active`/desactivación y foreign keys restrictivas |
 | 15 | Mutaciones importantes auditadas | `audit_logs` dentro de la misma transacción |
-| 16 | Ninguna ruta operacional anónima | guard de sesión global; allowlist solo para login/activación/health |
+| 16 | Rutas privadas por defecto | guard global; allowlist exacta para login, activación, health y ready |
 | 17 | Permisos backend | guards y políticas de recurso en servicios |
 | 18 | Trazabilidad legacy | `legacy_id`, `legacy_row_number`, `import_batch_id`, `raw_data` |
 | 19 | Inventario como saldo inicial | mapeo/importador usa Inventario para cantidad, precio y costo iniciales |

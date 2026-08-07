@@ -1,9 +1,16 @@
 # FASE 3B — Plan final de autenticación y sesiones
 
+> Estado: `HISTORICAL_IMPLEMENTED`. Este documento conserva el plan aprobado y
+> la evidencia del incidente de migración. El estado vigente se encuentra en el
+> [informe de cierre](phase-3b-completion-report.md) y en
+> [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
+
 ## 1. Estado y autoridad
 
-Este documento incorpora las decisiones finales aprobadas por el propietario
-para FASE 3B. Autoriza el plan, pero no autoriza todavía su implementación.
+Este documento incorporó las decisiones finales aprobadas por el propietario
+para FASE 3B. En el momento de escribirse autorizaba el plan, pero no su
+implementación. Los BLOQUES 1–7A fueron autorizados y versionados
+posteriormente; BLOQUE 8 cerró la reconciliación documental.
 
 En esta actualización documental no se permite:
 
@@ -14,9 +21,9 @@ En esta actualización documental no se permite:
 - ejecutar el perfilador o leer/modificar el XLSX como parte de FASE 3B;
 - crear commits.
 
-La implementación deberá esperar una autorización posterior y conservar las
+La implementación esperó autorizaciones posteriores y conservó las
 restricciones de `AGENTS.md`, ADR-005 y el modelo estructural aprobado en FASE
-3A, salvo los cambios expresamente enumerados en este plan.
+3A, salvo los cambios expresamente aprobados bloque por bloque.
 
 ## 2. Objetivo y límites
 
@@ -248,9 +255,10 @@ activo.
 10. Cada regeneración invalida las invitaciones pendientes anteriores; cada
     token sigue siendo de 24 horas y uso único.
 
-El flujo no presupone correo, SMS, MFA u otro canal automático. La política de
-recuperación ante pérdida o desactivación del único ADMIN permanece pendiente y
-no se inventará dentro de la implementación.
+El flujo no presupone correo, SMS, MFA u otro canal automático. En este punto
+histórico la recuperación aún estaba pendiente. Posteriormente se aprobó e
+implementó `pnpm auth:recover-admin` como CLI local TTY break-glass; no crea un
+segundo ADMIN y es la única excepción a la protección normal de su credencial.
 
 ## 9. Endpoints administrativos protegidos
 
@@ -277,13 +285,14 @@ Reglas comunes:
 - no se exponen endpoints para asignar roles o permisos dentro de FASE 3B;
 - no existe endpoint de recuperación por correo.
 
-Endpoints de autenticación previstos en el mismo plan:
+Endpoints de autenticación finales:
 
 - `POST /api/v1/auth/activate`;
 - `POST /api/v1/auth/login`;
 - `GET /api/v1/auth/session`;
+- `GET /api/v1/auth/csrf`;
 - `POST /api/v1/auth/logout`;
-- `PUT /api/v1/auth/password`;
+- `POST /api/v1/auth/change-password`;
 - `POST /api/v1/auth/sessions/revoke-all` para las sesiones propias.
 
 ## 10. Reconciliación propuesta del roadmap
@@ -300,7 +309,7 @@ Propuesta de mínima renumeración:
 | FASE 3B | Autenticación y sesiones | Sustituye la etiqueta colisionada y absorbe el alcance de autenticación de la antigua FASE 5 |
 | FASE 3C | Perfilador reproducible del XLSX | Nueva subfase posterior a 3B y anterior al importador; no se ejecuta en 3B |
 | FASE 4 | Importador XLSX dry-run/reconciliación | Sin cambios; depende de 3C |
-| Antigua FASE 5 | Autenticación, usuarios y permisos | Se marca como `ABSORBIDA_EN_3B`, sin segunda ejecución ni fase operativa duplicada |
+| Antigua FASE 5 | Autenticación, usuarios y permisos | Se marca como `ABSORBIDA_EN_FASE_3B`, sin segunda ejecución ni fase operativa duplicada |
 | FASES 6–14 | Alcances existentes | Conservan su numeración |
 
 Esta estrategia evita renumerar silenciosamente FASES 6–14 y conserva una
@@ -416,34 +425,27 @@ nuevas filas de `Permission` quedan sin efecto hasta que exista un
 - Sin MFA, OAuth, JWT, Google login, correo o tokens en `localStorage`.
 - Perfilador XLSX fuera de 3B y traslado propuesto a FASE 3C.
 
-## 14. Pendientes y deuda explícita
+## 14. Pendientes históricos y deuda final
 
-No bloquean la aprobación documental de este plan, pero deben resolverse en la
-puerta indicada:
+La reconciliación documental, blocklist, regla de similitud, recuperación
+break-glass y protección del último ADMIN fueron resueltas. La deuda no
+bloqueante que permanece al cierre es:
 
-- ejecutar posteriormente la reconciliación documental del roadmap, runbooks y
-  referencias de fase;
 - calibrar y documentar los parámetros exactos de Argon2id en el ambiente
   objetivo antes de aprobar autenticación en staging;
-- seleccionar, versionar y documentar procedencia/licencia de la blocklist de
-  contraseñas comunes;
-- fijar la métrica y umbral exactos de "demasiado similar" al login antes de
-  implementar validación de contraseña;
 - validar la configuración de proxy confiable y rotación del secreto HMAC de
   origen para Railway;
 - definir retención y limpieza de invitaciones, throttles y sesiones expiradas;
 - evaluar límites independientes por identificador y por origen antes de
   producción pública o crecimiento significativo;
-- definir política de recuperación/break-glass si Dylan pierde acceso o si el
-  único ADMIN queda desactivado;
-- decidir si se impide que el único ADMIN activo revoque su propia credencial o
-  se desactive sin un procedimiento break-glass;
 - reevaluar el mínimo de 12 caracteres y MFA antes de exposición pública o si
   aumenta el riesgo;
-- aprobar por separado cualquier implementación, dependencia, migración o
-  modificación del roadmap.
+- montar Swagger solo detrás de una puerta autenticada;
+- construir UI administrativa en una fase posterior;
+- retirar el aviso de compatibilidad Nest del patrón legacy `/api/*` durante
+  hardening.
 
-## 15. Puerta para autorizar implementación
+## 15. Puerta histórica para autorizar implementación
 
 Antes de iniciar código, el propietario deberá aprobar explícitamente que este
 documento es el baseline de implementación y autorizar por separado:
@@ -456,7 +458,7 @@ documento es el baseline de implementación y autorizar por separado:
 - estrategia de pruebas y comandos de calidad;
 - actualización coordinada del roadmap.
 
-Hasta entonces no se instala, migra ni implementa nada.
+Esta puerta fue satisfecha mediante las aprobaciones separadas de BLOQUES 1–7A.
 
 ## 16. Correccion operativa registrada durante el Bloque 1
 

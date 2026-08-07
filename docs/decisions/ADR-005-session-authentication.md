@@ -1,12 +1,17 @@
 # ADR-005 — Autenticación por sesiones opacas
 
-- Estado: `ACCEPTED`
+- Estado: `SUPERSEDED_IN_PART_BY_ADR_007`
 - Fecha: 2026-08-01
 - Alcance: identidad y acceso
 
 ## Contexto
 
 El web app legacy permite acceso anónimo. V1 es una aplicación web first-party con cuatro usuarios iniciales, requiere revocación, permisos cambiantes y no necesita que el navegador porte claims autónomos.
+
+> Nota de supersesión (2026-08-07): la elección central de sesiones opacas
+> permanece aceptada. La matriz, duraciones, parámetros Argon2id, throttle,
+> recuperación del último ADMIN y superficie administrativa fueron cerrados en
+> [ADR-007](ADR-007-phase-3b-authentication-authorization.md).
 
 ## Decisión
 
@@ -53,6 +58,9 @@ Costos:
 - Acceso anónimo: contradice requisitos obligatorios.
 - Autorización solo UI: no protege endpoints.
 
-## Detalles diferidos
+## Detalles diferidos — histórico
 
-Duraciones exactas, parámetros Argon2 y límites de login se seleccionarán con valores estables y pruebas en FASE 5; no son reglas de negocio.
+Esta sección describe el estado al aprobar ADR-005. Los valores entonces
+diferidos fueron implementados en FASE 3B, no en una FASE 5 futura: 30 minutos
+idle, 8 horas absolutas, Argon2id `65536/3/4/32` y throttle de cuatro fallos en
+15 minutos con bloqueo de 15 minutos. Consulte ADR-007 para la decisión vigente.

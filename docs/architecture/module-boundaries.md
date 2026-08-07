@@ -8,8 +8,8 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 
 | Módulo | Responsabilidad | Entidades principales | Dependencias permitidas |
 |---|---|---|---|
-| `auth` | login, logout, activación, sesiones, CSRF y rate limiting | sessions, invitations | users, roles, audit-logs |
-| `users` | cuentas, estado y perfil | users | roles, audit-logs |
+| `auth` | login, logout, activación, sesiones, CSRF, throttle y administración limitada de FASE 3B | sessions, invitations, credentials | users, roles, audit-logs |
+| `users` | cuentas, estado y perfil; su módulo completo es posterior | users | roles, audit-logs |
 | `roles` | roles, permisos y asignaciones | roles, permissions, user_roles | audit-logs |
 | `products` | catálogo, precio vigente, desactivación y búsqueda | products | units, product-groups, audit-logs |
 | `units` | catálogo de unidades | units | audit-logs |
@@ -41,6 +41,7 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 | Cierre | `daily-closings` | cierre, detalles y auditoría; no cancela tránsito silenciosamente |
 | Auditoría física | `inventory-audits` | sesión aprobada, ajustes, balances, movimientos, auditoría |
 | Importación | `imports` | lote delimitado y entidades destino o rollback del lote |
+| Administración de usuario FASE 3B | `auth` temporalmente | invitación, credencial, sesiones/estado y auditoría según comando |
 
 ## Invariantes de frontera
 
@@ -54,4 +55,7 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 
 ## Decisiones aún abiertas
 
-Permisos exactos de transferencias, asignación inicial de SALES, fórmula/tolerancia de cierre y dashboard canónico no se resuelven en estos límites. Los módulos permiten configurarlos sin cambiar fronteras.
+La asignación inicial de SALES quedó resuelta en FASE 3B. Permanecen abiertas
+las capacidades futuras de transferencias, la fórmula/tolerancia de cierre y
+el dashboard canónico. La administración completa de usuarios/roles no debe
+duplicar los cuatro comandos limitados ya entregados por `auth`.

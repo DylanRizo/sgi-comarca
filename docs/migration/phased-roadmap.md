@@ -10,11 +10,12 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 1 | Arquitectura, brief, trazabilidad y ADR | Permisos parciales; decisiones abiertas con conducta segura | Cero funcionalidades sin destino; revisión contra FASE 0 |
 | 2 | Base reproducible del monorepo | Versiones estables compatibles; sin módulos de negocio | install/lint/typecheck/test/build y health/readiness |
 | 3A | Modelo estructural y migración inicial | 23 entidades exactas, Decimal, constraints, permisos y bootstrap técnico | PostgreSQL real; migración reproducible, 23 tablas de aplicación y grants exactos |
-| 3B | Perfilador reproducible | Lectura XLSX sin modificación y controles legacy | Nueve hojas perfiladas; reportes privados; sin importación |
-| 4 | Importador XLSX dry-run/reconciliación | Resoluciones individuales DEC-004–010; mapeos versionados | baseline reproducida, no pérdida, idempotencia |
-| 5 | Auth, usuarios y permisos | Asignación SALES y permisos de transferencias; tiempos de sesión/rate limit | rutas anónimas denegadas y matriz probada |
+| 3B | Auth, sesiones, autorización, administración API y frontend auth — `COMPLETE` | Decisiones cerradas en ADR-007; antigua FASE 5 absorbida | 47 unitarias, 85 integración y 11 E2E; matriz y superficie pública exactas |
+| 3C | Perfilador reproducible | Lectura XLSX sin modificación y controles legacy; no iniciado | Nueve hojas perfiladas; reportes privados; sin importación |
+| 4 | Importador XLSX dry-run/reconciliación | Depende de 3C; resoluciones DEC-004–010 y mapeos versionados | baseline reproducida, no pérdida, idempotencia |
+| 5 histórica | `ABSORBIDA_EN_FASE_3B` | No es una fase futura ni se vuelve a ejecutar | Trazabilidad conservada en el informe de cierre de 3B |
 | 6 | Catálogos e inventario | Mapeo Unidad/Unidades; permisos de transferencias; protección append-only de ProductWarehouseValuation resuelta antes de cualquier escritura operacional | concurrencia, stock no negativo, flujos atómicos; la fase no se aprueba con la protección de valoraciones pendiente |
-| 7 | Ventas | Estados/pagos históricos; asignación SALES; precio/costo operativo | venta, confirmación y cancelación E2E/idempotentes |
+| 7 | Ventas | Estados/pagos históricos y precio/costo operativo; SALES ya fue asignado en 3B | venta, confirmación y cancelación E2E/idempotentes |
 | 8 | Finanzas y cierres | Fórmula, tolerancia, pendientes y política de reapertura detallada | no doble conteo; cierres/roles/zona probados |
 | 9 | Auditoría, reportes y analytics | Dashboard/KPIs canónicos y permisos de aprobación de auditoría | KPIs contra SQL y exportaciones verificadas |
 | 10 | Unificación UI | Colores/logotipo específicos si se aprueban | Playwright desktop/tablet/móvil y accesibilidad |
@@ -29,10 +30,11 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 flowchart LR
     A["F0 evidencia"] --> B["F1 arquitectura"]
     B --> C["F2 base"]
-    C --> D["F3 esquema"]
-    D --> E["F4 importador"]
-    E --> F["F5 seguridad"]
-    F --> G["F6 inventario"]
+    C --> D["F3A estructura"]
+    D --> E["F3B auth"]
+    E --> P["F3C perfilador"]
+    P --> F["F4 importador"]
+    F --> G["F6 inventario<br/>F5 absorbida"]
     G --> H["F7 ventas"]
     H --> I["F8 finanzas"]
     I --> J["F9 reportes"]
@@ -47,9 +49,9 @@ flowchart LR
 | Decisión | Estado tras brief | Límite |
 |---|---|---|
 | NIO/C$ y zona | Cerrada | FASE 1 |
-| Usuarios iniciales | Parcial; identidades cerradas, cuentas explícitas | FASE 5 |
-| Finanzas/ajustes/cancelación/cierres | Cerradas en alcance indicado | FASE 5–8 |
-| Transferencias y SALES | Abierta | antes de pruebas de permisos FASE 5/6 |
+| Usuarios iniciales | Cerrada en ADR-007 | FASE 3B completada |
+| Finanzas/ajustes/cancelación/cierres | Grants iniciales cerrados; reglas de módulos siguen su fase | FASE 3B/6–8 |
+| Transferencias y SALES | SALES cerrada; `transfers.create` permanece sin grants | FASE 3B/6 |
 | Protección append-only de ProductWarehouseValuation | Abierta; sin trigger ni escritores operacionales en FASE 3A | entrada a FASE 6, antes de cualquier escritura de precios, costos o valoraciones |
 | Duplicados/anomalías individuales | Abiertas por registro | antes de importación commit/rehearsal |
 | Unidad/personas/canales/estados históricos | Abiertas | antes del commit de las entidades afectadas |
@@ -78,8 +80,8 @@ En cada fase:
 | ID | Estado FASE 1 | Esquema | Importador | Pantalla/regla | Posponible | Conducta segura en staging | Fase límite |
 |---|---|---:|---:|---:|---:|---|---:|
 | DEC-001 | APPROVED | No | No | No | — | NIO, C$, Managua; sin conversión legacy | 1 |
-| DEC-002 | PARTIAL | No | No | Sí | Sí | Crear 4 cuentas explícitas; textos legacy no son usuarios | 5 |
-| DEC-003 | PARTIAL | No | No | Sí | Parcial | Denegar por defecto; permisos aprobados únicamente | 5–6 |
+| DEC-002 | APPROVED_IN_PHASE_3B | No | No | Sí | Sí | Cuatro cuentas explícitas; textos legacy no son usuarios | 3B |
+| DEC-003 | PARTIALLY_RESOLVED | No | No | Sí | Parcial | Matriz inicial cerrada en ADR-007; transferencias continúan sin grants | 3B/6 |
 | DEC-004 | PARTIAL por procedimiento | Sí | Sí | Sí | No para commit | Dos filas staging; resolución individual | 4 |
 | DEC-005 | PARTIAL por procedimiento | Sí | Sí | Sí | No para commit | Cuatro filas staging; no sumar/elegir | 4 |
 | DEC-006 | PARTIAL por procedimiento | No | Sí | Sí | No para totales finales | Marcar candidatos; excluir solo con aprobación | 4/13 |
