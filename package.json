@@ -17,6 +17,7 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "pnpm --filter @sgi/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @sgi/database db:generate",

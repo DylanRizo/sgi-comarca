@@ -8,6 +8,7 @@
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start",
+    "test:e2e": "node e2e/run-e2e.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "tailwind-merge": "3.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@sgi/config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
     "@types/react": "19.2.18",

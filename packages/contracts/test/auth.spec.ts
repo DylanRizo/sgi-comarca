@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type {
+  ActivateAccountRequest,
   ApiSuccess,
+  AuthPublicErrorCode,
   AuthenticationData,
+  ChangePasswordRequest,
   CurrentSessionData,
+  LoginRequest,
 } from '../src/index.js';
 
 describe('authentication HTTP contracts', () => {
@@ -49,5 +53,25 @@ describe('authentication HTTP contracts', () => {
     expect(session.permissions).toEqual(['sales.create']);
     expect(session).not.toHaveProperty('roles');
     expect(session).not.toHaveProperty('passwordHash');
+  });
+
+  it('defines public request bodies without internal authentication fields', () => {
+    const activation: ActivateAccountRequest = {
+      password: 'controlled passphrase',
+      token: 'controlled-token',
+    };
+    const login: LoginRequest = {
+      identifier: 'controlled',
+      password: 'controlled passphrase',
+    };
+    const change: ChangePasswordRequest = {
+      currentPassword: 'controlled passphrase',
+      newPassword: 'another controlled passphrase',
+    };
+    const publicCode: AuthPublicErrorCode = 'AUTHENTICATION_FAILED';
+
+    expect({ activation, change, login, publicCode }).not.toHaveProperty(
+      'passwordHash',
+    );
   });
 });
