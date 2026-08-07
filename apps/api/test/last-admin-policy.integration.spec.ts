@@ -64,7 +64,7 @@ describe.sequential('last ADMIN policy', () => {
     await client.$disconnect();
   });
 
-  it('blocks removal, disabling, self-revocation and the last usable invitation', async () => {
+  it('blocks removal, disabling, credential revocation and the last usable invitation', async () => {
     const dylan = await client.user.findUniqueOrThrow({
       where: { loginIdentifier: 'dylan' },
     });
@@ -87,12 +87,25 @@ describe.sequential('last ADMIN policy', () => {
         { isolationLevel: 'Serializable' },
       ),
     ).rejects.toBeInstanceOf(LastAdminPolicyError);
+    await client.user.update({
+      where: { id: dylan.id },
+      data: { status: 'DISABLED' },
+    });
+    await expect(
+      client.$transaction(
+        (transaction) => policy.assertCanDisableUser(transaction, dylan.id),
+        { isolationLevel: 'Serializable' },
+      ),
+    ).resolves.toBeUndefined();
+    await client.user.update({
+      where: { id: dylan.id },
+      data: { activatedAt: new Date(), status: 'ACTIVE' },
+    });
     await expect(
       client.$transaction(
         (transaction) =>
           policy.assertCanAdministrativelyRevokeCredential(
             transaction,
-            dylan.id,
             dylan.id,
           ),
         { isolationLevel: 'Serializable' },
@@ -203,6 +216,68 @@ describe.sequential('last ADMIN policy', () => {
       await client.userRole.updateMany({
         where: { roleId: adminRole.id, userId: dylan.id },
         data: { revokedAt: null },
+      });
+      await client.userRole.deleteMany({ where: { id: secondAssignment.id } });
+    }
+  });
+
+  it('serializes concurrent disabling so one enabled ADMIN always remains', async () => {
+    const [adminRole, dylan, samantha] = await Promise.all([
+      client.role.findUniqueOrThrow({ where: { code: 'ADMIN' } }),
+      client.user.findUniqueOrThrow({ where: { loginIdentifier: 'dylan' } }),
+      client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'samantha' },
+      }),
+    ]);
+    const secondAssignment = await client.userRole.create({
+      data: { roleId: adminRole.id, userId: samantha.id },
+    });
+    await client.user.updateMany({
+      where: { id: { in: [dylan.id, samantha.id] } },
+      data: { activatedAt: new Date(), status: 'ACTIVE' },
+    });
+    const firstClient = createDatabaseClient(databaseUrl);
+    const secondClient = createDatabaseClient(databaseUrl);
+
+    const disable = (operationClient: DatabaseClient, userId: string) =>
+      operationClient.$transaction(
+        async (transaction) => {
+          await policy.assertCanDisableUser(transaction, userId);
+          await transaction.user.update({
+            where: { id: userId },
+            data: { status: 'DISABLED' },
+          });
+        },
+        { isolationLevel: 'Serializable' },
+      );
+
+    try {
+      const results = await Promise.allSettled([
+        disable(firstClient, dylan.id),
+        disable(secondClient, samantha.id),
+      ]);
+      expect(
+        results.filter(({ status }) => status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        results.filter(({ status }) => status === 'rejected'),
+      ).toHaveLength(1);
+      expect(
+        await client.user.count({
+          where: {
+            status: { not: 'DISABLED' },
+            userRoles: {
+              some: { roleId: adminRole.id, revokedAt: null },
+            },
+          },
+        }),
+      ).toBe(1);
+    } finally {
+      await firstClient.$disconnect();
+      await secondClient.$disconnect();
+      await client.user.updateMany({
+        where: { id: { in: [dylan.id, samantha.id] } },
+        data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
       });
       await client.userRole.deleteMany({ where: { id: secondAssignment.id } });
     }

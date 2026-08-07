@@ -2,11 +2,15 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 export type AuthPublicErrorCode =
   | 'ACTIVATION_FAILED'
+  | 'ADMIN_OPERATION_CONFLICT'
+  | 'ADMIN_USER_NOT_FOUND'
+  | 'ADMIN_USER_STATE_CONFLICT'
   | 'AUTHENTICATION_FAILED'
   | 'INVALID_REQUEST'
   | 'PASSWORD_POLICY_REJECTED'
   | 'REQUEST_VERIFICATION_FAILED'
-  | 'SESSION_INVALID';
+  | 'SESSION_INVALID'
+  | 'LAST_ADMIN_PROTECTED';
 
 export class AuthHttpException extends HttpException {
   constructor(
@@ -22,6 +26,30 @@ export class AuthHttpException extends HttpException {
       HttpStatus.BAD_REQUEST,
       'ACTIVATION_FAILED',
       'No fue posible activar la cuenta.',
+    );
+  }
+
+  static adminOperationConflict(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.CONFLICT,
+      'ADMIN_OPERATION_CONFLICT',
+      'La operacion administrativa entro en conflicto.',
+    );
+  }
+
+  static adminUserNotFound(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.NOT_FOUND,
+      'ADMIN_USER_NOT_FOUND',
+      'No se encontro el usuario solicitado.',
+    );
+  }
+
+  static adminUserStateConflict(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.CONFLICT,
+      'ADMIN_USER_STATE_CONFLICT',
+      'El estado del usuario no permite la operacion.',
     );
   }
 
@@ -54,6 +82,14 @@ export class AuthHttpException extends HttpException {
       HttpStatus.UNAUTHORIZED,
       'SESSION_INVALID',
       'La sesion no es valida.',
+    );
+  }
+
+  static lastAdminProtected(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.CONFLICT,
+      'LAST_ADMIN_PROTECTED',
+      'La operacion dejaria al sistema sin un administrador habilitado.',
     );
   }
 }

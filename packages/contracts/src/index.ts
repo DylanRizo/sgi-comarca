@@ -11,3 +11,7 @@ export type {
   LoginRequest,
 } from './auth.js';
 export type { HealthData, ReadinessData } from './health.js';
+export type {
+  AdminInvitationData,
+  UserAdministrationPublicErrorCode,
+} from './user-administration.js';

@@ -101,11 +101,18 @@ export class LastAdminPolicy {
     const targetIsAdmin = assignments.some(
       ({ user }) => user.id === targetUserId,
     );
+    const targetIsAlreadyDisabled = assignments.some(
+      ({ user }) => user.id === targetUserId && user.status === 'DISABLED',
+    );
     const enabledAdmins = assignments.filter(
       ({ user }) => user.status !== 'DISABLED',
     );
 
-    if (targetIsAdmin && enabledAdmins.length <= 1) {
+    if (
+      targetIsAdmin &&
+      !targetIsAlreadyDisabled &&
+      enabledAdmins.length <= 1
+    ) {
       throw new LastAdminPolicyError(
         'The last enabled ADMIN cannot be disabled.',
       );
@@ -114,7 +121,6 @@ export class LastAdminPolicy {
 
   async assertCanAdministrativelyRevokeCredential(
     transaction: TransactionClient,
-    actorUserId: string,
     targetUserId: string,
   ): Promise<void> {
     const assignments = await this.lockAssignedAdmins(transaction);
@@ -125,13 +131,9 @@ export class LastAdminPolicy {
       ({ user }) => user.status !== 'DISABLED',
     ).length;
 
-    if (
-      actorUserId === targetUserId &&
-      targetIsEnabledAdmin &&
-      enabledAdminCount <= 1
-    ) {
+    if (targetIsEnabledAdmin && enabledAdminCount <= 1) {
       throw new LastAdminPolicyError(
-        'The sole ADMIN cannot administratively revoke their own credential.',
+        'The sole enabled ADMIN credential cannot be administratively revoked.',
       );
     }
   }

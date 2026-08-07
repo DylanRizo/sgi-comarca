@@ -1,6 +1,10 @@
 import type { TransactionClient } from './last-admin-policy.js';
 
 export type AuthenticationAuditAction =
+  | 'ADMIN_CREDENTIAL_REVOKED'
+  | 'ADMIN_INVITATION_CREATED'
+  | 'ADMIN_SESSIONS_REVOKED'
+  | 'ADMIN_USER_DEACTIVATED'
   | 'AUTH_ACTIVATION_SUCCEEDED'
   | 'AUTH_LOGIN_BLOCKED'
   | 'AUTH_LOGIN_FAILED'
@@ -21,7 +25,11 @@ export type AuthenticationAuditInput = {
 };
 
 const forbiddenMetadataKeys =
-  /(cookie|credential|identifier|origin|password|secret|token)/iu;
+  /(cookie|credential|csrf|hash|identifier|origin|password|secret|token)/iu;
+
+function containsUnsafeSessionValue(key: string): boolean {
+  return /session/iu.test(key) && !/count/iu.test(key);
+}
 
 export class AuthAuditService {
   async record(
@@ -30,7 +38,7 @@ export class AuthAuditService {
   ): Promise<void> {
     const metadata = input.metadata ?? {};
     for (const key of Object.keys(metadata)) {
-      if (forbiddenMetadataKeys.test(key)) {
+      if (forbiddenMetadataKeys.test(key) || containsUnsafeSessionValue(key)) {
         throw new Error('Authentication audit metadata contains a secret key.');
       }
     }

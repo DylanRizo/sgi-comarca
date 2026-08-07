@@ -589,6 +589,10 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       '/api/v1/auth/logout',
       '/api/v1/auth/change-password',
       '/api/v1/auth/sessions/revoke-all',
+      `/api/v1/users/${dylanId}/invitations`,
+      `/api/v1/users/${dylanId}/credentials/revoke`,
+      `/api/v1/users/${dylanId}/sessions/revoke`,
+      `/api/v1/users/${dylanId}/deactivate`,
     ]) {
       await request(app.getHttpServer())
         .post(route)
