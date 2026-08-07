@@ -1,0 +1,16 @@
+{
+  "name": "@sgi/legacy-profiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke:sheetjs": "node test/sheetjs-gate.smoke.mjs",
+    "typecheck": "node --check test/ooxml-smoke-fixture.mjs && node --check test/ooxml-limited-inspector.mjs && node --check test/sheetjs-gate.smoke.mjs"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
