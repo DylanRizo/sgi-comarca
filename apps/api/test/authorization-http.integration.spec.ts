@@ -292,6 +292,17 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
   it('requires CSRF only on authenticated unsafe methods', async () => {
     const token = await activeSession();
     const csrf = app.get(CsrfTokenService).create(token);
+    const csrfPrefix = 'v1.';
+    const csrfPayload = csrf.slice(csrfPrefix.length);
+    const corruptedPayload =
+      (csrfPayload.startsWith('A') ? 'B' : 'A') + csrfPayload.slice(1);
+    const corruptedCsrf = csrfPrefix + corruptedPayload;
+
+    expect(corruptedCsrf).not.toBe(csrf);
+    expect(corruptedCsrf).toHaveLength(csrf.length);
+    expect(corruptedCsrf).toMatch(/^v1\.[A-Za-z0-9_-]{43}$/u);
+    expect(corruptedCsrf.slice(0, csrfPrefix.length)).toBe(csrfPrefix);
+    expect(corruptedCsrf[csrfPrefix.length]).not.toBe(csrf[csrfPrefix.length]);
 
     await request(app.getHttpServer())
       .get('/api/v1/block-four-test/private')
@@ -309,7 +320,7 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       .set('Host', 'localhost:3001')
       .set('Origin', 'http://localhost:3000')
       .set('Cookie', cookie(token))
-      .set('X-CSRF-Token', csrf.slice(0, -1) + 'A')
+      .set('X-CSRF-Token', corruptedCsrf)
       .expect(403);
     await request(app.getHttpServer())
       .post('/api/v1/block-four-test/mutate')
