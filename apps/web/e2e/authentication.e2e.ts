@@ -79,6 +79,13 @@ test.describe('BLOQUE 6 authentication interface', () => {
     ).toEqual([]);
     expect(JSON.stringify(storage)).not.toContain(token);
     expect(JSON.stringify(storage)).not.toContain(initialPassword);
+    const visibleContent = await page.locator('body').innerText();
+    expect(visibleContent).not.toMatch(
+      /\b(?:ADMIN|FINANCE|INVENTORY_MANAGER|PARTNER|READ_ONLY|SALES)\b/u,
+    );
+    expect(visibleContent).not.toMatch(/\b[a-f0-9]{64}\b/iu);
+    expect(visibleContent).not.toContain(token);
+    expect(visibleContent).not.toContain(initialPassword);
     expect(await database.originalTokenMatchesPersistedValue(token)).toBe(
       false,
     );
@@ -177,6 +184,41 @@ test.describe('BLOQUE 6 authentication interface', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page).toHaveURL('/session-expired');
   });
+
+  for (const expiration of ['idle', 'absolute'] as const) {
+    test(`rejects a session after ${expiration} expiration without exposing private content`, async ({
+      context,
+      page,
+      request,
+    }) => {
+      await activateThroughApi(request);
+      await loginThroughPage(page);
+      await expect(page.getByText('dylan', { exact: true })).toBeVisible();
+      await database.expireLatestSession(expiration);
+
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await expect(page).toHaveURL('/session-expired');
+      await expect(page.getByText('dylan', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('sales.create', { exact: true })).toHaveCount(
+        0,
+      );
+      expect(
+        (await context.cookies()).some(
+          (cookie) => cookie.name === 'sgi_session',
+        ),
+      ).toBe(false);
+      const storage = await page.evaluate(() => ({
+        local: Object.entries(localStorage),
+        session: Object.entries(sessionStorage),
+      }));
+      expect(
+        storage.local.filter(([key]) => !key.startsWith('__next')),
+      ).toEqual([]);
+      expect(
+        storage.session.filter(([key]) => !key.startsWith('__next')),
+      ).toEqual([]);
+    });
+  }
 
   test('changes the password, revokes the session and requires a new login', async ({
     page,

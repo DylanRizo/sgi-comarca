@@ -62,6 +62,48 @@ export class AuthenticationDatabase {
     return result.count;
   }
 
+  async expireLatestSession(expiration: 'absolute' | 'idle'): Promise<void> {
+    const user = await this.client.user.findUniqueOrThrow({
+      select: { id: true },
+      where: { loginIdentifier: 'dylan' },
+    });
+    await this.client.$transaction(async (transaction) => {
+      const current = await transaction.session.findFirstOrThrow({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        where: { revokedAt: null, userId: user.id },
+      });
+      const now = new Date();
+      const createdAt = new Date(
+        now.getTime() - (expiration === 'absolute' ? 9 : 1) * 60 * 60 * 1_000,
+      );
+      const absoluteExpiresAt = new Date(
+        createdAt.getTime() + 8 * 60 * 60 * 1_000,
+      );
+      const lastSeenAt =
+        expiration === 'absolute'
+          ? new Date(absoluteExpiresAt.getTime() - 30 * 60 * 1_000)
+          : new Date(now.getTime() - 31 * 60 * 1_000);
+      const idleExpiresAt = new Date(
+        Math.min(
+          lastSeenAt.getTime() + 30 * 60 * 1_000,
+          absoluteExpiresAt.getTime(),
+        ),
+      );
+
+      await transaction.session.delete({ where: { id: current.id } });
+      await transaction.session.create({
+        data: {
+          absoluteExpiresAt,
+          createdAt,
+          idleExpiresAt,
+          lastSeenAt,
+          tokenHash: current.tokenHash,
+          userId: current.userId,
+        },
+      });
+    });
+  }
+
   async originalTokenMatchesPersistedValue(token: string): Promise<boolean> {
     const pattern = `%${token}%`;
     const rows = await this.client.$queryRaw<Array<{ found: boolean }>>`

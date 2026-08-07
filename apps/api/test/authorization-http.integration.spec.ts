@@ -448,6 +448,12 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
 
   it('enforces effective permissions through the HTTP guard', async () => {
     const token = await activeSession();
+    const initialSession = await request(app.getHttpServer())
+      .get('/api/v1/auth/session')
+      .set('Host', 'localhost:3001')
+      .set('Cookie', cookie(token))
+      .expect(200);
+    expect(initialSession.body.data.permissions).toContain('inventory.adjust');
     await request(app.getHttpServer())
       .get('/api/v1/block-four-test/inventory')
       .set('Host', 'localhost:3001')
@@ -463,7 +469,7 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       where: { code: 'inventory.adjust' },
       select: { id: true },
     });
-    await client.userPermission.create({
+    const deny = await client.userPermission.create({
       data: {
         effect: 'DENY',
         permissionId: permission.id,
@@ -475,6 +481,31 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       .set('Host', 'localhost:3001')
       .set('Cookie', cookie(token))
       .expect(403);
+
+    const deniedSession = await request(app.getHttpServer())
+      .get('/api/v1/auth/session')
+      .set('Host', 'localhost:3001')
+      .set('Cookie', cookie(token))
+      .expect(200);
+    expect(deniedSession.body.data.permissions).not.toContain(
+      'inventory.adjust',
+    );
+
+    await client.userPermission.update({
+      where: { id: deny.id },
+      data: { revokedAt: new Date() },
+    });
+    const restoredSession = await request(app.getHttpServer())
+      .get('/api/v1/auth/session')
+      .set('Host', 'localhost:3001')
+      .set('Cookie', cookie(token))
+      .expect(200);
+    expect(restoredSession.body.data.permissions).toContain('inventory.adjust');
+    await request(app.getHttpServer())
+      .get('/api/v1/block-four-test/inventory')
+      .set('Host', 'localhost:3001')
+      .set('Cookie', cookie(token))
+      .expect(200);
   });
 
   it('does not infer grants from the ADMIN role name', async () => {

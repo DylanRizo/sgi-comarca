@@ -144,6 +144,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       expiresAt?: Date;
       invalidatedAt?: Date;
     } = {},
+    userId = dylanId,
   ): Promise<string> {
     const token = controlledToken(byte);
     const tokenHash = new AuthTokenService().hashValidatedToken(token);
@@ -161,7 +162,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         createdAt,
         expiresAt,
         tokenHash,
-        userId: dylanId,
+        userId,
         ...(overrides.consumedAt ? { consumedAt: overrides.consumedAt } : {}),
         ...(overrides.invalidatedAt
           ? {
@@ -189,6 +190,24 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       cookie: cookieFrom(response),
       csrfToken: String(response.body.data.csrfToken),
     };
+  }
+
+  async function activateUser(
+    loginIdentifier: string,
+    byte: number,
+  ): Promise<{ cookie: string; userId: string }> {
+    const user = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier },
+      select: { id: true },
+    });
+    const token = await createInvitation(byte, {}, user.id);
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/activate')
+      .set('Host', host)
+      .set('Origin', origin)
+      .send({ password: approvedPassword, token })
+      .expect(201);
+    return { cookie: cookieFrom(response), userId: user.id };
   }
 
   it('activates atomically, sets the cookie after commit and omits every opaque token', async () => {
@@ -455,6 +474,137 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         persistedSession.absoluteExpiresAt.getTime(),
       ),
     );
+  });
+
+  it('returns the exact deterministic permission matrix for all four initial users', async () => {
+    const expectedPermissions = {
+      dylan: [
+        'closings.create',
+        'closings.read',
+        'closings.reopen',
+        'finances.manual.create',
+        'finances.read',
+        'inventory.adjust',
+        'sales.cancel',
+        'sales.confirm_in_transit',
+        'sales.create',
+        'users.credentials.revoke',
+        'users.invitations.create',
+        'users.sessions.revoke',
+        'users.status.manage',
+      ],
+      jean: ['inventory.adjust', 'sales.confirm_in_transit', 'sales.create'],
+      luden: ['inventory.adjust', 'sales.confirm_in_transit', 'sales.create'],
+      samantha: [
+        'closings.create',
+        'closings.read',
+        'closings.reopen',
+        'finances.manual.create',
+        'finances.read',
+        'inventory.adjust',
+        'sales.confirm_in_transit',
+        'sales.create',
+      ],
+    } as const;
+    const authentications = [];
+    for (const [identifier, byte] of [
+      ['dylan', 0xb1],
+      ['samantha', 0xb2],
+      ['jean', 0xb3],
+      ['luden', 0xb4],
+    ] as const) {
+      authentications.push(await activateUser(identifier, byte));
+    }
+    const ungrantedPermission = await client.permission.create({
+      data: {
+        code: 'tests.phase3b.ungranted',
+        description: 'Controlled ungranted permission for acceptance testing.',
+      },
+    });
+
+    try {
+      for (const [index, identifier] of [
+        'dylan',
+        'samantha',
+        'jean',
+        'luden',
+      ].entries()) {
+        const authentication = authentications[index];
+        if (!authentication) throw new Error('Missing authentication fixture.');
+        const response = await request(app.getHttpServer())
+          .get('/api/v1/auth/session')
+          .set('Host', host)
+          .set('Cookie', authentication.cookie)
+          .expect(200);
+        const permissions = response.body.data.permissions as string[];
+        expect(response.body.data).toMatchObject({
+          identifier,
+          userId: authentication.userId,
+        });
+        expect(permissions).toEqual(
+          expectedPermissions[identifier as keyof typeof expectedPermissions],
+        );
+        expect(permissions).toEqual([...permissions].sort());
+        expect(permissions).not.toContain('transfers.create');
+        expect(permissions).not.toContain(ungrantedPermission.code);
+        expect(response.body.data).not.toHaveProperty('roles');
+        expect(response.text).not.toContain('"roles"');
+      }
+    } finally {
+      await client.permission.delete({ where: { id: ungrantedPermission.id } });
+    }
+  }, 30_000);
+
+  it('keeps only the approved health and authentication entry routes public', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Host', host)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/ready')
+      .set('Host', host)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/activate')
+      .set('Host', host)
+      .set('Origin', origin)
+      .send({})
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('Host', host)
+      .set('Origin', origin)
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/session')
+      .set('Host', host)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/csrf')
+      .set('Host', host)
+      .expect(401);
+    for (const route of [
+      '/api/v1/auth/logout',
+      '/api/v1/auth/change-password',
+      '/api/v1/auth/sessions/revoke-all',
+    ]) {
+      await request(app.getHttpServer())
+        .post(route)
+        .set('Host', host)
+        .set('Origin', origin)
+        .send({})
+        .expect(401);
+    }
+
+    for (const route of ['/api/docs', '/api/v1/docs']) {
+      const swagger = await request(app.getHttpServer())
+        .get(route)
+        .set('Host', host);
+      expect(swagger.status).not.toBe(200);
+      expect(swagger.text).not.toContain('swagger-ui');
+    }
   });
 
   it('requires allowed Origin publicly and CSRF on authenticated mutations', async () => {
