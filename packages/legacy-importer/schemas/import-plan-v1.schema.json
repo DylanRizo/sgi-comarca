@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sgi.local/schemas/legacy-import-plan-v1.json",
+  "title": "SGI legacy import plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "sourceCode",
+    "sourceSha256",
+    "batchKey",
+    "mappingVersion",
+    "totalSourceRows",
+    "sheets",
+    "businessWritesEnabled"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sourceCode": { "type": "string" },
+    "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "batchKey": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "mappingVersion": { "type": "string" },
+    "totalSourceRows": { "type": "integer", "minimum": 0 },
+    "businessWritesEnabled": { "const": false },
+    "sheets": { "type": "array", "items": { "type": "object" } }
+  }
+}

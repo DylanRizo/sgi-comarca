@@ -1,0 +1,7 @@
+{
+  "businessWritesEnabled": false,
+  "schemaVersion": 1,
+  "scope": "PRESERVE_RAW_ONLY",
+  "sourceCode": "synthetic-source",
+  "totalSourceRows": 8
+}

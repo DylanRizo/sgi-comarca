@@ -1,5 +1,21 @@
 # Decisiones humanas pendientes
 
+## Actualización FASE 4A — 2026-08-09
+
+FASE 4A no resuelve decisiones de negocio. El dry-run preserva 2,064/2,064
+filas y mantiene trazabilidad de los 24 hallazgos `blocksPhase4`.
+
+- DEC-011 permanece abierta: ninguna `Unit` se crea por normalización textual;
+  las 14 filas del catálogo quedan `UNIT_MAPPING_UNRESOLVED` salvo equivalencia
+  expresamente aprobada.
+- DGGR-X, CCWH-L, agrupación y cuatro pares duplicados de ventas permanecen
+  `REQUIRES_HUMAN_APPROVAL`.
+- DEC-004–009, DEC-015 y los aspectos pendientes de DEC-025 conservan su estado
+  documentado.
+- Finanzas, CierresDiarios, Movimientos, Grupos, cancelaciones y tránsito se
+  preservan raw-only en este bloque.
+- La importación persistente no está autorizada.
+
 Este inventario conserva la evidencia y las alternativas identificadas en FASE 0. Los estados de DEC-015, DEC-025, DEC-031 y DEC-032 se sincronizaron posteriormente con decisiones aprobadas por el propietario; no se alteró la evidencia histórica. La columna “comportamiento seguro para ensayo” preserva datos y evita correcciones automáticas cuando una parte continúa abierta.
 
 | ID | Decisión requerida | Evidencia/alternativas | Comportamiento seguro para ensayo | Estado |

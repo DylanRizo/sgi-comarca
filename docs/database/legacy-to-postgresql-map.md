@@ -1,5 +1,10 @@
 # Mapeo legacy a PostgreSQL
 
+> Estado FASE 4A: este documento expresa mappings objetivo. El importer actual
+> preserva todas las filas como `LegacyRecord` y solo simula entidades de negocio
+> mediante reglas explícitamente aprobadas. No existe importación persistente y
+> la ausencia de mapping significa `UNRESOLVED`.
+
 ## Reglas generales
 
 - El XLSX se lee sin modificar y cada fila conserva hoja, número original, batch y raw data.

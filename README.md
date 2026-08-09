@@ -8,7 +8,8 @@ PostgreSQL.
 - FASE 3B: autenticación, sesiones, autorización, administración limitada y
   frontend de autenticación — completa.
 - FASE 3C: perfilador reproducible del XLSX — completa.
-- FASE 4: importador y reconciliación legacy — siguiente fase, no iniciada.
+- FASE 4: importador y reconciliación legacy — en progreso; FASE 4A dispone de
+  framework y dry-run, sin importación persistente.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -18,6 +19,11 @@ Consulte el
 El diseño y la evidencia sanitizada de FASE 3C están en la
 [guía del profiler](docs/migration/phase-3c-profiler.md) y su
 [informe de cierre](docs/reviews/phase-3c-completion-report.md).
+
+El alcance de FASE 4A se documenta en la
+[guía del importer](docs/migration/phase-4-importer.md),
+[ADR-008](docs/decisions/ADR-008-legacy-import-boundaries.md) y el
+[informe sanitizado del dry-run](docs/reviews/phase-4-dry-run-report.md).
 
 ## Requisitos para Windows
 
@@ -137,6 +143,21 @@ pnpm profile:legacy -- `
 
 No copie el XLSX ni los reportes privados a rutas versionadas. FASE 4 debe
 verificar el manifest determinista antes de consumir esa evidencia.
+
+## Importer legacy en dry-run
+
+FASE 4A solo permite PostgreSQL temporal y rechaza cualquier opción de commit:
+
+```powershell
+pnpm import:legacy -- --dry-run `
+  --input legacy/private/datos-inventario.xlsx `
+  --source-code legacy-inventory-xlsx `
+  --profile-dir reports/private/profiling/legacy-inventory-xlsx/<SOURCE_SHA256> `
+  --mapping-file packages/legacy-importer/config/legacy-inventory-xlsx.mapping.json `
+  --report-dir reports/private/importing
+```
+
+Los reportes son privados. **PERSISTENT IMPORT NOT AUTHORIZED.**
 
 ## Solución de problemas
 

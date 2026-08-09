@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sgi.local/schemas/legacy-reconciliation-v1.json",
+  "title": "SGI legacy reconciliation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "sourceCode",
+    "sourceSha256",
+    "totalSourceRows",
+    "rawPreservedRows",
+    "droppedRows",
+    "phase3cFindingsAccounted",
+    "issues"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sourceCode": { "type": "string" },
+    "sourceSha256": { "type": "string" },
+    "totalSourceRows": { "type": "integer" },
+    "rawPreservedRows": { "type": "integer" },
+    "droppedRows": { "type": "integer" },
+    "phase3cFindingsAccounted": { "type": "integer" },
+    "issues": { "type": "array", "items": { "type": "object" } }
+  }
+}

@@ -613,7 +613,7 @@ cerrados. No vuelva a ejecutar la antigua FASE 5. Use como fuentes:
 - `docs/decisions/ADR-007-phase-3b-authentication-authorization.md`;
 - `docs/deployment/phase-3b-auth-operations.md`.
 
-# FASE 3C — Perfilador reproducible (`NEXT`)
+# FASE 3C — Perfilador reproducible (`COMPLETE`)
 
 Objetivo: leer el XLSX privado sin modificarlo y generar perfiles/reconciliación
 sanitizados. No importar datos, no ejecutar CLI administrativas y no modificar
@@ -626,6 +626,31 @@ privados fuera de Git y cero escritura en el XLSX o base operacional.
 ---
 
 # FASE 4 — Importador dry-run y reconciliación
+
+Estado actual: `IN_PROGRESS`. FASE 4A tiene `FRAMEWORK READY` y
+`DRY_RUN PASSED`; la importación persistente no está autorizada.
+
+La única ejecución autorizada es:
+
+```powershell
+pnpm import:legacy -- --dry-run `
+  --input legacy/private/datos-inventario.xlsx `
+  --source-code legacy-inventory-xlsx `
+  --profile-dir reports/private/profiling/legacy-inventory-xlsx/<SOURCE_SHA256> `
+  --mapping-file packages/legacy-importer/config/legacy-inventory-xlsx.mapping.json `
+  --report-dir reports/private/importing
+```
+
+La CLI crea una base temporal con fingerprint positivo, aplica
+migraciones/bootstrap, preserva raw, genera reconciliación y destruye la base.
+`COMMITTED` en un batch `DRY_RUN` solo describe la simulación descartable. No
+ejecute ni implemente `--commit` sin aprobación separada.
+
+## Plan histórico anterior a FASE 4A — `SUPERSEDED_IN_PART`
+
+El prompt siguiente se conserva como contexto histórico. Sus propuestas de
+`--commit`, agrupación automática de ventas y materialización de módulos de
+negocio **no están autorizadas** en FASE 4A y no deben ejecutarse.
 
 ```powershell
 git checkout -b migration/04-importer

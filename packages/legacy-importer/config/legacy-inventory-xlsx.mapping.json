@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "mappingVersion": "phase-4a.1",
+  "sourceCode": "legacy-inventory-xlsx",
+  "sourceSha256": "d0bb929d9498db888295d2c556a51e1a90f3d5834e9c4d544d9b1bb65d46e550",
+  "defaultMappingStatus": "UNRESOLVED",
+  "transformPolicies": {
+    "APPLY": [
+      "UNAMBIGUOUS_DECIMAL",
+      "UNAMBIGUOUS_EXCEL_DATE",
+      "APPROVED_MANAGUA_DATETIME_TO_UTC",
+      "CIVIL_DATE_WITHOUT_SHIFT",
+      "EMPTY_TO_NULL_WHEN_NULLABLE"
+    ],
+    "OBSERVE_ONLY": [
+      "TRIM",
+      "NFC",
+      "CASE_FOLDING",
+      "CODE_NORMALIZATION",
+      "NUMERIC_STORED_AS_TEXT"
+    ],
+    "FORBIDDEN": [
+      "AUTOMATIC_DEDUPE",
+      "AUTOMATIC_MERGE",
+      "FORMULA_RECALCULATION",
+      "INFER_SALE",
+      "INFER_MOVEMENT",
+      "INFER_CANCELLATION",
+      "INFER_TRANSIT_CONFIRMATION",
+      "CURRENCY_CONVERSION",
+      "AMBIGUOUS_DATE_COERCION",
+      "SILENT_ROUNDING",
+      "SOURCE_WORKBOOK_MUTATION"
+    ]
+  },
+  "sheets": [
+    {
+      "name": "Productos",
+      "scope": "BLOCKED_PENDING_DECISION",
+      "decisionCodes": ["DEC-004", "DGGR-X"]
+    },
+    { "name": "Finanzas", "scope": "PRESERVE_RAW_ONLY", "decisionCodes": [] },
+    {
+      "name": "CierresDiarios",
+      "scope": "PRESERVE_RAW_ONLY",
+      "decisionCodes": ["DEC-025"]
+    },
+    {
+      "name": "Movimientos",
+      "scope": "PRESERVE_RAW_ONLY",
+      "decisionCodes": ["DEC-008", "DEC-009"]
+    },
+    {
+      "name": "Entrada de Productos",
+      "scope": "PRESERVE_RAW_ONLY",
+      "decisionCodes": []
+    },
+    {
+      "name": "Inventario",
+      "scope": "BLOCKED_PENDING_DECISION",
+      "decisionCodes": ["DEC-009", "DEC-015", "CCWH-L"]
+    },
+    {
+      "name": "Ventas",
+      "scope": "BLOCKED_PENDING_DECISION",
+      "decisionCodes": ["DEC-005", "DEC-006", "DEC-007", "SALE_GROUPING"]
+    },
+    {
+      "name": "Unidades",
+      "scope": "BLOCKED_PENDING_DECISION",
+      "decisionCodes": ["DEC-011"]
+    },
+    { "name": "Grupos", "scope": "PRESERVE_RAW_ONLY", "decisionCodes": [] }
+  ],
+  "approvedMappings": {
+    "units": [],
+    "warehouses": [],
+    "businessEntityWrites": []
+  }
+}

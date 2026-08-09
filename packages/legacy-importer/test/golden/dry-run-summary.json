@@ -1,0 +1,7 @@
+{
+  "businessEntityWriteCount": 0,
+  "mode": "DRY_RUN",
+  "persistentImportAuthorized": false,
+  "result": "DRY_RUN_COMMITTED_IN_DISPOSABLE_DATABASE",
+  "schemaVersion": 1
+}
