@@ -1,6 +1,28 @@
 # Decisiones humanas pendientes
 
-## Actualización FASE 4A — 2026-08-09
+## Actualización FASE 4B Waves 1–2 — 2026-08-09
+
+El propietario aprobó y el dry-run temporal aplicó las siguientes decisiones:
+
+- DEC-004: DGGR-X fila 29 canónica; fila 30 raw-only, sin merge ni código
+  artificial.
+- DEC-005: CCWH-L usa el snapshot más reciente para `InventoryBalance`; las
+  observaciones de valoración válidas se conservan sin sumar cantidades.
+- DEC-009: Inventario es la fuente autoritativa del saldo inicial; cada
+  diferencia se reporta y Movimientos permanece raw-only.
+- DEC-011: catálogo explícito de 14 Units y alias `Unidad → Unidades`.
+- DEC-015 para Waves 1–2: costo y precio por warehouse; costo cero preservado
+  con revisión, sin promedio ni sustitución.
+- Warehouse: mappings exactos para Casa Dylan, Casa Luden y Casa Jean.
+- Inventario filas 153 y 154: balance permitido, raw preservado y valoración
+  omitida con `VALUATION_OBSERVED_AT_MISSING`; nunca se inventa una fecha.
+
+Ventas difiere a FASE 7 la agrupación, cuatro pares duplicados, siete ventas sin
+Movimiento, 28 referencias de producto y mappings de usuarios. Movimientos
+operacionales y ocho IDs sin venta se difieren a FASE 6; DEC-025 a FASE 8. La
+importación persistente continúa sin autorización.
+
+## Fotografía histórica FASE 4A — 2026-08-09
 
 FASE 4A no resuelve decisiones de negocio. El dry-run preserva 2,064/2,064
 filas y mantiene trazabilidad de los 24 hallazgos `blocksPhase4`.
@@ -23,18 +45,18 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | DEC-001 | Moneda canónica y símbolo | UI mezcla `$` y `C$`; datos no declaran moneda | Guardar valores sin conversión y moneda `UNKNOWN`/configurable | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-002 | Usuarios reales y vinculación de nombres | Vendedores, entregadores, responsables y emails legacy | Cuatro cuentas explícitas aprobadas; preservar otros textos sin crear cuentas automáticamente | `RESOLVED_IN_PHASE_3B` |
 | DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | La matriz inicial se cerró en ADR-007; `transfers.create` permanece sin grants | `PARTIALLY_RESOLVED` |
-| DEC-004 | Duplicado `DGGR-X` | Productos filas 29–30 | Importar ambas como raw; bloquear resolución de código único | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-005 | Duplicados `CCWH-L` | Dos filas por Casa Dylan y dos por Casa Luden con valores distintos | Preservar cuatro filas en staging de importación; no sumar ni elegir “última” | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-004 | Duplicado `DGGR-X` | Productos filas 29–30 | Fila 29 canónica; fila 30 raw-only; sin merge ni código artificial | `RESOLVED_IN_PHASE_4B` |
+| DEC-005 | Duplicados `CCWH-L` | Dos filas por Casa Dylan y dos por Casa Luden con valores distintos | Balance usa snapshot más reciente; observaciones válidas se preservan; nunca sumar | `RESOLVED_IN_PHASE_4B` |
 | DEC-006 | Cuatro líneas de venta duplicadas | Pares en filas 124–125, 176/179, 214–215, 255/257 | Importar con marca `duplicate_candidate`; excluir de totales aprobados | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-007 | Siete ventas sin movimiento | Ventas filas 30, 31, 38, 41, 48, 56, 75 | Conservar venta; no crear movimiento sintético | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-008 | Ocho IDs de movimiento sin venta | Movimientos filas 126, 189, 190, 201, 216, 251, 277, 278 | Conservar movimiento; no crear venta sintética | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-009 | 157 diferencias y 4 claves sin contraparte | Inventario vs último saldo comparable | Usar Inventario como saldo inicial y reportar cada diferencia | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-008 | Ocho IDs de movimiento sin venta | Movimientos filas 126, 189, 190, 201, 216, 251, 277, 278 | Conservar raw; no crear venta ni movimiento operacional en Waves 1–2 | `DEFER_TO_PHASE_6` |
+| DEC-009 | 157 diferencias y 4 claves sin contraparte | Inventario vs último saldo comparable | Inventario manda; reportar cada diferencia; no sintetizar balance desde Movimientos | `RESOLVED_IN_PHASE_4B` |
 | DEC-010 | Significado de `Stock Resultante` | El código calcula global; la columna incluye ubicación | Tratarlo como dato histórico informativo, no como saldo por almacén | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-011 | `Unidad` vs `Unidades` | 93 productos usan singular fuera del catálogo | Preservar singular; proponer mapeo explícito separado | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-011 | `Unidad` vs `Unidades` | 93 productos usan singular fuera del catálogo | Catálogo explícito de 14 Units; alias versionado `Unidad → Unidades` | `RESOLVED_IN_PHASE_4B` |
 | DEC-012 | Normalización de personas | Variantes ortográficas y mayúsculas | Preservar original y generar candidatos, sin fusionar | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-013 | Normalización de canales | `Facebook`, `Facebook Marketplace`, 117 vacíos | Preservar; nulos permanecen desconocidos | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-014 | Fuente de precio vigente | Productos vs 76 filas de Inventario diferentes | Productos como precio actual solo si se aprueba; conservar snapshots de ambos | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Inventario define costo operativo inicial; conservar snapshots. Costos cero, variaciones, inconsistencias y margen no confiable requieren aprobación antes de import commit/analytics | `PARTIALLY_RESOLVED` |
+| DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Waves 1–2 conservan costo/precio por warehouse y cero con issue; margen/analytics posteriores siguen separados | `APPROVED_FOR_WAVES_1_2` |
 | DEC-016 | Estado de 401 líneas de venta | Q vacía; código las trata como Completado | Importar estado legacy nulo y una clasificación inferida separada | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar nulo; no derivar estado | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-018 | Método de pago histórico | Solo 32 líneas etiquetadas; código clasifica resto Digital | Importar `UNKNOWN`; conservar inferencia legacy aparte | `REQUIRES_HUMAN_APPROVAL` |
@@ -135,12 +157,17 @@ capacidades de módulos futuros, especialmente transferencias. Consulte
 - se conserva el snapshot histórico;
 - otras fuentes divergentes no se sobrescriben silenciosamente.
 
-`REQUIRES_HUMAN_APPROVAL_BEFORE_IMPORT_COMMIT_OR_ANALYTICS`:
+`APPROVED_FOR_PHASE_4B_WAVES_1_2`:
 
-- costos cero;
-- costos distintos para el mismo producto entre almacenes;
-- costos históricos inconsistentes;
-- definición de margen cuando el costo no sea confiable.
+- costo y precio se conservan por warehouse, sin promedio ni valor global;
+- un costo cero permanece cero y genera revisión;
+- Entrada de Productos permanece raw-only y no sustituye el valor inicial.
+
+`REQUIRES_HUMAN_APPROVAL_BEFORE_ANALYTICS`:
+
+- definición de margen cuando el costo no sea confiable;
+- uso analítico de inconsistencias históricas más allá de la preservación y
+  reconciliación aprobadas.
 
 ### DEC-025 — reapertura de cierres
 

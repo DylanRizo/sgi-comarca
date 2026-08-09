@@ -10,7 +10,10 @@ import {
   installTemporaryDatabaseFingerprint,
   type TemporaryDatabaseFingerprint,
 } from '../src/persistence/temporary-database-guard.js';
-import { databasePlan } from './fixtures/synthetic-import.js';
+import {
+  databasePlan,
+  databaseWave12Plan,
+} from './fixtures/synthetic-import.js';
 
 describe('FASE 4A temporary PostgreSQL dry-run', () => {
   const client = createDatabaseClient(process.env.DATABASE_URL!);
@@ -125,6 +128,81 @@ describe('FASE 4A temporary PostgreSQL dry-run', () => {
         where: { importBatchId: plan.importBatchId },
       }),
     ).resolves.toBe(10);
+  });
+
+  it('simulates approved Wave 1-2 entities and links raw evidence only in the temporary database', async () => {
+    await client.warehouse.createMany({
+      data: [
+        {
+          code: 'CASA_DYLAN',
+          name: 'Synthetic warehouse',
+        },
+      ],
+      skipDuplicates: true,
+    });
+    const { plan, reconciliation } = databaseWave12Plan('wave12-integration');
+    const result = await executeDryRun(
+      client,
+      fingerprint,
+      plan,
+      reconciliation,
+    );
+    expect(result).toMatchObject({
+      businessEntityWriteCount: 4,
+      reconciliationIssueCountsByCode: {
+        VALUATION_OBSERVED_AT_MISSING: 1,
+      },
+      businessEntityCounts: {
+        units: 1,
+        products: 1,
+        inventoryBalances: 1,
+        productWarehouseValuations: 1,
+      },
+      persistentImportAuthorized: false,
+    });
+    const linkedRecord = await client.legacyRecord.findUnique({
+      where: { id: plan.businessPlan!.recordLinks[2]!.recordId },
+    });
+    expect(linkedRecord).toMatchObject({
+      status: 'IMPORTED',
+      targetProductId: plan.businessPlan!.products[0]!.id,
+      targetInventoryBalanceId: plan.businessPlan!.inventoryBalances[0]!.id,
+    });
+    await expect(
+      client.productWarehouseValuation.count({
+        where: { legacyRecordId: linkedRecord!.id },
+      }),
+    ).resolves.toBe(1);
+    const missingDateRecord = await client.legacyRecord.findUnique({
+      where: { id: plan.businessPlan!.recordLinks[3]!.recordId },
+    });
+    expect(missingDateRecord).toMatchObject({
+      status: 'IMPORTED',
+      targetProductId: plan.businessPlan!.products[0]!.id,
+      targetInventoryBalanceId: plan.businessPlan!.inventoryBalances[0]!.id,
+    });
+    await expect(
+      client.productWarehouseValuation.count({
+        where: { legacyRecordId: missingDateRecord!.id },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      client.reconciliationIssue.count({
+        where: {
+          importBatchId: plan.importBatchId,
+          code: 'VALUATION_OBSERVED_AT_MISSING',
+          status: 'REQUIRES_HUMAN_APPROVAL',
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      executeDryRun(client, fingerprint, plan, reconciliation),
+    ).resolves.toEqual(result);
+    await expect(
+      client.productWarehouseValuation.count({
+        where: { id: plan.businessPlan!.productWarehouseValuations[0]!.id },
+      }),
+    ).resolves.toBe(1);
   });
 
   it('returns an explicit conflict for a concurrent batch and releases the lock', async () => {

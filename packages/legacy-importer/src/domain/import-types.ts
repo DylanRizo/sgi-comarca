@@ -47,6 +47,33 @@ export interface MappingRegistry {
     warehouses: ApprovedMapping[];
     businessEntityWrites: string[];
   };
+  approvedDecisions?: ApprovedDecisionRegistry;
+}
+
+export interface ApprovedDecisionRegistry {
+  productCanonicalization: Array<{
+    sourceCode: string;
+    canonicalRow: number;
+    evidenceOnlyRows: number[];
+    decisionCode: string;
+  }>;
+  inventorySnapshotSelection: {
+    strategy: 'LATEST_SOURCE_TIMESTAMP';
+    decisionCodes: string[];
+  };
+  zeroCostPolicy: 'PRESERVE_ZERO_AND_REVIEW';
+  valuationPolicy: 'PER_WAREHOUSE';
+  missingValuationObservedAtPolicy: {
+    sourceSheet: 'Inventario';
+    physicalRows: number[];
+    action: 'PRESERVE_RAW_AND_BALANCE_WITHOUT_VALUATION';
+    issueCode: 'VALUATION_OBSERVED_AT_MISSING';
+  };
+  inventoryAuthority: 'INVENTORY_SHEET';
+  semanticTextPolicy: 'PRESERVE_PHYSICAL_TEXT';
+  deferredScopes: Record<string, string>;
+  resolvedPhase3cRuleCodes: string[];
+  deferredPhase3cRuleCodes: string[];
 }
 
 export interface VerifiedProfileEvidence {
@@ -92,6 +119,69 @@ export interface PlannedLegacyRecord {
   status: PlannedRecordStatus;
 }
 
+export interface PlannedUnit {
+  id: string;
+  code: string;
+  name: string;
+  sourceRecordId: string;
+}
+
+export interface PlannedProduct {
+  id: string;
+  code: string;
+  name: string;
+  unitId: string;
+  minimumStock: string;
+  createdAt: string;
+  canonicalSourceRecordId: string;
+  evidenceSourceRecordIds: string[];
+}
+
+export interface PlannedInventoryBalance {
+  id: string;
+  productId: string;
+  warehouseCode: string;
+  quantity: string;
+  currentUnitPrice: string;
+  currentUnitCost: string;
+  priceReviewRequired: boolean;
+  costReviewRequired: boolean;
+  sourceRecordIds: string[];
+  selectedSourceRecordId: string;
+}
+
+export interface PlannedProductWarehouseValuation {
+  id: string;
+  productId: string;
+  warehouseCode: string;
+  unitPrice: string;
+  unitCost: string;
+  observedAt: string;
+  effectiveAt: string;
+  legacyRecordId: string;
+  requiresHumanReview: boolean;
+  reviewReason: string | null;
+}
+
+export interface PlannedRecordLink {
+  recordId: string;
+  targetUnitId: string | null;
+  targetProductId: string | null;
+  targetWarehouseCode: string | null;
+  targetInventoryBalanceId: string | null;
+  mappingStatus: MappingResolution;
+  errorCodes: string[];
+}
+
+export interface Wave12BusinessPlan {
+  units: PlannedUnit[];
+  products: PlannedProduct[];
+  inventoryBalances: PlannedInventoryBalance[];
+  productWarehouseValuations: PlannedProductWarehouseValuation[];
+  recordLinks: PlannedRecordLink[];
+  reconciliationIssues: PlannedReconciliationIssue[];
+}
+
 export interface SheetImportPlan {
   name: string;
   index: number;
@@ -113,10 +203,13 @@ export interface ImportPlan {
   legacySourceId: string;
   importBatchId: string;
   totalSourceRows: number;
-  businessWritesEnabled: false;
+  businessWritesEnabled: boolean;
   sheets: SheetImportPlan[];
   records: PlannedLegacyRecord[];
   phase3cFindings: Finding[];
+  resolvedPhase3cRuleCodes?: string[];
+  deferredPhase3cRuleCodes?: string[];
+  businessPlan?: Wave12BusinessPlan;
 }
 
 export type ReconciliationSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
@@ -127,7 +220,7 @@ export interface PlannedReconciliationIssue {
   legacyRecordId: string | null;
   code: string;
   severity: ReconciliationSeverity;
-  status: 'OPEN' | 'REQUIRES_HUMAN_APPROVAL';
+  status: 'OPEN' | 'REQUIRES_HUMAN_APPROVAL' | 'RESOLVED';
   requiresHumanApproval: boolean;
   message: string;
   details: JsonValue;
@@ -158,7 +251,14 @@ export interface ImportExecutionSummary {
   rawPreservedRows: number;
   droppedRows: number;
   reconciliationIssueCount: number;
-  businessEntityWriteCount: 0;
+  reconciliationIssueCountsByCode: Record<string, number>;
+  businessEntityWriteCount: number;
+  businessEntityCounts: {
+    units: number;
+    products: number;
+    inventoryBalances: number;
+    productWarehouseValuations: number;
+  };
   persistentImportAuthorized: false;
   artifactChecksums?: Record<string, string>;
 }

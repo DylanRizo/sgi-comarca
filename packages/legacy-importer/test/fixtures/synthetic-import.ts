@@ -337,3 +337,146 @@ export function databasePlan(
     },
   };
 }
+
+export function databaseWave12Plan(suffix = 'wave12'): {
+  plan: ImportPlan;
+  reconciliation: ReconciliationResult;
+} {
+  const result = databasePlan(4, suffix);
+  const { plan } = result;
+  const unitId = deterministicUuid('unit', { suffix });
+  const productId = deterministicUuid('product', { suffix });
+  const balanceId = deterministicUuid('balance', { suffix });
+  const valuationId = deterministicUuid('valuation', { suffix });
+  const [unitRecord, productRecord, inventoryRecord, missingDateRecord] =
+    plan.records;
+  if (
+    unitRecord === undefined ||
+    productRecord === undefined ||
+    inventoryRecord === undefined ||
+    missingDateRecord === undefined
+  ) {
+    throw new Error('SYNTHETIC_RECORDS_MISSING');
+  }
+  plan.businessWritesEnabled = true;
+  plan.businessPlan = {
+    units: [
+      {
+        id: unitId,
+        code: `UNIT_${suffix.toUpperCase()}`,
+        name: 'Synthetic unit',
+        sourceRecordId: unitRecord.id,
+      },
+    ],
+    products: [
+      {
+        id: productId,
+        code: `PRODUCT_${suffix.toUpperCase()}`,
+        name: 'Synthetic product',
+        unitId,
+        minimumStock: '0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        canonicalSourceRecordId: productRecord.id,
+        evidenceSourceRecordIds: [],
+      },
+    ],
+    inventoryBalances: [
+      {
+        id: balanceId,
+        productId,
+        warehouseCode: 'CASA_DYLAN',
+        quantity: '2',
+        currentUnitPrice: '10',
+        currentUnitCost: '5',
+        priceReviewRequired: false,
+        costReviewRequired: false,
+        sourceRecordIds: [inventoryRecord.id, missingDateRecord.id],
+        selectedSourceRecordId: inventoryRecord.id,
+      },
+    ],
+    productWarehouseValuations: [
+      {
+        id: valuationId,
+        productId,
+        warehouseCode: 'CASA_DYLAN',
+        unitPrice: '10',
+        unitCost: '5',
+        observedAt: '2026-01-01T00:00:00.000Z',
+        effectiveAt: '2026-01-01T00:00:00.000Z',
+        legacyRecordId: inventoryRecord.id,
+        requiresHumanReview: false,
+        reviewReason: null,
+      },
+    ],
+    recordLinks: [
+      {
+        recordId: unitRecord.id,
+        targetUnitId: unitId,
+        targetProductId: null,
+        targetWarehouseCode: null,
+        targetInventoryBalanceId: null,
+        mappingStatus: 'APPROVED',
+        errorCodes: [],
+      },
+      {
+        recordId: productRecord.id,
+        targetUnitId: unitId,
+        targetProductId: productId,
+        targetWarehouseCode: null,
+        targetInventoryBalanceId: null,
+        mappingStatus: 'APPROVED',
+        errorCodes: [],
+      },
+      {
+        recordId: inventoryRecord.id,
+        targetUnitId: null,
+        targetProductId: productId,
+        targetWarehouseCode: 'CASA_DYLAN',
+        targetInventoryBalanceId: balanceId,
+        mappingStatus: 'APPROVED',
+        errorCodes: [],
+      },
+      {
+        recordId: missingDateRecord.id,
+        targetUnitId: null,
+        targetProductId: productId,
+        targetWarehouseCode: 'CASA_DYLAN',
+        targetInventoryBalanceId: balanceId,
+        mappingStatus: 'APPROVED',
+        errorCodes: ['VALUATION_OBSERVED_AT_MISSING'],
+      },
+    ],
+    reconciliationIssues: [
+      {
+        id: deterministicUuid('issue', {
+          importBatchId: plan.importBatchId,
+          code: 'VALUATION_OBSERVED_AT_MISSING',
+        }),
+        importBatchId: plan.importBatchId,
+        legacyRecordId: missingDateRecord.id,
+        code: 'VALUATION_OBSERVED_AT_MISSING',
+        severity: 'WARNING',
+        status: 'REQUIRES_HUMAN_APPROVAL',
+        requiresHumanApproval: true,
+        message: 'VALUATION_OMITTED_WITHOUT_FAITHFUL_OBSERVED_AT',
+        details: {
+          sourceSheet: 'Inventario',
+          physicalRow: 4,
+          resolution: 'PRESERVE_RAW_AND_BALANCE_WITHOUT_VALUATION',
+        },
+        entityType: 'ProductWarehouseValuation',
+      },
+    ],
+  };
+  result.reconciliation.issues.push(plan.businessPlan.reconciliationIssues[0]!);
+  for (const record of [
+    unitRecord,
+    productRecord,
+    inventoryRecord,
+    missingDateRecord,
+  ]) {
+    record.status = 'IMPORTED';
+    record.rawData.mappingStatus = 'APPROVED';
+  }
+  return result;
+}

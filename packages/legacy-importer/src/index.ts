@@ -12,5 +12,6 @@ export * from './persistence/dry-run-repository.js';
 export * from './persistence/temporary-database-guard.js';
 export * from './persistence/temporary-database-manager.js';
 export * from './planning/import-plan-builder.js';
+export * from './planning/wave-12-business-plan-builder.js';
 export * from './reconciliation/reconciliation-engine.js';
 export * from './reporting/private-import-report-writer.js';

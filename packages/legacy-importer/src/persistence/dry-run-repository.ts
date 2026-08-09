@@ -31,7 +31,10 @@ export async function executeDryRun(
   // Canonicalizing thousands of raw envelopes is CPU work, not database work.
   // Keep it outside the short Serializable section so contention in the wider
   // monorepo suite cannot consume the interactive transaction budget.
-  const legacyRecords = plan.records.map((record) => ({
+  const recordLinks = new Map(
+    (plan.businessPlan?.recordLinks ?? []).map((link) => [link.recordId, link]),
+  );
+  const legacyRecordBases = plan.records.map((record) => ({
     id: record.id,
     legacySourceId: record.legacySourceId,
     importBatchId: record.importBatchId,
@@ -41,6 +44,7 @@ export async function executeDryRun(
     rawData: databaseJson(record.rawData),
     rawHash: record.rawHash,
     status: record.status,
+    link: recordLinks.get(record.id),
   }));
   const reconciliationIssues = reconciliation.issues.map((issue) => ({
     id: issue.id,
@@ -126,6 +130,68 @@ export async function executeDryRun(
           },
         },
       });
+      const warehouseIds = new Map(
+        (
+          await transaction.warehouse.findMany({
+            select: { id: true, code: true },
+          })
+        ).map(({ id, code }) => [code, id]),
+      );
+      const businessPlan = plan.businessPlan;
+      if (businessPlan !== undefined) {
+        const requiredWarehouseCodes = new Set(
+          businessPlan.inventoryBalances.map(
+            ({ warehouseCode }) => warehouseCode,
+          ),
+        );
+        if (
+          [...requiredWarehouseCodes].some(
+            (warehouseCode) => !warehouseIds.has(warehouseCode),
+          )
+        ) {
+          throw new LegacyImporterError('TARGET_WAREHOUSE_MISSING', 4);
+        }
+        await transaction.unit.createMany({
+          data: businessPlan.units.map(({ id, code, name }) => ({
+            id,
+            code,
+            name,
+          })),
+        });
+        await transaction.product.createMany({
+          data: businessPlan.products.map((product) => ({
+            id: product.id,
+            code: product.code,
+            name: product.name,
+            unitId: product.unitId,
+            minimumStock: product.minimumStock,
+            createdAt: new Date(product.createdAt),
+          })),
+        });
+        await transaction.inventoryBalance.createMany({
+          data: businessPlan.inventoryBalances.map((balance) => ({
+            id: balance.id,
+            productId: balance.productId,
+            warehouseId: warehouseIds.get(balance.warehouseCode)!,
+            quantity: balance.quantity,
+            currentUnitPrice: balance.currentUnitPrice,
+            currentUnitCost: balance.currentUnitCost,
+            priceReviewRequired: balance.priceReviewRequired,
+            costReviewRequired: balance.costReviewRequired,
+          })),
+        });
+      }
+      const legacyRecords = legacyRecordBases.map(({ link, ...record }) => ({
+        ...record,
+        targetUnitId: link?.targetUnitId ?? null,
+        targetProductId: link?.targetProductId ?? null,
+        targetWarehouseId:
+          link?.targetWarehouseCode === null ||
+          link?.targetWarehouseCode === undefined
+            ? null
+            : warehouseIds.get(link.targetWarehouseCode),
+        targetInventoryBalanceId: link?.targetInventoryBalanceId ?? null,
+      }));
       // Prisma expands createMany into one bind parameter per field. For the
       // complete workbook that means tens of thousands of parameters and can
       // consume the whole transaction budget under parallel test load. A
@@ -134,7 +200,9 @@ export async function executeDryRun(
       await transaction.$executeRawUnsafe(
         `INSERT INTO "legacy_records" (
            "id", "legacy_source_id", "import_batch_id", "source_entity",
-           "legacy_id", "legacy_row_number", "raw_data", "raw_hash", "status"
+           "legacy_id", "legacy_row_number", "raw_data", "raw_hash", "status",
+           "target_unit_id", "target_product_id", "target_warehouse_id",
+           "target_inventory_balance_id"
          )
          SELECT
            (record->>'id')::uuid,
@@ -145,13 +213,121 @@ export async function executeDryRun(
            (record->>'legacyRowNumber')::integer,
            record->'rawData',
            record->>'rawHash',
-           (record->>'status')::"legacy_record_status"
+           (record->>'status')::"legacy_record_status",
+           NULLIF(record->>'targetUnitId', '')::uuid,
+           NULLIF(record->>'targetProductId', '')::uuid,
+           NULLIF(record->>'targetWarehouseId', '')::uuid,
+           NULLIF(record->>'targetInventoryBalanceId', '')::uuid
          FROM jsonb_array_elements($1::jsonb) AS record`,
         JSON.stringify(legacyRecords),
       );
+      if (businessPlan !== undefined) {
+        await transaction.productWarehouseValuation.createMany({
+          data: businessPlan.productWarehouseValuations.map((valuation) => ({
+            id: valuation.id,
+            productId: valuation.productId,
+            warehouseId: warehouseIds.get(valuation.warehouseCode)!,
+            unitPrice: valuation.unitPrice,
+            unitCost: valuation.unitCost,
+            currencyCode: 'NIO',
+            observedAt: new Date(valuation.observedAt),
+            effectiveAt: new Date(valuation.effectiveAt),
+            legacyRecordId: valuation.legacyRecordId,
+            requiresHumanReview: valuation.requiresHumanReview,
+            reviewReason: valuation.reviewReason,
+          })),
+        });
+      }
       await transaction.reconciliationIssue.createMany({
         data: reconciliationIssues,
       });
+      const [legacyRecordCount, reconciliationIssueCount] = await Promise.all([
+        transaction.legacyRecord.count({
+          where: { importBatchId: plan.importBatchId },
+        }),
+        transaction.reconciliationIssue.count({
+          where: { importBatchId: plan.importBatchId },
+        }),
+      ]);
+      if (
+        legacyRecordCount !== plan.totalSourceRows ||
+        reconciliationIssueCount !== reconciliation.issues.length
+      ) {
+        throw new LegacyImporterError(
+          'DRY_RUN_PERSISTENCE_INVARIANT_FAILED',
+          6,
+        );
+      }
+      if (businessPlan !== undefined) {
+        const [
+          unitCount,
+          productCount,
+          balanceCount,
+          valuationCount,
+          inventoryRecordCount,
+          missingObservedAtIssueCount,
+          movementCount,
+          saleCount,
+          saleItemCount,
+        ] = await Promise.all([
+          transaction.unit.count({
+            where: { id: { in: businessPlan.units.map(({ id }) => id) } },
+          }),
+          transaction.product.count({
+            where: { id: { in: businessPlan.products.map(({ id }) => id) } },
+          }),
+          transaction.inventoryBalance.count({
+            where: {
+              id: { in: businessPlan.inventoryBalances.map(({ id }) => id) },
+            },
+          }),
+          transaction.productWarehouseValuation.count({
+            where: {
+              id: {
+                in: businessPlan.productWarehouseValuations.map(({ id }) => id),
+              },
+            },
+          }),
+          transaction.legacyRecord.count({
+            where: {
+              importBatchId: plan.importBatchId,
+              sourceEntity: 'Inventario',
+            },
+          }),
+          transaction.reconciliationIssue.count({
+            where: {
+              importBatchId: plan.importBatchId,
+              code: 'VALUATION_OBSERVED_AT_MISSING',
+              status: 'REQUIRES_HUMAN_APPROVAL',
+            },
+          }),
+          transaction.inventoryMovement.count(),
+          transaction.sale.count(),
+          transaction.saleItem.count(),
+        ]);
+        if (
+          unitCount !== businessPlan.units.length ||
+          productCount !== businessPlan.products.length ||
+          balanceCount !== businessPlan.inventoryBalances.length ||
+          valuationCount !== businessPlan.productWarehouseValuations.length ||
+          inventoryRecordCount !==
+            plan.records.filter(
+              ({ sourceEntity }) => sourceEntity === 'Inventario',
+            ).length ||
+          missingObservedAtIssueCount !==
+            reconciliation.issues.filter(
+              ({ code }) => code === 'VALUATION_OBSERVED_AT_MISSING',
+            ).length ||
+          movementCount !== 0 ||
+          saleCount !== 0 ||
+          saleItemCount !== 0
+        ) {
+          throw new LegacyImporterError(
+            'WAVE12_DRY_RUN_PERSISTENCE_INVARIANT_FAILED',
+            6,
+          );
+        }
+      }
       await transaction.importBatch.update({
         where: { id: plan.importBatchId },
         data: {
@@ -170,6 +346,21 @@ function summary(
   plan: ImportPlan,
   reconciliation: ReconciliationResult,
 ): ImportExecutionSummary {
+  const businessEntityCounts = {
+    units: plan.businessPlan?.units.length ?? 0,
+    products: plan.businessPlan?.products.length ?? 0,
+    inventoryBalances: plan.businessPlan?.inventoryBalances.length ?? 0,
+    productWarehouseValuations:
+      plan.businessPlan?.productWarehouseValuations.length ?? 0,
+  };
+  const reconciliationIssueCountsByCode = Object.fromEntries(
+    [...new Set(reconciliation.issues.map(({ code }) => code))]
+      .sort()
+      .map((code) => [
+        code,
+        reconciliation.issues.filter((issue) => issue.code === code).length,
+      ]),
+  );
   return {
     schemaVersion: 1,
     mode: 'DRY_RUN',
@@ -182,7 +373,12 @@ function summary(
     rawPreservedRows: reconciliation.rawPreservedRows,
     droppedRows: reconciliation.droppedRows,
     reconciliationIssueCount: reconciliation.issues.length,
-    businessEntityWriteCount: 0,
+    reconciliationIssueCountsByCode,
+    businessEntityWriteCount: Object.values(businessEntityCounts).reduce(
+      (sum, count) => sum + count,
+      0,
+    ),
+    businessEntityCounts,
     persistentImportAuthorized: false,
   };
 }

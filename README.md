@@ -9,7 +9,8 @@ PostgreSQL.
   frontend de autenticación — completa.
 - FASE 3C: perfilador reproducible del XLSX — completa.
 - FASE 4: importador y reconciliación legacy — en progreso; FASE 4A dispone de
-  framework y dry-run, sin importación persistente.
+  framework raw-first y FASE 4B Waves 1–2 está lista en dry-run temporal, sin
+  importación persistente.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -157,7 +158,9 @@ pnpm import:legacy -- --dry-run `
   --report-dir reports/private/importing
 ```
 
-Los reportes son privados. **PERSISTENT IMPORT NOT AUTHORIZED.**
+Los reportes son privados. El dry-run aprobado de Waves 1–2 simula 14 Units,
+144 Products, 357 balances y 357 valoraciones, preservando 2,064/2,064 filas.
+**PERSISTENT IMPORT NOT AUTHORIZED.**
 
 ## Solución de problemas
 

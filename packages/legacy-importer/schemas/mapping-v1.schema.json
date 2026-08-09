@@ -22,6 +22,52 @@
     "defaultMappingStatus": { "const": "UNRESOLVED" },
     "transformPolicies": { "type": "object" },
     "sheets": { "type": "array", "minItems": 1 },
-    "approvedMappings": { "type": "object" }
+    "approvedMappings": { "type": "object" },
+    "approvedDecisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productCanonicalization",
+        "inventorySnapshotSelection",
+        "zeroCostPolicy",
+        "valuationPolicy",
+        "missingValuationObservedAtPolicy",
+        "inventoryAuthority",
+        "semanticTextPolicy",
+        "deferredScopes",
+        "resolvedPhase3cRuleCodes",
+        "deferredPhase3cRuleCodes"
+      ],
+      "properties": {
+        "productCanonicalization": { "type": "array" },
+        "inventorySnapshotSelection": { "type": "object" },
+        "zeroCostPolicy": { "const": "PRESERVE_ZERO_AND_REVIEW" },
+        "valuationPolicy": { "const": "PER_WAREHOUSE" },
+        "missingValuationObservedAtPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sourceSheet", "physicalRows", "action", "issueCode"],
+          "properties": {
+            "sourceSheet": { "const": "Inventario" },
+            "physicalRows": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 2 },
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true
+            },
+            "action": {
+              "const": "PRESERVE_RAW_AND_BALANCE_WITHOUT_VALUATION"
+            },
+            "issueCode": { "const": "VALUATION_OBSERVED_AT_MISSING" }
+          }
+        },
+        "inventoryAuthority": { "const": "INVENTORY_SHEET" },
+        "semanticTextPolicy": { "const": "PRESERVE_PHYSICAL_TEXT" },
+        "deferredScopes": { "type": "object" },
+        "resolvedPhase3cRuleCodes": { "type": "array" },
+        "deferredPhase3cRuleCodes": { "type": "array" }
+      }
+    }
   }
 }

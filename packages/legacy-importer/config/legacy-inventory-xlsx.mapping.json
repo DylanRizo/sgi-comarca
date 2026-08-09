@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "mappingVersion": "phase-4a.1",
+  "mappingVersion": "phase-4b.1",
   "sourceCode": "legacy-inventory-xlsx",
   "sourceSha256": "d0bb929d9498db888295d2c556a51e1a90f3d5834e9c4d544d9b1bb65d46e550",
   "defaultMappingStatus": "UNRESOLVED",
@@ -10,7 +10,8 @@
       "UNAMBIGUOUS_EXCEL_DATE",
       "APPROVED_MANAGUA_DATETIME_TO_UTC",
       "CIVIL_DATE_WITHOUT_SHIFT",
-      "EMPTY_TO_NULL_WHEN_NULLABLE"
+      "EMPTY_TO_NULL_WHEN_NULLABLE",
+      "SEMANTIC_TEXT_ROLE_PRECEDENCE"
     ],
     "OBSERVE_ONLY": [
       "TRIM",
@@ -36,8 +37,8 @@
   "sheets": [
     {
       "name": "Productos",
-      "scope": "BLOCKED_PENDING_DECISION",
-      "decisionCodes": ["DEC-004", "DGGR-X"]
+      "scope": "IMPORT_NOW",
+      "decisionCodes": ["DEC-004", "DEC-011", "DGGR-X"]
     },
     { "name": "Finanzas", "scope": "PRESERVE_RAW_ONLY", "decisionCodes": [] },
     {
@@ -57,24 +58,173 @@
     },
     {
       "name": "Inventario",
-      "scope": "BLOCKED_PENDING_DECISION",
-      "decisionCodes": ["DEC-009", "DEC-015", "CCWH-L"]
+      "scope": "IMPORT_NOW",
+      "decisionCodes": ["DEC-005", "DEC-009", "DEC-015", "CCWH-L"]
     },
     {
       "name": "Ventas",
-      "scope": "BLOCKED_PENDING_DECISION",
-      "decisionCodes": ["DEC-005", "DEC-006", "DEC-007", "SALE_GROUPING"]
+      "scope": "DEFER_TO_LATER_PHASE",
+      "decisionCodes": ["DEC-006", "DEC-007", "SALE_GROUPING"]
     },
     {
       "name": "Unidades",
-      "scope": "BLOCKED_PENDING_DECISION",
+      "scope": "IMPORT_NOW",
       "decisionCodes": ["DEC-011"]
     },
     { "name": "Grupos", "scope": "PRESERVE_RAW_ONLY", "decisionCodes": [] }
   ],
   "approvedMappings": {
-    "units": [],
-    "warehouses": [],
-    "businessEntityWrites": []
+    "units": [
+      {
+        "sourceValue": "Unidades",
+        "targetCode": "UNIDADES",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Unidad",
+        "targetCode": "UNIDADES",
+        "decisionCode": "DEC-011-ALIAS"
+      },
+      {
+        "sourceValue": "Kilogramos",
+        "targetCode": "KILOGRAMOS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Gramos",
+        "targetCode": "GRAMOS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Toneladas",
+        "targetCode": "TONELADAS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Litros",
+        "targetCode": "LITROS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Mililitros",
+        "targetCode": "MILILITROS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Metros",
+        "targetCode": "METROS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Centímetros",
+        "targetCode": "CENTIMETROS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Metros Cuadrados",
+        "targetCode": "METROS_CUADRADOS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Metros Cúbicos",
+        "targetCode": "METROS_CUBICOS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Piezas",
+        "targetCode": "PIEZAS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Cajas",
+        "targetCode": "CAJAS",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Paquetes",
+        "targetCode": "PAQUETES",
+        "decisionCode": "DEC-011"
+      },
+      {
+        "sourceValue": "Docenas",
+        "targetCode": "DOCENAS",
+        "decisionCode": "DEC-011"
+      }
+    ],
+    "warehouses": [
+      {
+        "sourceValue": "Casa Dylan",
+        "targetCode": "CASA_DYLAN",
+        "decisionCode": "PHASE-4B-WAREHOUSE"
+      },
+      {
+        "sourceValue": "Casa Luden",
+        "targetCode": "CASA_LUDEN",
+        "decisionCode": "PHASE-4B-WAREHOUSE"
+      },
+      {
+        "sourceValue": "Casa Jean",
+        "targetCode": "CASA_JEAN",
+        "decisionCode": "PHASE-4B-WAREHOUSE"
+      }
+    ],
+    "businessEntityWrites": [
+      "Unit",
+      "Product",
+      "InventoryBalance",
+      "ProductWarehouseValuation"
+    ]
+  },
+  "approvedDecisions": {
+    "productCanonicalization": [
+      {
+        "sourceCode": "DGGR-X",
+        "canonicalRow": 29,
+        "evidenceOnlyRows": [30],
+        "decisionCode": "DEC-004"
+      }
+    ],
+    "inventorySnapshotSelection": {
+      "strategy": "LATEST_SOURCE_TIMESTAMP",
+      "decisionCodes": ["DEC-005", "CCWH-L"]
+    },
+    "zeroCostPolicy": "PRESERVE_ZERO_AND_REVIEW",
+    "valuationPolicy": "PER_WAREHOUSE",
+    "missingValuationObservedAtPolicy": {
+      "sourceSheet": "Inventario",
+      "physicalRows": [153, 154],
+      "action": "PRESERVE_RAW_AND_BALANCE_WITHOUT_VALUATION",
+      "issueCode": "VALUATION_OBSERVED_AT_MISSING"
+    },
+    "inventoryAuthority": "INVENTORY_SHEET",
+    "semanticTextPolicy": "PRESERVE_PHYSICAL_TEXT",
+    "deferredScopes": {
+      "salesGrouping": "PHASE_7",
+      "salesDuplicatePairs": "PHASE_7",
+      "salesWithoutMovement": "PHASE_7",
+      "salesUnresolvedProductReferences": "PHASE_7",
+      "salesUserMappings": "PHASE_7",
+      "movementRoutes": "PHASE_6",
+      "movementWithoutSale": "PHASE_6",
+      "dailyClosings": "PHASE_8"
+    },
+    "resolvedPhase3cRuleCodes": [
+      "DEC_015_PENDING_ASPECTS",
+      "HETEROGENEOUS_COLUMN_TYPES",
+      "LEGACY_CCWH_L_DUPLICATE",
+      "LEGACY_DGGR_X_DUPLICATE",
+      "LEGACY_INVENTORY_MOVEMENT_DIFFERENCE",
+      "TRAILING_WHITESPACE"
+    ],
+    "deferredPhase3cRuleCodes": [
+      "DEC_004_TO_DEC_009_PENDING",
+      "DEC_025_PENDING_ASPECTS",
+      "EXACT_DUPLICATE_ROW",
+      "IN_TRANSIT_CONFIRMATION_MAPPING_UNRESOLVED",
+      "LEGACY_MOVEMENT_WITHOUT_SALE",
+      "LEGACY_SALES_WITHOUT_MOVEMENT",
+      "SALE_CANCELLATION_MAPPING_UNRESOLVED",
+      "SALE_GROUPING_UNRESOLVED"
+    ]
   }
 }

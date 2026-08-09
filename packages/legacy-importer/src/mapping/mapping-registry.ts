@@ -62,6 +62,17 @@ function assertMappingRegistry(
   ) {
     throw new LegacyImporterError('MAPPING_REGISTRY_APPROVAL_INVALID', 4);
   }
+  if (
+    mapping.approvedDecisions !== undefined &&
+    (!Array.isArray(mapping.approvedDecisions.productCanonicalization) ||
+      !Array.isArray(
+        mapping.approvedDecisions.inventorySnapshotSelection?.decisionCodes,
+      ) ||
+      !Array.isArray(mapping.approvedDecisions.resolvedPhase3cRuleCodes) ||
+      !Array.isArray(mapping.approvedDecisions.deferredPhase3cRuleCodes))
+  ) {
+    throw new LegacyImporterError('MAPPING_REGISTRY_DECISIONS_INVALID', 4);
+  }
 }
 
 export async function loadMappingRegistry(
@@ -76,9 +87,6 @@ export async function loadMappingRegistry(
     throw new LegacyImporterError('MAPPING_REGISTRY_READ_FAILED', 4);
   }
   assertMappingRegistry(value, sourceCode, sourceSha256);
-  if (value.approvedMappings.businessEntityWrites.length !== 0) {
-    throw new LegacyImporterError('BUSINESS_WRITES_NOT_AUTHORIZED', 4);
-  }
   return { mapping: value, mappingSha256: canonicalFingerprint(value) };
 }
 

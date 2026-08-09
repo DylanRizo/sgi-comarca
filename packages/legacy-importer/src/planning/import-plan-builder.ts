@@ -12,11 +12,13 @@ import {
   type ImportPlan,
   type JsonValue,
   type MappingRegistry,
+  type PlannedLegacyRecord,
   type RawCellEnvelope,
   type RawRowEnvelope,
   type VerifiedProfileEvidence,
 } from '../domain/import-types.js';
 import { findSheetMapping } from '../mapping/mapping-registry.js';
+import { buildWave12BusinessPlan } from './wave-12-business-plan-builder.js';
 
 function jsonValue(value: unknown): JsonValue {
   if (value === undefined) return null;
@@ -73,7 +75,7 @@ export function buildImportPlan(
     sourceCode: workbook.sourceCode,
   });
   const importBatchId = deterministicUuid('import-batch', { batchKey });
-  const records = workbook.sheets.flatMap((sheet) => {
+  const records: PlannedLegacyRecord[] = workbook.sheets.flatMap((sheet) => {
     const profile = verifiedEvidence.evidence.workbookProfile.sheets.find(
       ({ index }) => index === sheet.index,
     );
@@ -134,6 +136,23 @@ export function buildImportPlan(
       };
     },
   );
+  const businessWritesEnabled =
+    mapping.approvedMappings.businessEntityWrites.length > 0;
+  const businessPlan = businessWritesEnabled
+    ? buildWave12BusinessPlan(workbook, mapping, records, importBatchId)
+    : undefined;
+  if (businessPlan !== undefined) {
+    const links = new Map(
+      businessPlan.recordLinks.map((link) => [link.recordId, link]),
+    );
+    for (const record of records) {
+      const approvedLink = links.get(record.id);
+      if (approvedLink === undefined) continue;
+      record.status = 'IMPORTED';
+      record.rawData.mappingStatus = approvedLink.mappingStatus;
+      record.rawData.errorCodes = [...approvedLink.errorCodes];
+    }
+  }
   return {
     schemaVersion: IMPORT_PLAN_SCHEMA_VERSION,
     importerVersion: IMPORTER_VERSION,
@@ -146,11 +165,18 @@ export function buildImportPlan(
     legacySourceId,
     importBatchId,
     totalSourceRows: records.length,
-    businessWritesEnabled: false,
+    businessWritesEnabled,
     sheets,
     records,
     phase3cFindings: verifiedEvidence.evidence.findings
       .filter(({ blocksPhase4 }) => blocksPhase4)
       .sort((left, right) => left.findingId.localeCompare(right.findingId)),
+    resolvedPhase3cRuleCodes: [
+      ...(mapping.approvedDecisions?.resolvedPhase3cRuleCodes ?? []),
+    ].sort(),
+    deferredPhase3cRuleCodes: [
+      ...(mapping.approvedDecisions?.deferredPhase3cRuleCodes ?? []),
+    ].sort(),
+    ...(businessPlan === undefined ? {} : { businessPlan }),
   };
 }

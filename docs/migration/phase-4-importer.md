@@ -1,10 +1,14 @@
-# FASE 4A — Importer framework, raw preservation y dry-run
+# FASE 4 — Importer legacy y dry-run
 
 ## Estado
 
-`FRAMEWORK READY` y `DRY_RUN PASSED`.
+- FASE 4A: `FRAMEWORK READY` y `DRY_RUN PASSED`.
+- FASE 4B, Waves 1–2: `READY`.
+- FASE 4: `IN_PROGRESS`.
+- **PERSISTENT IMPORT NOT AUTHORIZED.**
 
-**PERSISTENT IMPORT NOT AUTHORIZED.** FASE 4 permanece `IN_PROGRESS`.
+La única ejecución habilitada continúa siendo un dry-run sobre PostgreSQL
+temporal. No existe `--commit` ni una ruta de escritura persistente.
 
 ## Arquitectura
 
@@ -13,19 +17,19 @@ Perfil y manifest FASE 3C
           ↓
 Verificación de identidad/checksums
           ↓
-Import plan determinista
+Import plan determinista + mapping versionado
           ↓
-Parsers + mapping registry versionado
+PostgreSQL temporal verificado
           ↓
-PostgreSQL temporal + transacción Serializable
+Transacción Serializable + advisory lock
           ↓
-Raw preservation + reconciliation
+LegacyRecord raw + entidades Waves 1–2 + reconciliación
           ↓
 Reportes privados deterministas
 ```
 
-El núcleo de planificación no depende de filesystem ni PostgreSQL. Los
-adaptadores de entrada, persistencia y reportes se mantienen separados.
+`@sgi/legacy-profiler` continúa siendo read-only y no usa Prisma. El paquete
+`@sgi/legacy-importer` planifica, simula y reconcilia en una base descartable.
 
 ## Ejecución autorizada
 
@@ -39,68 +43,72 @@ pnpm import:legacy -- --dry-run `
 ```
 
 Son obligatorios `--dry-run`, input, source-code, profile-dir y mapping-file.
-La CLI rechaza `--commit`, `--write`, `--apply`, `--production`, `--import` y
-variantes equivalentes. No acepta una URL de base como argumento.
-
-La sesión del operador debe proporcionar `DATABASE_URL` por entorno para que
-la CLI pueda administrar la base descartable. No existe fallback embebido; la
-URL nunca se acepta como argumento ni se imprime. El gestor cambia el destino
-a una base nueva antes de ejecutar cualquier escritura del dry-run.
+La CLI rechaza opciones de commit, write, apply, production e import. La URL de
+PostgreSQL solo se recibe mediante `DATABASE_URL`; nunca por argumento ni en la
+salida.
 
 ## Guard de PostgreSQL
 
-La CLI crea una base con identidad aleatoria, instala un comentario-fingerprint
-con nonce criptográfico y lo vuelve a consultar antes de escribir. El nombre o
-la desigualdad respecto de una URL conocida no bastan. Si la identidad y el
-marcador no coinciden, la operación termina con `TEMP_DATABASE_GUARD_REJECTED`.
-
-Después se aplican las migraciones aprobadas y el bootstrap. La base se elimina
-incluso cuando el plan falla.
+La CLI crea una base de nombre aleatorio, instala un fingerprint con nonce
+criptográfico y lo verifica positivamente antes de escribir. Aplica migraciones
+y bootstrap, ejecuta una transacción `Serializable`, obtiene un advisory lock
+por batch y elimina siempre la base. El dry-run valida dentro de la transacción
+los conteos realmente escritos antes de marcar el batch como completado.
 
 ## Identidad e idempotencia
 
 `batchKey` incorpora source code, SHA del workbook, SHA del manifest, SHA del
-mapping, versión del importador y modo. Los UUID de batch y fila se derivan de
-evidencia canónica. Repetir el mismo input no crea registros duplicados. Un
-workbook o mapping cambiado produce otra identidad y requiere un dry-run nuevo.
+mapping, versión del importer y modo. Los UUID de fuente, batch, filas y
+entidades simuladas se derivan de evidencia canónica. Repetir la misma
+identidad devuelve el mismo batch sin duplicar ni sobrescribir filas.
 
 ## Preservación raw
 
-Cada fila se representa como `LegacyRecord` con hoja, fila física, celdas y
-tipos físicos, formato/fórmula/cache disponibles, raw hash y estado de mapping.
-No se incorporan paths, hostname, username ni timestamps a la identidad.
+Las 2,064 filas se conservan como `LegacyRecord`, con hoja, fila física,
+celdas, tipo/formato/fórmula/cache disponible, raw hash y estado de mapping.
+Ninguna fila se elimina por parsing, duplicación, orphan o decisión pendiente.
 
-`legacy_sources.code` usa la forma uppercase requerida por el constraint de la
-base. El source code lógico minúsculo permanece en metadata, evidencia e
-identidades deterministas.
+## Mapping aprobado para Waves 1–2
 
-## Mapping y decisiones
+El registro canónico es
+`packages/legacy-importer/config/legacy-inventory-xlsx.mapping.json`; su default
+permanece `UNRESOLVED`.
 
-El registro aprobado está en
-`packages/legacy-importer/config/legacy-inventory-xlsx.mapping.json`. Su default
-es `UNRESOLVED` y no habilita escrituras de negocio. En particular:
+- Unit: catálogo explícito de 14 valores; alias versionado `Unidad → Unidades`.
+- Product: 144 productos lógicos. DGGR-X fila 29 es canónica; la fila 30 queda
+  enlazada únicamente como evidencia raw, sin merge de campos.
+- Warehouse: solo `Casa Dylan`, `Casa Luden` y `Casa Jean` se resuelven a los
+  tres códigos existentes. Las rutas de Movimientos no crean warehouses.
+- InventoryBalance: 357 claves producto+warehouse; el snapshot más reciente
+  manda para CCWH-L y las cantidades nunca se suman.
+- ProductWarehouseValuation: costo y precio se preservan por warehouse. Un
+  costo cero permanece cero y genera revisión.
+- Inventario filas 153 y 154: crean balance, conservan raw y generan
+  `VALUATION_OBSERVED_AT_MISSING`; no crean valoración ni reciben fecha
+  artificial. `observedAt` continúa obligatorio en Prisma.
+- Inventario es la fuente del saldo inicial. Cada diferencia con Movimientos
+  genera issue; una clave exclusiva de Movimientos no crea balance sintético.
+- Movimientos, Ventas, Finanzas, CierresDiarios, Entrada de Productos y Grupos
+  permanecen raw-only en estas waves. No se crean movimientos, ventas ni items.
 
-- Unit: DEC-011 abierta; las 14 filas generan candidatos/issues.
-- Productos: DGGR-X sigue requiriendo aprobación.
-- Inventario: CCWH-L, DEC-009 y DEC-015 siguen abiertos.
-- Ventas: agrupación y cuatro pares duplicados siguen abiertos.
-- Movimientos, Finanzas, CierresDiarios, Grupos, cancelaciones y tránsito:
-  raw-only.
-
-## Reconciliación
-
-Los 24 hallazgos `blocksPhase4` se copian con su identidad, regla, ubicación y
-estado humano. El dry-run real añadió 14 issues `UNIT_MAPPING_UNRESOLVED` y dos
-issues agregados `WAREHOUSE_MAPPING_UNRESOLVED`, sin exponer ubicaciones.
-
-Invariantes obligatorias:
+## Reconciliación del dry-run aprobado
 
 ```text
 TOTAL_SOURCE_ROWS = 2064
 RAW_PRESERVED_ROWS = 2064
 DROPPED_ROWS = 0
-BUSINESS_ENTITY_WRITES = 0
+UNITS_SIMULATED = 14
+PRODUCTS_SIMULATED = 144
+INVENTORY_BALANCES_SIMULATED = 357
+VALUATIONS_SIMULATED = 357
+VALUATION_OBSERVED_AT_MISSING = 2
 ```
+
+Los 24 hallazgos `blocksPhase4` de FASE 3C conservan `findingId`, `ruleCode` y
+ubicación. Las reglas resueltas quedan trazadas como `RESOLVED`; las decisiones
+de módulos futuros quedan `OPEN` con disposición explícita. El dry-run de
+Waves 1–2 produce además issues por diferencias Inventario/Movimientos, claves
+sin contraparte, costo cero y las dos fechas ausentes.
 
 ## Reportes privados
 
@@ -113,17 +121,20 @@ reports/private/importing/<source>/<sha>/<batch-key>/
   commit-preview.md
 ```
 
-Los reportes no se versionan. `commit-preview.md` describe exclusivamente una
-posible ejecución futura; no es autorización.
+Los reportes no se versionan. `dry-run-summary.json` incluye conteos por entidad
+y por código de reconciliación. `commit-preview.md` describe una simulación; no
+autoriza una importación.
 
 ## Privacidad
 
-La salida versionada contiene solo conteos, hashes de artefacto, códigos y
-severidades. No copie `rawData`, row-results, XLSX, PII ni valores financieros a
-`docs/`.
+La documentación versionada contiene únicamente conteos, hashes, códigos,
+severidades y filas físicas aprobadas. XLSX, `rawData`, reportes privados, PII y
+valores financieros permanecen ignorados.
 
-## Transición futura
+## Alcance diferido
 
-Una ruta persistente requiere aprobación separada, decisiones de mapping
-cerradas, estrategia de backup/rollback operacional y una señal inequívoca. No
-se debe añadir `--commit` como parte de mantenimiento ordinario de FASE 4A.
+- Movimientos operacionales y rutas: FASE 6.
+- Agrupación, duplicados, orphans, referencias y usuarios de Ventas: FASE 7.
+- Cierres y aspectos pendientes de DEC-025: FASE 8.
+- Importación persistente: requiere aprobación separada, backup, identidad de
+  operador, estrategia de rollback y una señal inequívoca todavía inexistente.

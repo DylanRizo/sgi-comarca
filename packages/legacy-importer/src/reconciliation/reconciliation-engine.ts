@@ -14,27 +14,50 @@ function severity(value: FindingSeverity): ReconciliationSeverity {
 }
 
 function phase3cIssues(plan: ImportPlan): PlannedReconciliationIssue[] {
-  return plan.phase3cFindings.map((finding) => ({
-    id: deterministicUuid('reconciliation-issue', {
+  const resolved = new Set(plan.resolvedPhase3cRuleCodes ?? []);
+  const deferred = new Set(plan.deferredPhase3cRuleCodes ?? []);
+  return plan.phase3cFindings.map((finding) => {
+    const isResolved = resolved.has(finding.ruleCode);
+    const isDeferred = deferred.has(finding.ruleCode);
+    return {
+      id: deterministicUuid('reconciliation-issue', {
+        importBatchId: plan.importBatchId,
+        findingId: finding.findingId,
+      }),
       importBatchId: plan.importBatchId,
-      findingId: finding.findingId,
-    }),
-    importBatchId: plan.importBatchId,
-    legacyRecordId: null,
-    code: finding.ruleCode,
-    severity: severity(finding.severity),
-    status: finding.requiresHumanDecision ? 'REQUIRES_HUMAN_APPROVAL' : 'OPEN',
-    requiresHumanApproval: finding.requiresHumanDecision,
-    message: `PHASE_3C_FINDING:${finding.ruleCode}`,
-    details: {
-      origin: 'PHASE_3C',
-      findingId: finding.findingId,
-      sourceLocation: finding.location,
-      blocksPhase4: finding.blocksPhase4,
-      resolutionRequired: finding.requiresHumanDecision,
-    },
-    entityType: finding.sheet,
-  }));
+      legacyRecordId: null,
+      code: finding.ruleCode,
+      severity: severity(finding.severity),
+      status: isResolved
+        ? ('RESOLVED' as const)
+        : isDeferred
+          ? ('OPEN' as const)
+          : finding.requiresHumanDecision
+            ? ('REQUIRES_HUMAN_APPROVAL' as const)
+            : ('OPEN' as const),
+      requiresHumanApproval:
+        !isResolved && !isDeferred && finding.requiresHumanDecision,
+      message: isResolved
+        ? `PHASE_4B_DECISION_APPLIED:${finding.ruleCode}`
+        : isDeferred
+          ? `DEFERRED_BY_PHASE_4B:${finding.ruleCode}`
+          : `PHASE_3C_FINDING:${finding.ruleCode}`,
+      details: {
+        origin: 'PHASE_3C',
+        findingId: finding.findingId,
+        sourceLocation: finding.location,
+        blocksPhase4: finding.blocksPhase4,
+        resolutionRequired:
+          !isResolved && !isDeferred && finding.requiresHumanDecision,
+        disposition: isResolved
+          ? 'RESOLVED_IN_PHASE_4B'
+          : isDeferred
+            ? 'DEFERRED_TO_LATER_PHASE'
+            : 'OPEN',
+      },
+      entityType: finding.sheet,
+    };
+  });
 }
 
 function rowIssue(
@@ -66,36 +89,41 @@ function rowIssue(
 }
 
 export function reconcileImportPlan(plan: ImportPlan): ReconciliationResult {
-  const unitIssues = plan.records
-    .filter(({ sourceEntity }) => sourceEntity === 'Unidades')
-    .map((record) => rowIssue(plan, record, 'UNIT_MAPPING_UNRESOLVED'));
-  const warehouseIssues = plan.sheets
-    .filter(({ name }) => name === 'Inventario' || name === 'Movimientos')
-    .map((sheet): PlannedReconciliationIssue => ({
-      id: deterministicUuid('reconciliation-issue', {
-        importBatchId: plan.importBatchId,
-        sheet: sheet.name,
-        code: 'WAREHOUSE_MAPPING_UNRESOLVED',
-      }),
-      importBatchId: plan.importBatchId,
-      legacyRecordId: null,
-      code: 'WAREHOUSE_MAPPING_UNRESOLVED',
-      severity: 'WARNING',
-      status: 'REQUIRES_HUMAN_APPROVAL',
-      requiresHumanApproval: true,
-      message: 'MAPPING_UNRESOLVED:WAREHOUSE_MAPPING_UNRESOLVED',
-      details: {
-        origin: 'PHASE_4A',
-        sourceSheet: sheet.name,
-        sourceRows: sheet.sourceRows,
-        mappingStatus: 'UNRESOLVED',
-      },
-      entityType: sheet.name,
-    }));
+  const unitIssues = plan.businessWritesEnabled
+    ? []
+    : plan.records
+        .filter(({ sourceEntity }) => sourceEntity === 'Unidades')
+        .map((record) => rowIssue(plan, record, 'UNIT_MAPPING_UNRESOLVED'));
+  const warehouseIssues = plan.businessWritesEnabled
+    ? []
+    : plan.sheets
+        .filter(({ name }) => name === 'Inventario' || name === 'Movimientos')
+        .map((sheet): PlannedReconciliationIssue => ({
+          id: deterministicUuid('reconciliation-issue', {
+            importBatchId: plan.importBatchId,
+            sheet: sheet.name,
+            code: 'WAREHOUSE_MAPPING_UNRESOLVED',
+          }),
+          importBatchId: plan.importBatchId,
+          legacyRecordId: null,
+          code: 'WAREHOUSE_MAPPING_UNRESOLVED',
+          severity: 'WARNING',
+          status: 'REQUIRES_HUMAN_APPROVAL',
+          requiresHumanApproval: true,
+          message: 'MAPPING_UNRESOLVED:WAREHOUSE_MAPPING_UNRESOLVED',
+          details: {
+            origin: 'PHASE_4A',
+            sourceSheet: sheet.name,
+            sourceRows: sheet.sourceRows,
+            mappingStatus: 'UNRESOLVED',
+          },
+          entityType: sheet.name,
+        }));
   const issues = [
     ...phase3cIssues(plan),
     ...unitIssues,
     ...warehouseIssues,
+    ...(plan.businessPlan?.reconciliationIssues ?? []),
   ].sort((left, right) => left.id.localeCompare(right.id));
   const rawPreservedRows = plan.records.length;
   return {

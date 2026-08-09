@@ -35,7 +35,16 @@ describe('private deterministic import reports', () => {
       rawPreservedRows: 3,
       droppedRows: 0,
       reconciliationIssueCount: 24,
-      businessEntityWriteCount: 0 as const,
+      reconciliationIssueCountsByCode: {
+        PHASE_3C_FINDING: 24,
+      },
+      businessEntityWriteCount: 0,
+      businessEntityCounts: {
+        units: 0,
+        products: 0,
+        inventoryBalances: 0,
+        productWarehouseValuations: 0,
+      },
       persistentImportAuthorized: false as const,
     };
     const first = await writePrivateImportReports(

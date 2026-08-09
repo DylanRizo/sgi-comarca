@@ -51,6 +51,18 @@ export async function prepareImport(options: {
   ) {
     throw new LegacyImporterError('RECONCILIATION_INVARIANT_FAILED', 6);
   }
+  if (
+    plan.businessWritesEnabled &&
+    (plan.businessPlan?.units.length !== 14 ||
+      plan.businessPlan.products.length !== 144 ||
+      plan.businessPlan.inventoryBalances.length !== 357 ||
+      plan.businessPlan.productWarehouseValuations.length !== 357 ||
+      reconciliation.issues.filter(
+        ({ code }) => code === 'VALUATION_OBSERVED_AT_MISSING',
+      ).length !== 2)
+  ) {
+    throw new LegacyImporterError('WAVE12_COUNT_INVARIANT_FAILED', 6);
+  }
   return {
     workbook,
     verifiedEvidence,

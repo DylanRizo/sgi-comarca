@@ -28,6 +28,13 @@ function sanitizedPlan(plan: ImportPlan) {
     importBatchId: plan.importBatchId,
     totalSourceRows: plan.totalSourceRows,
     businessWritesEnabled: plan.businessWritesEnabled,
+    businessEntityCounts: {
+      units: plan.businessPlan?.units.length ?? 0,
+      products: plan.businessPlan?.products.length ?? 0,
+      inventoryBalances: plan.businessPlan?.inventoryBalances.length ?? 0,
+      productWarehouseValuations:
+        plan.businessPlan?.productWarehouseValuations.length ?? 0,
+    },
     sheets: plan.sheets,
     phase3cFindings: plan.phase3cFindings.map((finding) => ({
       findingId: finding.findingId,
@@ -54,9 +61,15 @@ function commitPreview(plan: ImportPlan, reconciliation: ReconciliationResult) {
     `- Filas raw preservadas: ${reconciliation.rawPreservedRows}`,
     `- Filas descartadas: ${reconciliation.droppedRows}`,
     `- Issues que requieren aprobación humana: ${humanDecisions}`,
-    '- Escrituras de entidades de negocio habilitadas: 0',
+    `- Escrituras simuladas de entidades de negocio: ${
+      (plan.businessPlan?.units.length ?? 0) +
+      (plan.businessPlan?.products.length ?? 0) +
+      (plan.businessPlan?.inventoryBalances.length ?? 0) +
+      (plan.businessPlan?.productWarehouseValuations.length ?? 0)
+    }`,
+    '- Destino: PostgreSQL temporal verificado y descartable',
     '',
-    'Este archivo describe qué se evaluaría en una aprobación posterior; no autoriza `--commit`.',
+    'Este archivo describe una simulación en base descartable; no autoriza `--commit` ni escritura persistente.',
     '',
   ].join('\n');
 }
