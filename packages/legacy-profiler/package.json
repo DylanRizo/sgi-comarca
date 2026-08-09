@@ -3,12 +3,30 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src test --max-warnings 0",
+    "profile": "tsx src/cli.ts",
     "smoke:sheetjs": "node test/sheetjs-gate.smoke.mjs",
-    "typecheck": "node --check test/ooxml-smoke-fixture.mjs && node --check test/ooxml-limited-inspector.mjs && node --check test/sheetjs-gate.smoke.mjs"
+    "test": "vitest run --root ../.. --config vitest.config.ts packages/legacy-profiler/test",
+    "typecheck": "tsc --noEmit -p tsconfig.json && node --check test/ooxml-smoke-fixture.mjs && node --check test/ooxml-limited-inspector.mjs && node --check test/sheetjs-gate.smoke.mjs"
   },
   "dependencies": {
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@sgi/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "tsx": "4.23.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
   },
   "engines": {
     "node": "24.x"

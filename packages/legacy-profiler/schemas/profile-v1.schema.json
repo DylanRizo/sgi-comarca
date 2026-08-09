@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sgi.local/schemas/legacy-profile-v1.json",
+  "title": "SGI legacy workbook profile envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profileSchemaVersion",
+    "profilerVersion",
+    "sourceCode",
+    "sourceSha256",
+    "sheets"
+  ],
+  "properties": {
+    "profileSchemaVersion": { "const": 1 },
+    "profilerVersion": { "type": "string", "minLength": 1 },
+    "sourceCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sheets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "index",
+          "physicalRange",
+          "logicalDataRange",
+          "columns"
+        ]
+      }
+    }
+  }
+}

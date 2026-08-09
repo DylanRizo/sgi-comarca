@@ -11,8 +11,8 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 2 | Base reproducible del monorepo | Versiones estables compatibles; sin módulos de negocio | install/lint/typecheck/test/build y health/readiness |
 | 3A | Modelo estructural y migración inicial | 23 entidades exactas, Decimal, constraints, permisos y bootstrap técnico | PostgreSQL real; migración reproducible, 23 tablas de aplicación y grants exactos |
 | 3B | Auth, sesiones, autorización, administración API y frontend auth — `COMPLETE` | Decisiones cerradas en ADR-007; antigua FASE 5 absorbida | 47 unitarias, 85 integración y 11 E2E; matriz y superficie pública exactas |
-| 3C | Perfilador reproducible | Lectura XLSX sin modificación y controles legacy; no iniciado | Nueve hojas perfiladas; reportes privados; sin importación |
-| 4 | Importador XLSX dry-run/reconciliación | Depende de 3C; resoluciones DEC-004–010 y mapeos versionados | baseline reproducida, no pérdida, idempotencia |
+| 3C | Perfilador reproducible — `COMPLETE` | Lectura XLSX sin modificación; evidencia canónica privada; cero PostgreSQL/Prisma | Nueve hojas y columnas perfiladas; manifest verificado; evidencia determinista; sin importación |
+| 4 | Importador XLSX dry-run/reconciliación — `NEXT` | Consume el manifest de 3C; resoluciones DEC-004–010 y mapeos versionados | baseline reproducida, no pérdida, idempotencia |
 | 5 histórica | `ABSORBIDA_EN_FASE_3B` | No es una fase futura ni se vuelve a ejecutar | Trazabilidad conservada en el informe de cierre de 3B |
 | 6 | Catálogos e inventario | Mapeo Unidad/Unidades; permisos de transferencias; protección append-only de ProductWarehouseValuation resuelta antes de cualquier escritura operacional | concurrencia, stock no negativo, flujos atómicos; la fase no se aprueba con la protección de valoraciones pendiente |
 | 7 | Ventas | Estados/pagos históricos y precio/costo operativo; SALES ya fue asignado en 3B | venta, confirmación y cancelación E2E/idempotentes |

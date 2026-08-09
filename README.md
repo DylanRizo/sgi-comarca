@@ -7,12 +7,17 @@ PostgreSQL.
 - FASE 3A: modelo estructural y migración inicial — completa.
 - FASE 3B: autenticación, sesiones, autorización, administración limitada y
   frontend de autenticación — completa.
-- FASE 3C: perfilador reproducible del XLSX — siguiente fase, no iniciada.
+- FASE 3C: perfilador reproducible del XLSX — completa.
+- FASE 4: importador y reconciliación legacy — siguiente fase, no iniciada.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
 [ADR-007](docs/decisions/ADR-007-phase-3b-authentication-authorization.md) y el
 [runbook operativo](docs/deployment/phase-3b-auth-operations.md).
+
+El diseño y la evidencia sanitizada de FASE 3C están en la
+[guía del profiler](docs/migration/phase-3c-profiler.md) y su
+[informe de cierre](docs/reviews/phase-3c-completion-report.md).
 
 ## Requisitos para Windows
 
@@ -117,6 +122,21 @@ bases temporales descartables.
 
 Para formatear de manera intencional use `pnpm format`. No instale herramientas
 globalmente ni cambie el lockfile fuera de una actualización aprobada.
+
+## Perfilado legacy de solo lectura
+
+El perfilador no importa datos ni se conecta a PostgreSQL. Produce evidencia
+privada ignorada por Git:
+
+```powershell
+pnpm profile:legacy -- `
+  --input legacy/private/datos-inventario.xlsx `
+  --source-code legacy-inventory-xlsx `
+  --output reports/private/profiling
+```
+
+No copie el XLSX ni los reportes privados a rutas versionadas. FASE 4 debe
+verificar el manifest determinista antes de consumir esa evidencia.
 
 ## Solución de problemas
 

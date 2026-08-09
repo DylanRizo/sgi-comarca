@@ -17,6 +17,25 @@ La arquitectura será un **monolito modular en un monorepo**. Es suficientemente
 
 No existe una migración que pueda garantizarse como “perfecta” sin validación humana. Este procedimiento busca que sea **trazable, reversible, probada y sin pérdida silenciosa de datos**.
 
+## Estado del perfilado previo a importación
+
+FASE 3C está cerrada. Antes de preparar cualquier dry-run de FASE 4, regenere
+y verifique la evidencia privada con:
+
+```powershell
+pnpm profile:legacy -- `
+  --input legacy/private/datos-inventario.xlsx `
+  --source-code legacy-inventory-xlsx `
+  --output reports/private/profiling
+```
+
+El comando es read-only, no acepta opciones de importación o commit y no usa
+`DATABASE_URL`. Confirme el SHA de fuente, los checksums de `manifest.json` y
+que dos ejecuciones produzcan artefactos deterministas byte a byte. Consulte
+[`phase-3c-profiler.md`](phase-3c-profiler.md). Los hallazgos con
+`blocksPhase4` requieren tratamiento explícito; no deben corregirse dentro del
+profiler.
+
 ---
 
 ## 2. Línea base confirmada de los archivos actuales

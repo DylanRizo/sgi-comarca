@@ -1,5 +1,12 @@
 # Diccionario de datos de las hojas legacy
 
+FASE 3C confirmó este inventario mediante el profiler reproducible, sin
+modificar el XLSX ni escribir en PostgreSQL. La evidencia completa permanece
+en `reports/private/profiling/` y el resultado sanitizado está en
+[`phase-3c-completion-report.md`](../reviews/phase-3c-completion-report.md).
+El diccionario conserva las observaciones históricas; el perfil machine-readable
+es la entrada verificable para FASE 4.
+
 ## Criterios de perfilado
 
 - “Filas” excluye el encabezado y filas completamente vacías.
@@ -243,4 +250,3 @@ erDiagram
 ```
 
 Estas son relaciones lógicas; Google Sheets no impone foreign keys.
-
