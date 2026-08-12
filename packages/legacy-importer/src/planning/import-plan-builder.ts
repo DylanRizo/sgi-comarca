@@ -6,6 +6,7 @@ import {
 } from '@sgi/legacy-profiler';
 
 import { deterministicUuid, rowFingerprint } from '../domain/identity.js';
+import { approvedPlanKey } from '../domain/approved-plan-identity.js';
 import {
   IMPORTER_VERSION,
   IMPORT_PLAN_SCHEMA_VERSION,
@@ -141,6 +142,15 @@ export function buildImportPlan(
   const businessPlan = businessWritesEnabled
     ? buildWave12BusinessPlan(workbook, mapping, records, importBatchId)
     : undefined;
+  const planApprovalKey = approvedPlanKey({
+    sourceCode: workbook.sourceCode,
+    sourceSha256: workbook.sourceSha256,
+    manifestSha256: verifiedEvidence.manifestSha256,
+    mappingSha256,
+    mappingVersion: mapping.mappingVersion,
+    importerVersion: IMPORTER_VERSION,
+    businessPlan,
+  });
   if (businessPlan !== undefined) {
     const links = new Map(
       businessPlan.recordLinks.map((link) => [link.recordId, link]),
@@ -161,6 +171,7 @@ export function buildImportPlan(
     manifestSha256: verifiedEvidence.manifestSha256,
     mappingVersion: mapping.mappingVersion,
     mappingSha256,
+    approvedPlanKey: planApprovalKey,
     batchKey,
     legacySourceId,
     importBatchId,

@@ -199,6 +199,8 @@ export interface ImportPlan {
   manifestSha256: string;
   mappingVersion: string;
   mappingSha256: string;
+  approvedPlanKey: string;
+  /** Historical FASE 4B dry-run execution identity. */
   batchKey: string;
   legacySourceId: string;
   importBatchId: string;
@@ -261,6 +263,33 @@ export interface ImportExecutionSummary {
   };
   persistentImportAuthorized: false;
   artifactChecksums?: Record<string, string>;
+}
+
+export interface PersistentImportExecutionSummary {
+  schemaVersion: 1;
+  executionMode: 'COMMIT';
+  result: 'PERSISTENT_IMPORT_COMMITTED';
+  sourceCode: string;
+  sourceSha256: string;
+  approvedPlanKey: string;
+  executionId: string;
+  importBatchId: string;
+  operatorUserId: string;
+  targetFingerprint: string;
+  backupSha256: string;
+  totalSourceRows: number;
+  rawPreservedRows: number;
+  droppedRows: number;
+  reconciliationIssueCount: number;
+  reconciliationStatusCounts: Record<string, number>;
+  reconciliationSeverityCounts: Record<string, number>;
+  businessEntityWriteCount: number;
+  businessEntityCounts: {
+    units: number;
+    products: number;
+    inventoryBalances: number;
+    productWarehouseValuations: number;
+  };
 }
 
 export interface PreparedImport {

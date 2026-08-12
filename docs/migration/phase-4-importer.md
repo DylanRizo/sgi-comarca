@@ -4,11 +4,14 @@
 
 - FASE 4A: `FRAMEWORK READY` y `DRY_RUN PASSED`.
 - FASE 4B, Waves 1–2: `READY`.
+- FASE 4C.1: motor persistente y guardrails `IMPLEMENTED / READY FOR REVIEW`.
 - FASE 4: `IN_PROGRESS`.
 - **PERSISTENT IMPORT NOT AUTHORIZED.**
 
-La única ejecución habilitada continúa siendo un dry-run sobre PostgreSQL
-temporal. No existe `--commit` ni una ruta de escritura persistente.
+El dry-run continúa siendo el modo operativo autorizado. La CLI reconoce
+estructuralmente `--commit`, pero solo tras verificar todos los guardrails de
+FASE 4C.1. La existencia del mecanismo no autoriza usarlo contra la base
+persistente.
 
 ## Arquitectura
 
@@ -19,9 +22,9 @@ Verificación de identidad/checksums
           ↓
 Import plan determinista + mapping versionado
           ↓
-PostgreSQL temporal verificado
+Persistence target: dry-run temporal o commit protegido
           ↓
-Transacción Serializable + advisory lock
+Transacción Serializable + locks global/source/plan/tablas
           ↓
 LegacyRecord raw + entidades Waves 1–2 + reconciliación
           ↓
@@ -29,7 +32,9 @@ Reportes privados deterministas
 ```
 
 `@sgi/legacy-profiler` continúa siendo read-only y no usa Prisma. El paquete
-`@sgi/legacy-importer` planifica, simula y reconcilia en una base descartable.
+`@sgi/legacy-importer` planifica, simula, reconcilia y contiene el motor
+persistente protegido. Dry-run y commit comparten verificación, parser,
+mapping, plan, identidades, reconciliación y escritura; solo cambia el target.
 
 ## Ejecución autorizada
 
@@ -43,9 +48,9 @@ pnpm import:legacy -- --dry-run `
 ```
 
 Son obligatorios `--dry-run`, input, source-code, profile-dir y mapping-file.
-La CLI rechaza opciones de commit, write, apply, production e import. La URL de
-PostgreSQL solo se recibe mediante `DATABASE_URL`; nunca por argumento ni en la
-salida.
+En dry-run la CLI rechaza opciones de commit y cualquier alias de escritura. La
+URL de PostgreSQL solo se recibe mediante `DATABASE_URL`; nunca por argumento ni
+en la salida.
 
 ## Guard de PostgreSQL
 
@@ -57,10 +62,65 @@ los conteos realmente escritos antes de marcar el batch como completado.
 
 ## Identidad e idempotencia
 
-`batchKey` incorpora source code, SHA del workbook, SHA del manifest, SHA del
-mapping, versión del importer y modo. Los UUID de fuente, batch, filas y
-entidades simuladas se derivan de evidencia canónica. Repetir la misma
-identidad devuelve el mismo batch sin duplicar ni sobrescribir filas.
+El `batchKey` de FASE 4B se conserva como identidad histórica de la ejecución
+dry-run aprobada. `approvedPlanKey` representa fuente, manifest, mapping,
+versión y plan de negocio canónico sin incorporar el modo. Por ello es idéntico
+entre `DRY_RUN` y `COMMIT` si el plan no cambia. La ejecución persistente tiene
+un `executionId` separado. El primer commit es create-only: cualquier source,
+batch o entidad target preexistente produce aborto, sin upsert ni overwrite.
+
+## Motor persistente protegido
+
+Una futura invocación `--commit` deberá declarar de forma individual:
+
+- ambiente y fingerprint esperado del target;
+- SHA de fuente, manifest, mapping y cinco artefactos aprobados;
+- `approvedPlanKey`, batch key histórico y versión del importer;
+- `operatorUserId` ACTIVE con asignación ADMIN activa;
+- backup custom-format, sus checksums y evidencia estructurada de restore;
+- acuse de ventana de mantenimiento.
+
+Además exige stdin/stdout TTY y una frase interactiva derivada del fingerprint.
+No existe `--force`, no se acepta confirmación por pipe/env/argumento y
+`DATABASE_URL` continúa solo por entorno.
+
+El fingerprint positivo combina ambiente, nombre/servidor de base, migraciones
+aplicadas y la identidad de los tres warehouses bootstrap; nunca contiene
+passwords. Bajo la transacción se obtienen locks global, source y plan, se
+bloquean las tablas relevantes y se revalidan target vacío, operador, backup y
+evidencia. Cualquier diferencia TOCTOU aborta.
+
+No existe un permiso de importación en la matriz actual. Por tratarse de una CLI
+local excepcional, el guard exige temporalmente un operador ACTIVE con rol
+ADMIN asignado; esto no concede permisos implícitos de aplicación ni introduce
+un bypass HTTP. Crear un permiso específico requeriría otra decisión.
+
+## Backup y recuperación
+
+El backup debe ser PostgreSQL custom-format, tener SHA-256 esperado, superar
+`pg_restore --list` y estar ligado a evidencia JSON cuyo checksum también fue
+aprobado. La evidencia registra fingerprint origen/restaurado, timestamps,
+migraciones, conteos sanitizados y resultado `PASS` de una restauración en base
+descartable. Backup y evidencia permanecen bajo `backups/` e ignorados.
+
+La recuperación posterior al commit es exclusivamente restauración completa del
+backup verificado durante una ventana de mantenimiento. No existe comando para
+borrar o compensar selectivamente una importación.
+
+## Transacción persistente
+
+Una sola transacción `Serializable` crea raw primero y luego exactamente 14
+Unit, 144 Product, 357 balances y 357 valoraciones, 189 issues, un AuditLog y
+finaliza el ImportBatch `RUNNING → COMMITTED`. Los raw se enlazan después de
+crear las entidades target, dentro de la misma transacción. Fallos inyectados en
+Unit 10, Product 80, Balance 200, Valuation 300, issues, AuditLog y finalización
+del batch prueban rollback completo.
+
+La transacción persistente tiene un timeout local y acotado de 10 segundos. No
+cambia la configuración global de Prisma: se fijó después de mover preparación
+determinista y validaciones estructurales fuera de la transacción, con un margen
+de dos veces el máximo observado bajo carga global antes de fijarlo y sin
+permitir locks indefinidos.
 
 ## Preservación raw
 
@@ -125,6 +185,12 @@ Los reportes no se versionan. `dry-run-summary.json` incluye conteos por entidad
 y por código de reconciliación. `commit-preview.md` describe una simulación; no
 autoriza una importación.
 
+Una futura ejecución commit produce, bajo un directorio privado por execution,
+`commit-run.json`, `commit-summary.json`, `reconciliation.json`,
+`row-results.json` y `audit-receipt.json`. Un aborto previo genera solamente un
+reporte de fallo sanitizado. Ningún reporte contiene rawData ni valores de
+celda.
+
 ## Privacidad
 
 La documentación versionada contiene únicamente conteos, hashes, códigos,
@@ -136,5 +202,5 @@ valores financieros permanecen ignorados.
 - Movimientos operacionales y rutas: FASE 6.
 - Agrupación, duplicados, orphans, referencias y usuarios de Ventas: FASE 7.
 - Cierres y aspectos pendientes de DEC-025: FASE 8.
-- Importación persistente: requiere aprobación separada, backup, identidad de
-  operador, estrategia de rollback y una señal inequívoca todavía inexistente.
+- Ejecución persistente: el mecanismo existe, pero requiere backup/restore real,
+  operador ACTIVE, fingerprint aprobado, ventana y autorización humana separada.

@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint src test --max-warnings 0",
     "test": "vitest run --root ../.. --config vitest.config.ts packages/legacy-importer/test --exclude packages/legacy-importer/test/**/*.integration.spec.ts",
-    "test:integration": "vitest run --root ../.. --config vitest.integration.config.ts packages/legacy-importer/test/dry-run.integration.spec.ts",
+    "test:integration": "vitest run --root ../.. --config vitest.integration.config.ts packages/legacy-importer/test/dry-run.integration.spec.ts packages/legacy-importer/test/persistent-commit.integration.spec.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

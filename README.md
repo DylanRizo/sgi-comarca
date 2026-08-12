@@ -9,8 +9,9 @@ PostgreSQL.
   frontend de autenticación — completa.
 - FASE 3C: perfilador reproducible del XLSX — completa.
 - FASE 4: importador y reconciliación legacy — en progreso; FASE 4A dispone de
-  framework raw-first y FASE 4B Waves 1–2 está lista en dry-run temporal, sin
-  importación persistente.
+  framework raw-first, FASE 4B Waves 1–2 está lista y FASE 4C.1 implementa el
+  motor commit protegido para revisión. La importación persistente continúa sin
+  autorización.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -23,7 +24,8 @@ El diseño y la evidencia sanitizada de FASE 3C están en la
 
 El alcance de FASE 4A se documenta en la
 [guía del importer](docs/migration/phase-4-importer.md),
-[ADR-008](docs/decisions/ADR-008-legacy-import-boundaries.md) y el
+[ADR-008](docs/decisions/ADR-008-legacy-import-boundaries.md), el
+[informe de readiness del commit](docs/reviews/phase-4-commit-readiness.md) y el
 [informe sanitizado del dry-run](docs/reviews/phase-4-dry-run-report.md).
 
 ## Requisitos para Windows

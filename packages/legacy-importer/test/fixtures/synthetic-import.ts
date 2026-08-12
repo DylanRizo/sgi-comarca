@@ -13,6 +13,7 @@ import type {
   VerifiedProfileEvidence,
 } from '../../src/domain/import-types.js';
 import { deterministicUuid } from '../../src/domain/identity.js';
+import { approvedPlanKey } from '../../src/domain/approved-plan-identity.js';
 
 const SHA = 'a'.repeat(64);
 
@@ -292,6 +293,7 @@ export function databasePlan(
     manifestSha256: 'e'.repeat(64),
     mappingVersion: 'synthetic.1',
     mappingSha256: 'f'.repeat(64),
+    approvedPlanKey: '0'.repeat(64),
     batchKey,
     legacySourceId,
     importBatchId,
@@ -310,6 +312,15 @@ export function databasePlan(
     records,
     phase3cFindings: syntheticFindings(),
   };
+  plan.approvedPlanKey = approvedPlanKey({
+    sourceCode: plan.sourceCode,
+    sourceSha256: plan.sourceSha256,
+    manifestSha256: plan.manifestSha256,
+    mappingSha256: plan.mappingSha256,
+    mappingVersion: plan.mappingVersion,
+    importerVersion: plan.importerVersion,
+    businessPlan: plan.businessPlan,
+  });
   const issues = syntheticFindings().map((finding) => ({
     id: deterministicUuid('issue', { importBatchId, id: finding.findingId }),
     importBatchId,
@@ -468,6 +479,15 @@ export function databaseWave12Plan(suffix = 'wave12'): {
       },
     ],
   };
+  plan.approvedPlanKey = approvedPlanKey({
+    sourceCode: plan.sourceCode,
+    sourceSha256: plan.sourceSha256,
+    manifestSha256: plan.manifestSha256,
+    mappingSha256: plan.mappingSha256,
+    mappingVersion: plan.mappingVersion,
+    importerVersion: plan.importerVersion,
+    businessPlan: plan.businessPlan,
+  });
   result.reconciliation.issues.push(plan.businessPlan.reconciliationIssues[0]!);
   for (const record of [
     unitRecord,
@@ -478,5 +498,160 @@ export function databaseWave12Plan(suffix = 'wave12'): {
     record.status = 'IMPORTED';
     record.rawData.mappingStatus = 'APPROVED';
   }
+  return result;
+}
+
+export function databaseFullCommitPlan(suffix = 'commit'): {
+  plan: ImportPlan;
+  reconciliation: ReconciliationResult;
+} {
+  const result = databasePlan(2_064, suffix);
+  const { plan } = result;
+  const warehouseCodes = ['CASA_DYLAN', 'CASA_JEAN', 'CASA_LUDEN'];
+  const units = Array.from({ length: 14 }, (_, index) => ({
+    id: deterministicUuid('unit', { suffix, index }),
+    code: `UNIT_${index.toString().padStart(2, '0')}`,
+    name: `Synthetic unit ${index}`,
+    sourceRecordId: plan.records[index]!.id,
+  }));
+  const products = Array.from({ length: 144 }, (_, index) => ({
+    id: deterministicUuid('product', { suffix, index }),
+    code: `PRODUCT_${index.toString().padStart(3, '0')}`,
+    name: `Synthetic product ${index}`,
+    unitId: units[index % units.length]!.id,
+    minimumStock: '0',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    canonicalSourceRecordId: plan.records[14 + index]!.id,
+    evidenceSourceRecordIds: [],
+  }));
+  const inventoryBalances = Array.from({ length: 357 }, (_, index) => {
+    const product = products[index % products.length]!;
+    const warehouseCode = warehouseCodes[Math.floor(index / 144)]!;
+    return {
+      id: deterministicUuid('balance', { suffix, index }),
+      productId: product.id,
+      warehouseCode,
+      quantity: '1',
+      currentUnitPrice: '10',
+      currentUnitCost: index === 0 ? '0' : '5',
+      priceReviewRequired: false,
+      costReviewRequired: index === 0,
+      sourceRecordIds: [plan.records[158 + index]!.id],
+      selectedSourceRecordId: plan.records[158 + index]!.id,
+    };
+  });
+  const productWarehouseValuations = inventoryBalances.map(
+    (balance, index) => ({
+      id: deterministicUuid('valuation', { suffix, index }),
+      productId: balance.productId,
+      warehouseCode: balance.warehouseCode,
+      unitPrice: balance.currentUnitPrice,
+      unitCost: balance.currentUnitCost,
+      observedAt: '2026-01-01T00:00:00.000Z',
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+      legacyRecordId: balance.selectedSourceRecordId,
+      requiresHumanReview: index === 0,
+      reviewReason: index === 0 ? 'ZERO_COST_REVIEW' : null,
+    }),
+  );
+  const recordLinks = [
+    ...units.map((unit) => ({
+      recordId: unit.sourceRecordId,
+      targetUnitId: unit.id,
+      targetProductId: null,
+      targetWarehouseCode: null,
+      targetInventoryBalanceId: null,
+      mappingStatus: 'APPROVED' as const,
+      errorCodes: [],
+    })),
+    ...products.map((product) => ({
+      recordId: product.canonicalSourceRecordId,
+      targetUnitId: product.unitId,
+      targetProductId: product.id,
+      targetWarehouseCode: null,
+      targetInventoryBalanceId: null,
+      mappingStatus: 'APPROVED' as const,
+      errorCodes: [],
+    })),
+    ...inventoryBalances.map((balance) => ({
+      recordId: balance.selectedSourceRecordId,
+      targetUnitId: null,
+      targetProductId: balance.productId,
+      targetWarehouseCode: balance.warehouseCode,
+      targetInventoryBalanceId: balance.id,
+      mappingStatus: 'APPROVED' as const,
+      errorCodes: [],
+    })),
+  ];
+  const issues = Array.from({ length: 189 }, (_, index) => {
+    const human = index >= 186;
+    const missingObservedAt = index >= 187;
+    const legacyRecordId = missingObservedAt
+      ? plan.records[515 + (index - 187)]!.id
+      : null;
+    return {
+      id: deterministicUuid('issue', {
+        importBatchId: plan.importBatchId,
+        index,
+      }),
+      importBatchId: plan.importBatchId,
+      legacyRecordId,
+      code: missingObservedAt
+        ? 'VALUATION_OBSERVED_AT_MISSING'
+        : index === 186
+          ? 'LEGACY_ZERO_COST_REVIEW'
+          : `SYNTHETIC_ISSUE_${index.toString().padStart(3, '0')}`,
+      severity:
+        index < 5
+          ? ('ERROR' as const)
+          : index < 184
+            ? ('WARNING' as const)
+            : ('INFO' as const),
+      status:
+        index < 13
+          ? ('RESOLVED' as const)
+          : human
+            ? ('REQUIRES_HUMAN_APPROVAL' as const)
+            : ('OPEN' as const),
+      requiresHumanApproval: human,
+      message: missingObservedAt
+        ? 'VALUATION_OMITTED_WITHOUT_FAITHFUL_OBSERVED_AT'
+        : 'SYNTHETIC_RECONCILIATION_EVIDENCE',
+      details: {
+        synthetic: true,
+        ...(missingObservedAt
+          ? { resolution: 'PRESERVE_RAW_AND_BALANCE_WITHOUT_VALUATION' }
+          : {}),
+      },
+      entityType: missingObservedAt ? 'ProductWarehouseValuation' : 'Synthetic',
+    };
+  });
+  plan.businessWritesEnabled = true;
+  plan.businessPlan = {
+    units,
+    products,
+    inventoryBalances,
+    productWarehouseValuations,
+    recordLinks,
+    reconciliationIssues: issues,
+  };
+  for (const link of recordLinks) {
+    const record = plan.records.find(({ id }) => id === link.recordId)!;
+    record.status = 'IMPORTED';
+    record.rawData.mappingStatus = 'APPROVED';
+  }
+  plan.approvedPlanKey = approvedPlanKey({
+    sourceCode: plan.sourceCode,
+    sourceSha256: plan.sourceSha256,
+    manifestSha256: plan.manifestSha256,
+    mappingSha256: plan.mappingSha256,
+    mappingVersion: plan.mappingVersion,
+    importerVersion: plan.importerVersion,
+    businessPlan: plan.businessPlan,
+  });
+  result.reconciliation.issues = issues;
+  result.reconciliation.totalSourceRows = 2_064;
+  result.reconciliation.rawPreservedRows = 2_064;
+  result.reconciliation.droppedRows = 0;
   return result;
 }

@@ -1,6 +1,6 @@
 # ADR-008 — Límites del importador legacy y dry-run
 
-- Estado: **ACCEPTED_FOR_PHASE_4A**
+- Estado: **ACCEPTED_FOR_PHASE_4A_AND_AMENDED_BY_PHASE_4C1**
 - Fecha: 2026-08-09
 - Alcance: FASE 4A
 
@@ -60,3 +60,17 @@ habilita globalmente mientras sus decisiones permanezcan abiertas.
 - Crear mappings de Unit por normalización textual.
 - Eliminar duplicados por coincidencia exacta.
 - Usar la base persistente como dry-run.
+
+## Enmienda FASE 4C.1 — motor persistente sin autorización de ejecución
+
+La revisión GO/NO-GO autorizó implementar, pero no ejecutar, un motor commit
+para Waves 1–2. Se conservan raw-first, create-only, mappings versionados y la
+separación profiler/importer. `approvedPlanKey` queda separado del modo de
+ejecución; la evidencia aprobada de FASE 4B continúa siendo obligatoria.
+
+El futuro commit exige target fingerprint positivo, target vacío, operador
+ACTIVE con ADMIN asignado, backup y restore verificados, TTY, ventana de
+mantenimiento, locks global/source/plan/tablas, una transacción Serializable y
+AuditLog atómico. La recuperación post-commit es restore completo, nunca borrado
+selectivo. Esta enmienda no modifica permisos, Prisma ni la prohibición vigente:
+**PERSISTENT IMPORT NOT AUTHORIZED**.

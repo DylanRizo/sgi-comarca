@@ -628,7 +628,9 @@ privados fuera de Git y cero escritura en el XLSX o base operacional.
 # FASE 4 — Importador dry-run y reconciliación
 
 Estado actual: `IN_PROGRESS`. FASE 4A tiene `FRAMEWORK READY` y
-`DRY_RUN PASSED`; la importación persistente no está autorizada.
+`DRY_RUN PASSED`; FASE 4B Waves 1–2 está `READY`; FASE 4C.1 implementa el motor
+persistente protegido y está `READY FOR REVIEW`. La importación persistente no
+está autorizada.
 
 La única ejecución autorizada es:
 
@@ -640,6 +642,31 @@ pnpm import:legacy -- --dry-run `
   --mapping-file packages/legacy-importer/config/legacy-inventory-xlsx.mapping.json `
   --report-dir reports/private/importing
 ```
+
+## FASE 4C.1 — precondiciones de un commit futuro
+
+No ejecute `--commit` sin una autorización humana posterior específica. La CLI
+exige todos los controles siguientes y aborta antes de escribir si falta uno:
+
+1. Fuente, perfil, manifest, mapping y cinco reportes dry-run con SHA aprobados.
+2. `approvedPlanKey`, batch key histórico e importer version exactos.
+3. Target environment y fingerprint positivo explícitos.
+4. Target completamente vacío para Waves 1–2 y warehouses bootstrap exactos.
+5. Operador existente, ACTIVE y con asignación ADMIN activa.
+6. Backup custom-format privado, SHA esperado y `pg_restore --list` válido.
+7. Evidencia JSON de restore en base descartable y SHA de esa evidencia.
+8. Ventana de mantenimiento reconocida, stdin/stdout TTY y frase interactiva.
+
+Los archivos de backup y restore evidence deben permanecer bajo `backups/` y
+fuera de Git. La URL de base se suministra solo por `DATABASE_URL`. No existe
+`--force`, confirmación no interactiva ni rollback selectivo. Tras un defecto
+posterior al commit, restaure el backup completo dentro de la ventana aprobada.
+
+El comando completo contiene numerosos checksums y no se publica aquí con
+valores de un ambiente real. Debe construirse desde una autorización operativa
+firmada y revisarse contra
+`docs/reviews/phase-4-commit-readiness.md`. Implementar el motor no autoriza su
+ejecución.
 
 La CLI crea una base temporal con fingerprint positivo, aplica
 migraciones/bootstrap, preserva raw, genera reconciliación y destruye la base.
