@@ -18,5 +18,45 @@ reports/private/
 backups/
 docs/business-sources/
 
+# Spreadsheets / sensitive exports outside private directories
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+*.csv
+
+# PostgreSQL / database backups
+*.backup
+*.bak
+*.pgdump
 *.dump
 *.sql.gz
+
+# PostgreSQL credential helpers
+.pgpass
+PGPASSFILE
+pgpass.conf
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+credentials.json
+credentials*.json
+secrets.json
+secrets*.json
+
+# Token / secret scratch files
+*.token
+*.tokens
+*.secret
+*.secrets
+
+# Sensitive temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
