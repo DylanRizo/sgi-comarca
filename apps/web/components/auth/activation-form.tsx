@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { validateNewPassword } from '@/lib/auth/password-input';
+import { ApiHttpError } from '@/lib/http/api-client';
 import { authApi } from '@/lib/http/auth-api';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -44,7 +45,12 @@ export function ActivationForm() {
   }, []);
 
   useEffect(() => {
-    if (error && ready && !tokenAvailable) feedbackRef.current?.focus();
+    if (!error || !ready) return;
+    if (tokenAvailable) {
+      passwordRef.current?.focus();
+      return;
+    }
+    feedbackRef.current?.focus();
   }, [error, ready, tokenAvailable]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -75,10 +81,26 @@ export function ActivationForm() {
       setTokenAvailable(false);
       await establish(result);
       router.replace('/app' as Route);
-    } catch {
-      tokenRef.current = null;
-      setTokenAvailable(false);
-      setError('No fue posible activar la cuenta. Solicita un enlace nuevo.');
+    } catch (activationError) {
+      if (
+        activationError instanceof ApiHttpError &&
+        activationError.code === 'PASSWORD_POLICY_REJECTED'
+      ) {
+        setError(
+          'La contraseña no cumple la política aprobada. Usa una frase distinta que no sea común ni incluya tu usuario.',
+        );
+      } else if (
+        activationError instanceof ApiHttpError &&
+        activationError.code === 'ACTIVATION_FAILED'
+      ) {
+        tokenRef.current = null;
+        setTokenAvailable(false);
+        setError('No fue posible activar la cuenta. Solicita un enlace nuevo.');
+      } else {
+        setError(
+          'No fue posible conectar con el servicio de activación. Intenta nuevamente.',
+        );
+      }
     } finally {
       submissionRef.current = false;
       setSubmitting(false);

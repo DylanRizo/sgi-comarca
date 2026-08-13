@@ -109,6 +109,31 @@ test.describe('BLOQUE 6 authentication interface', () => {
     await expect(page.locator('.auth-feedback')).toBeFocused();
   });
 
+  test('keeps a valid invitation usable after password policy rejection', async ({
+    page,
+  }) => {
+    const token = await database.createInvitation();
+    await page.goto(`/activate#token=${token}`);
+    await page
+      .getByLabel('Contraseña', { exact: true })
+      .fill('dylan secure phrase');
+    await page.getByLabel('Confirmar contraseña').fill('dylan secure phrase');
+    await page.getByRole('button', { name: 'Activar cuenta' }).click();
+
+    await expect(page.locator('.auth-feedback')).toContainText(
+      'La contraseña no cumple la política aprobada',
+    );
+    await expect(page.getByLabel('Contraseña', { exact: true })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Activar cuenta' }),
+    ).toBeEnabled();
+
+    await page.getByLabel('Contraseña', { exact: true }).fill(initialPassword);
+    await page.getByLabel('Confirmar contraseña').fill(initialPassword);
+    await page.getByRole('button', { name: 'Activar cuenta' }).click();
+    await expect(page).toHaveURL('/app');
+  });
+
   test('redirects an anonymous private visit to login', async ({ page }) => {
     await page.goto('/app');
     await expect(page).toHaveURL('/login?next=%2Fapp');
