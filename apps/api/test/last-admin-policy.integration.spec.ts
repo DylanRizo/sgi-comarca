@@ -338,6 +338,7 @@ describe.sequential('last ADMIN policy', () => {
       );
       expect(effectivePermissions.has('finances.read')).toBe(false);
       expect(effectivePermissions.has('inventory.adjust')).toBe(false);
+      expect(effectivePermissions.has('inventory.read')).toBe(false);
       expect(effectivePermissions.has('sales.create')).toBe(false);
       expect(effectivePermissions.has('transfers.create')).toBe(false);
       expect(effectivePermissions.has(futurePermission.code)).toBe(false);

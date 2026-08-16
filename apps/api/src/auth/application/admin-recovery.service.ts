@@ -26,6 +26,7 @@ const approvedPermissionCodes = [
   'finances.manual.create',
   'finances.read',
   'inventory.adjust',
+  'inventory.read',
   'sales.cancel',
   'sales.confirm_in_transit',
   'sales.create',
@@ -47,6 +48,7 @@ const approvedRolePermissionKeys = [
   'FINANCE:finances.manual.create',
   'FINANCE:finances.read',
   'INVENTORY_MANAGER:inventory.adjust',
+  'INVENTORY_MANAGER:inventory.read',
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
 ] as const;

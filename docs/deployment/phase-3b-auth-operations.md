@@ -21,7 +21,7 @@ pnpm db:bootstrap
 ```
 
 Es manual, transaccional, Serializable e idempotente. Espera exactamente seis
-roles, 14 permisos, cuatro usuarios, 11 `UserRole`, 12 `RolePermission`, un
+roles, 15 permisos, cuatro usuarios, 11 `UserRole`, 13 `RolePermission`, un
 `UserPermission` directo y tres almacenes. Dylan es el único ADMIN asignado.
 No crea contraseñas, sesiones o invitaciones, no reactiva grants revocados y se
 niega a sobrescribir una matriz incompatible.

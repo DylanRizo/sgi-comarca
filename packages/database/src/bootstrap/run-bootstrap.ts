@@ -66,6 +66,93 @@ function assertNoUnexpectedRecords(
   }
 }
 
+function assertExactRecords(
+  label: string,
+  actual: Iterable<string>,
+  expected: Iterable<string>,
+): void {
+  const actualSet = new Set(actual);
+  const expectedSet = new Set(expected);
+  const extras = [...actualSet].filter((value) => !expectedSet.has(value));
+  const missing = [...expectedSet].filter((value) => !actualSet.has(value));
+
+  if (extras.length > 0 || missing.length > 0) {
+    throw new BootstrapConflictError(
+      'Bootstrap conflict for ' + label + ': active baseline differs.',
+    );
+  }
+}
+
+async function assertLiveAuthorizationUpgradeBaseline(
+  client: Prisma.TransactionClient,
+): Promise<void> {
+  const [users, roles, warehouses, userRoles, userPermissions] =
+    await Promise.all([
+      client.user.findMany({
+        where: {
+          loginIdentifier: {
+            in: bootstrapUsers.map(({ loginIdentifier }) => loginIdentifier),
+          },
+        },
+        select: { displayName: true, loginIdentifier: true },
+      }),
+      client.role.findMany({ select: { code: true } }),
+      client.warehouse.findMany({
+        select: { active: true, code: true, name: true },
+      }),
+      client.userRole.findMany({
+        where: { revokedAt: null },
+        include: { role: true, user: true },
+      }),
+      client.userPermission.findMany({
+        where: { revokedAt: null },
+        include: { permission: true, user: true },
+      }),
+    ]);
+
+  assertExactRecords(
+    'live bootstrap users',
+    users.map(
+      ({ displayName, loginIdentifier }) => loginIdentifier + ':' + displayName,
+    ),
+    bootstrapUsers.map(
+      ({ displayName, loginIdentifier }) => loginIdentifier + ':' + displayName,
+    ),
+  );
+  assertExactRecords(
+    'live bootstrap roles',
+    roles.map(({ code }) => code),
+    bootstrapRoles.map(({ code }) => code),
+  );
+  assertExactRecords(
+    'live bootstrap warehouses',
+    warehouses.map(({ active, code, name }) =>
+      [code, name, active ? 'active' : 'inactive'].join(':'),
+    ),
+    bootstrapWarehouses.map(({ code, name }) =>
+      [code, name, 'active'].join(':'),
+    ),
+  );
+  assertExactRecords(
+    'live bootstrap user roles',
+    userRoles.map(({ role, user }) =>
+      grantKey(user.loginIdentifier, role.code),
+    ),
+    bootstrapUserRoles.map(({ loginIdentifier, roleCode }) =>
+      grantKey(loginIdentifier, roleCode),
+    ),
+  );
+  assertExactRecords(
+    'live bootstrap user permissions',
+    userPermissions.map(({ permission, user }) =>
+      grantKey(user.loginIdentifier, permission.code),
+    ),
+    bootstrapUserPermissions.map(({ loginIdentifier, permissionCode }) =>
+      grantKey(loginIdentifier, permissionCode),
+    ),
+  );
+}
+
 export async function runBootstrap(
   client: PrismaClient,
 ): Promise<BootstrapResult> {
@@ -87,10 +174,10 @@ export async function runBootstrap(
         transaction.session.count(),
       ]);
 
-      if (credentialCount !== 0 || sessionCount !== 0) {
-        throw new BootstrapConflictError(
-          'Authentication bootstrap requires zero credentials and zero sessions.',
-        );
+      const liveAuthorizationUpgrade =
+        credentialCount !== 0 || sessionCount !== 0;
+      if (liveAuthorizationUpgrade) {
+        await assertLiveAuthorizationUpgradeBaseline(transaction);
       }
 
       const existingRoleCodes = (
@@ -154,11 +241,13 @@ export async function runBootstrap(
         const existing = await transaction.user.findUnique({
           where: { loginIdentifier: expected.loginIdentifier },
         });
-        const expectedRecord = {
-          ...expected,
-          status: UserStatus.PENDING_ACTIVATION,
-          activatedAt: null,
-        };
+        const expectedRecord = liveAuthorizationUpgrade
+          ? expected
+          : {
+              ...expected,
+              status: UserStatus.PENDING_ACTIVATION,
+              activatedAt: null,
+            };
         if (existing) {
           assertCompatibleRecord(
             'user ' + expected.loginIdentifier,
@@ -170,7 +259,11 @@ export async function runBootstrap(
         }
 
         const user = await transaction.user.create({
-          data: expectedRecord,
+          data: {
+            ...expectedRecord,
+            status: UserStatus.PENDING_ACTIVATION,
+            activatedAt: null,
+          },
         });
         usersByLogin.set(expected.loginIdentifier, user.id);
         created.users += 1;
@@ -350,7 +443,7 @@ export async function runBootstrap(
             entityType: 'SYSTEM_BOOTSTRAP',
             metadata: {
               createdRecordCount: mutationCount,
-              phase: '3B',
+              phase: '5A-RBAC',
             },
           },
         });

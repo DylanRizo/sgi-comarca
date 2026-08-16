@@ -166,9 +166,9 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
     expect(invitationCount).toBe(0);
-    expect(permissions).toHaveLength(14);
+    expect(permissions).toHaveLength(15);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(12);
+    expect(rolePermissions).toHaveLength(13);
     expect(userPermissions).toHaveLength(1);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
@@ -180,7 +180,94 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 51, phase: '3B' },
+      metadata: { createdRecordCount: 53, phase: '5A-RBAC' },
+    });
+  });
+
+  it('adds the approved authorization delta without mutating live authentication', async () => {
+    const dylan = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    const inventoryRead = await client.permission.findUniqueOrThrow({
+      where: { code: 'inventory.read' },
+    });
+    const inventoryManager = await client.role.findUniqueOrThrow({
+      where: { code: 'INVENTORY_MANAGER' },
+    });
+    await client.rolePermission.deleteMany({
+      where: {
+        permissionId: inventoryRead.id,
+        roleId: inventoryManager.id,
+      },
+    });
+    await client.permission.delete({ where: { id: inventoryRead.id } });
+    const activatedAt = new Date('2026-08-15T12:00:00.000Z');
+    await client.user.update({
+      where: { id: dylan.id },
+      data: { activatedAt, status: 'ACTIVE' },
+    });
+    const credential = await client.passwordCredential.create({
+      data: {
+        passwordHash: 'CONTROLLED_ARGON2ID_BOOTSTRAP_TEST_HASH',
+        userId: dylan.id,
+      },
+    });
+    const session = await client.session.create({
+      data: {
+        absoluteExpiresAt: new Date('2026-08-15T20:00:00.000Z'),
+        createdAt: activatedAt,
+        idleExpiresAt: new Date('2026-08-15T12:30:00.000Z'),
+        lastSeenAt: activatedAt,
+        tokenHash: 'a'.repeat(64),
+        userId: dylan.id,
+      },
+    });
+
+    const result = await runBootstrap(client);
+    const secondRun = await runBootstrap(client);
+
+    expect(result.created).toMatchObject({
+      auditLogs: 1,
+      permissions: 1,
+      rolePermissions: 1,
+      roles: 0,
+      userPermissions: 0,
+      userRoles: 0,
+      users: 0,
+      warehouses: 0,
+    });
+    expect(Object.values(secondRun.created).every((count) => count === 0)).toBe(
+      true,
+    );
+    expect(
+      await client.permission.count({ where: { code: 'inventory.read' } }),
+    ).toBe(1);
+    expect(
+      await client.rolePermission.count({
+        where: {
+          permission: { code: 'inventory.read' },
+          revokedAt: null,
+          role: { code: 'INVENTORY_MANAGER' },
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await client.user.findUniqueOrThrow({ where: { id: dylan.id } }),
+    ).toMatchObject({ activatedAt, status: 'ACTIVE' });
+    expect(
+      await client.passwordCredential.findUniqueOrThrow({
+        where: { id: credential.id },
+      }),
+    ).toMatchObject({ revokedAt: null });
+    expect(
+      await client.session.findUniqueOrThrow({ where: { id: session.id } }),
+    ).toMatchObject({ revokedAt: null });
+
+    await client.session.delete({ where: { id: session.id } });
+    await client.passwordCredential.delete({ where: { id: credential.id } });
+    await client.user.update({
+      where: { id: dylan.id },
+      data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
     });
   });
 

@@ -73,6 +73,11 @@ export const bootstrapPermissions = [
     description: 'Realizar ajustes de inventario.',
   },
   {
+    code: 'inventory.read',
+    description:
+      'Consultar productos, unidades, almacenes, balances y valoraciones de inventario.',
+  },
+  {
     code: 'sales.cancel',
     description: 'Cancelar ventas elegibles.',
   },
@@ -136,6 +141,10 @@ export const bootstrapRolePermissions = [
   {
     roleCode: 'INVENTORY_MANAGER',
     permissionCode: 'inventory.adjust',
+  },
+  {
+    roleCode: 'INVENTORY_MANAGER',
+    permissionCode: 'inventory.read',
   },
   { roleCode: 'SALES', permissionCode: 'sales.create' },
   {

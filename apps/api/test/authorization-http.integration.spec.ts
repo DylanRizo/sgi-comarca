@@ -393,12 +393,32 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
   it('resolves grants from PostgreSQL with direct DENY precedence and immediate revocation', async () => {
     const service = app.get(EffectivePermissionsService);
     expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
+    expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(true);
     expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(
       false,
     );
     expect(await service.hasPermission(dylanId, 'users.status.manage')).toBe(
       true,
     );
+
+    const inventoryReadPermission = await client.permission.findUniqueOrThrow({
+      where: { code: 'inventory.read' },
+      select: { id: true },
+    });
+    const readDeny = await client.userPermission.create({
+      data: {
+        effect: 'DENY',
+        permissionId: inventoryReadPermission.id,
+        userId: dylanId,
+      },
+    });
+    expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(false);
+    expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
+    await client.userPermission.update({
+      where: { id: readDeny.id },
+      data: { revokedAt: new Date() },
+    });
+    expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(true);
 
     const inventoryPermission = await client.permission.findUniqueOrThrow({
       where: { code: 'inventory.adjust' },
@@ -444,6 +464,36 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       where: { permissionId: newPermission.id },
     });
     await client.permission.delete({ where: { id: newPermission.id } });
+  });
+
+  it('does not infer inventory.read from inventory.adjust', async () => {
+    const service = app.get(EffectivePermissionsService);
+    const inventoryAdjust = await client.permission.findUniqueOrThrow({
+      where: { code: 'inventory.adjust' },
+      select: { id: true },
+    });
+    const user = await client.user.create({
+      data: {
+        displayName: 'Inventory adjust only test',
+        loginIdentifier: `inventory_adjust_only_${Date.now()}`,
+        status: 'ACTIVE',
+        userPermissions: {
+          create: { permissionId: inventoryAdjust.id },
+        },
+      },
+    });
+
+    try {
+      expect(await service.hasPermission(user.id, 'inventory.adjust')).toBe(
+        true,
+      );
+      expect(await service.hasPermission(user.id, 'inventory.read')).toBe(
+        false,
+      );
+    } finally {
+      await client.userPermission.deleteMany({ where: { userId: user.id } });
+      await client.user.delete({ where: { id: user.id } });
+    }
   });
 
   it('enforces effective permissions through the HTTP guard', async () => {
@@ -528,6 +578,9 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       );
       expect(await service.hasPermission(user.id, 'finances.read')).toBe(false);
       expect(await service.hasPermission(user.id, 'inventory.adjust')).toBe(
+        false,
+      );
+      expect(await service.hasPermission(user.id, 'inventory.read')).toBe(
         false,
       );
       expect(await service.hasPermission(user.id, 'sales.create')).toBe(false);
