@@ -12,6 +12,17 @@ export type {
 } from './auth.js';
 export type { HealthData, ReadinessData } from './health.js';
 export type {
+  InventoryBalanceView,
+  PaginatedData,
+  PaginationMeta,
+  ProductDetail,
+  ProductInventoryView,
+  ProductSummary,
+  ProductWarehouseValuationView,
+  UnitSummary,
+  WarehouseSummary,
+} from './inventory-read.js';
+export type {
   AdminInvitationData,
   UserAdministrationPublicErrorCode,
 } from './user-administration.js';

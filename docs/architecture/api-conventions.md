@@ -21,7 +21,7 @@
 Listado:
 
 ```json
-{"data":[],"meta":{"page":1,"pageSize":25,"total":0,"requestId":"uuid"}}
+{"data":{"items":[],"pagination":{"page":1,"pageSize":25,"totalItems":0,"totalPages":0}},"meta":{"requestId":"uuid"}}
 ```
 
 Error:
@@ -75,6 +75,32 @@ Las respuestas sensibles usan `Cache-Control: no-store`. La invitación
 administrativa devuelve exclusivamente el token de un uso después del commit;
 los otros comandos administrativos devuelven `204`.
 
+## Endpoints read-only implementados en FASE 5A
+
+Todos requieren sesión vigente y el permiso exacto `inventory.read`. Un DENY
+directo continúa prevaleciendo; `ADMIN` e `inventory.adjust` no constituyen
+bypass. Son consultas sin CSRF porque usan `GET`, devuelven
+`Cache-Control: no-store` y no escriben entidades de negocio.
+
+| Recurso | Endpoint | Parámetros |
+|---|---|---|
+| Productos | `GET /api/v1/products` | `page`, `pageSize` (máximo 100), `search`, `active` |
+| Producto | `GET /api/v1/products/:id` | UUID de producto |
+| Unidades | `GET /api/v1/units` | `page`, `pageSize`, `search`, `active` |
+| Unidad | `GET /api/v1/units/:id` | UUID de unidad |
+| Almacenes | `GET /api/v1/warehouses` | `page`, `pageSize`, `search`, `active` |
+| Almacén | `GET /api/v1/warehouses/:id` | UUID de almacén |
+| Inventario consolidado | `GET /api/v1/inventory` | `page`, `pageSize`, `search`, `active`, `warehouseId`, `availableOnly` |
+| Inventario de producto | `GET /api/v1/inventory/products/:productId` | UUID; `warehouseId` opcional |
+| Inventario de almacén | `GET /api/v1/inventory/warehouses/:warehouseId` | UUID más los filtros del listado consolidado |
+
+El orden de productos es código/ID y el de catálogos es nombre/ID. Cantidades,
+precios y costos son strings decimales. Cada balance incluye las valoraciones
+históricas existentes para su par producto–almacén; si no existe valoración,
+la colección `valuations` queda vacía. No se fabrica `observedAt`, no se expone
+`LegacyRecord` ni `ReconciliationIssue` y el stock total es una suma derivada,
+no persistida.
+
 ## Endpoints futuros propuestos
 
 La tabla siguiente conserva destinos arquitectónicos para módulos aún no
@@ -83,9 +109,9 @@ construidos. No describe rutas actualmente disponibles.
 | Módulo | Endpoints principales |
 |---|---|
 | users/roles | listados, creación, edición de perfil y asignación de roles por definir; no implementados en FASE 3B |
-| products | `GET/POST /products`, `GET/PATCH /products/{id}`, `POST /products/{id}/deactivate`, `GET /products/search` |
-| catalogs | `GET/POST/PATCH /units`, `/product-groups`, `/warehouses` |
-| inventory | `GET /inventory-balances`, `GET /inventory-balances/{id}`, `GET /stock-movements`, `POST /inventory-adjustments` |
+| products | Mutaciones futuras `POST /products`, `PATCH /products/{id}` y `POST /products/{id}/deactivate` |
+| catalogs | Mutaciones futuras de `/units` y `/warehouses`; `/product-groups` completo continúa futuro |
+| inventory | `GET /stock-movements` y `POST /inventory-adjustments`; los balances de FASE 5A son solo lectura |
 | receipts | `GET/POST /stock-receipts`, `GET /stock-receipts/{id}` |
 | transfers | `GET/POST /transfers`, `GET /transfers/{id}` |
 | sales | `GET/POST /sales`, `GET /sales/{id}`, `POST /sales/{id}/confirm`, `POST /sales/{id}/cancel` |

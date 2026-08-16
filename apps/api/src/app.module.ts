@@ -6,6 +6,10 @@ import { AuthModule } from './auth/auth.module.js';
 import { appConfig } from './config/app.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { InventoryModule } from './inventory/inventory.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { UnitsModule } from './units/units.module.js';
+import { WarehousesModule } from './warehouses/warehouses.module.js';
 
 @Module({
   imports: [
@@ -43,6 +47,10 @@ import { HealthModule } from './health/health.module.js';
     DatabaseModule,
     AuthModule,
     HealthModule,
+    ProductsModule,
+    UnitsModule,
+    WarehousesModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}
