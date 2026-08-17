@@ -22,6 +22,7 @@ import { CatalogListQueryDto } from '../common/dto/read-query.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ResourceIdParamDto } from '../common/dto/resource-id-param.dto.js';
 import { mapReadModelError, readSuccess } from '../common/read-http.js';
+import { catalogListQueryPipe } from '../common/read-query.pipe.js';
 import { ProductReadService } from './product-read.service.js';
 
 @Controller({ path: 'products', version: '1' })
@@ -34,7 +35,7 @@ export class ProductsController {
 
   @Get()
   async list(
-    @Query() query: CatalogListQueryDto,
+    @Query(catalogListQueryPipe) query: CatalogListQueryDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductSummary>>> {

@@ -13,6 +13,10 @@ import {
 import { ResourceIdParamDto } from './dto/resource-id-param.dto.js';
 import { pageResult } from './pagination.js';
 import { mapReadModelError, ReadModelNotFoundError } from './read-http.js';
+import {
+  catalogListQueryPipe,
+  inventoryListQueryPipe,
+} from './read-query.pipe.js';
 
 describe('inventory read HTTP boundary', () => {
   const pipe = new ValidationPipe({
@@ -62,6 +66,37 @@ describe('inventory read HTTP boundary', () => {
         { metatype: InventoryListQueryDto, type: 'query' },
       ),
     ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+  });
+
+  it('transforms explicit read DTOs when runtime parameter metadata is absent', async () => {
+    await expect(
+      catalogListQueryPipe.transform(
+        { active: 'false', page: '2', pageSize: '25' },
+        { type: 'query' },
+      ),
+    ).resolves.toMatchObject({ active: false, page: 2, pageSize: 25 });
+    await expect(
+      inventoryListQueryPipe.transform(
+        { active: 'true', availableOnly: 'false', page: '1', pageSize: '10' },
+        { type: 'query' },
+      ),
+    ).resolves.toMatchObject({
+      active: true,
+      availableOnly: false,
+      page: 1,
+      pageSize: 10,
+    });
+
+    for (const invalid of [
+      { page: 'abc' },
+      { page: '0' },
+      { pageSize: '101' },
+      { active: 'foo' },
+    ]) {
+      await expect(
+        catalogListQueryPipe.transform(invalid, { type: 'query' }),
+      ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+    }
   });
 
   it('rejects malformed UUIDs and maps missing resources to 404', async () => {

@@ -262,8 +262,13 @@ describe('FASE 5A product and inventory read API', () => {
   });
 
   it('searches and paginates products with deterministic metadata', async () => {
+    const unfiltered = await request(app.getHttpServer())
+      .get('/api/v1/products?active=true&page=1&pageSize=25')
+      .set('Host', host)
+      .set('Cookie', await session())
+      .expect(200);
     const first = await request(app.getHttpServer())
-      .get('/api/v1/products?search=PHASE5A&page=1&pageSize=2')
+      .get('/api/v1/products?search=PHASE5A&active=true&page=1&pageSize=2')
       .set('Host', host)
       .set('Cookie', await session())
       .expect(200);
@@ -282,6 +287,7 @@ describe('FASE 5A product and inventory read API', () => {
       first.body.data.items.map((item: { code: string }) => item.code),
     ).toEqual(['PHASE5A-A', 'PHASE5A-B']);
     expect(second.body.data.items[0].code).toBe('PHASE5A-C');
+    expect(unfiltered.body.data.pagination.totalItems).toBe(3);
   });
 
   it('returns product detail and 404 for a missing product', async () => {
@@ -316,7 +322,7 @@ describe('FASE 5A product and inventory read API', () => {
       .expect(200);
 
     const warehouses = await request(app.getHttpServer())
-      .get('/api/v1/warehouses?search=PHASE5A')
+      .get('/api/v1/warehouses?search=PHASE5A&active=true')
       .set('Host', host)
       .set('Cookie', await session())
       .expect(200);
@@ -329,8 +335,15 @@ describe('FASE 5A product and inventory read API', () => {
   });
 
   it('aggregates multi-warehouse stock and valuation history exactly', async () => {
+    const unfiltered = await request(app.getHttpServer())
+      .get('/api/v1/inventory?active=true&page=1&pageSize=100')
+      .set('Host', host)
+      .set('Cookie', await session())
+      .expect(200);
     const list = await request(app.getHttpServer())
-      .get('/api/v1/inventory?search=PHASE5A&page=1&pageSize=2')
+      .get(
+        '/api/v1/inventory?search=PHASE5A&active=true&availableOnly=false&page=1&pageSize=2',
+      )
       .set('Host', host)
       .set('Cookie', await session())
       .expect(200);
@@ -340,6 +353,7 @@ describe('FASE 5A product and inventory read API', () => {
       totalItems: 3,
       totalPages: 2,
     });
+    expect(unfiltered.body.data.pagination.totalItems).toBe(3);
 
     const response = await request(app.getHttpServer())
       .get(`/api/v1/inventory/products/${productAId}`)

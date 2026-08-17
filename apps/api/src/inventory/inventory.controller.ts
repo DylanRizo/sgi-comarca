@@ -26,6 +26,10 @@ import {
   WarehouseIdParamDto,
 } from '../common/dto/resource-id-param.dto.js';
 import { mapReadModelError, readSuccess } from '../common/read-http.js';
+import {
+  inventoryListQueryPipe,
+  productInventoryQueryPipe,
+} from '../common/read-query.pipe.js';
 import { InventoryReadService } from './inventory-read.service.js';
 
 @Controller({ path: 'inventory', version: '1' })
@@ -38,7 +42,7 @@ export class InventoryController {
 
   @Get()
   async list(
-    @Query() query: InventoryListQueryDto,
+    @Query(inventoryListQueryPipe) query: InventoryListQueryDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductInventoryView>>> {
@@ -48,7 +52,7 @@ export class InventoryController {
   @Get('products/:productId')
   async product(
     @Param() params: ProductIdParamDto,
-    @Query() query: ProductInventoryQueryDto,
+    @Query(productInventoryQueryPipe) query: ProductInventoryQueryDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<ProductInventoryView>> {
@@ -66,7 +70,7 @@ export class InventoryController {
   @Get('warehouses/:warehouseId')
   async warehouse(
     @Param() params: WarehouseIdParamDto,
-    @Query() query: InventoryListQueryDto,
+    @Query(inventoryListQueryPipe) query: InventoryListQueryDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductInventoryView>>> {
