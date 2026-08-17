@@ -17,6 +17,29 @@ export class AuthenticationDatabase {
 
   async reset(): Promise<void> {
     await this.client.$transaction(async (transaction) => {
+      const fixtureProducts = await transaction.product.findMany({
+        select: { id: true },
+        where: {
+          OR: [
+            { code: { startsWith: 'E2E-' } },
+            { code: { in: ['DGGR-X', 'CCWH-L'] } },
+          ],
+        },
+      });
+      const productIds = fixtureProducts.map(({ id }) => id);
+      await transaction.productWarehouseValuation.deleteMany({
+        where: { productId: { in: productIds } },
+      });
+      await transaction.inventoryBalance.deleteMany({
+        where: { productId: { in: productIds } },
+      });
+      await transaction.product.deleteMany({
+        where: { id: { in: productIds } },
+      });
+      await transaction.unit.deleteMany({ where: { code: 'E2E-UNIT' } });
+      await transaction.userPermission.deleteMany({
+        where: { effect: 'DENY' },
+      });
       await transaction.session.deleteMany();
       await transaction.loginThrottle.deleteMany();
       await transaction.userInvitation.deleteMany();
@@ -25,6 +48,112 @@ export class AuthenticationDatabase {
         data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
         where: { loginIdentifier: 'dylan' },
       });
+    });
+  }
+
+  async seedInventoryReadFixtures(): Promise<void> {
+    await this.client.$transaction(async (transaction) => {
+      const unit = await transaction.unit.create({
+        data: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+      });
+      await transaction.product.createMany({
+        data: [
+          { code: 'DGGR-X', name: 'Producto multi-almacén', unitId: unit.id },
+          { code: 'CCWH-L', name: 'Producto sin valoración', unitId: unit.id },
+          ...Array.from({ length: 24 }, (_, index) => ({
+            code: `E2E-${String(index + 1).padStart(3, '0')}`,
+            name: `Producto sintético ${String(index + 1).padStart(3, '0')}`,
+            unitId: unit.id,
+          })),
+        ],
+      });
+      const [products, warehouses] = await Promise.all([
+        transaction.product.findMany({
+          select: { code: true, id: true },
+          where: { code: { in: ['DGGR-X', 'CCWH-L'] } },
+        }),
+        transaction.warehouse.findMany({
+          orderBy: { code: 'asc' },
+          select: { code: true, id: true },
+        }),
+      ]);
+      const byCode = new Map(
+        products.map((product) => [product.code, product]),
+      );
+      const warehouseByCode = new Map(
+        warehouses.map((warehouse) => [warehouse.code, warehouse]),
+      );
+      const dggr = byCode.get('DGGR-X');
+      const ccwh = byCode.get('CCWH-L');
+      const dylan = warehouseByCode.get('CASA_DYLAN');
+      const jean = warehouseByCode.get('CASA_JEAN');
+      const luden = warehouseByCode.get('CASA_LUDEN');
+      if (!dggr || !ccwh || !dylan || !jean || !luden) {
+        throw new Error(
+          'Synthetic inventory fixture prerequisites are missing.',
+        );
+      }
+      await transaction.inventoryBalance.createMany({
+        data: [
+          {
+            currentUnitCost: 0,
+            currentUnitPrice: 10,
+            productId: dggr.id,
+            quantity: 2.5,
+            warehouseId: dylan.id,
+          },
+          {
+            currentUnitCost: 3,
+            currentUnitPrice: 12,
+            productId: dggr.id,
+            quantity: 3.5,
+            warehouseId: jean.id,
+          },
+          {
+            costReviewRequired: true,
+            currentUnitCost: null,
+            currentUnitPrice: null,
+            productId: ccwh.id,
+            quantity: 4,
+            warehouseId: luden.id,
+          },
+        ],
+      });
+      await transaction.productWarehouseValuation.create({
+        data: {
+          currencyCode: 'NIO',
+          observedAt: new Date('2026-01-15T12:00:00.000Z'),
+          productId: dggr.id,
+          unitCost: 0,
+          unitPrice: 10,
+          warehouseId: dylan.id,
+        },
+      });
+    });
+  }
+
+  async inventoryFixtureProductCount(): Promise<number> {
+    const products = await this.client.product.findMany({
+      include: { unit: true },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 25,
+      where: { active: true },
+    });
+    return products.length;
+  }
+
+  async denyInventoryRead(): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({
+        where: { code: 'inventory.read' },
+      }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
     });
   }
 

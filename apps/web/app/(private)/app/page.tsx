@@ -3,7 +3,6 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 
-import { LogoutButton } from '@/components/auth/logout-button';
 import { useAuth } from '@/providers/auth-provider';
 
 function formatDate(value: string): string {
@@ -18,7 +17,7 @@ export default function AppPage() {
   if (state.kind !== 'authenticated') return null;
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page" id="main-content">
       <section className="dashboard-card" aria-labelledby="welcome-title">
         <p className="eyebrow">SGI La Comarca</p>
         <h1 id="welcome-title">Bienvenido, {state.session.displayName}</h1>
@@ -55,7 +54,6 @@ export default function AppPage() {
           >
             Cambiar contraseña
           </Link>
-          <LogoutButton />
         </div>
       </section>
     </main>

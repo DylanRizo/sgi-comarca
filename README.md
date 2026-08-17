@@ -103,6 +103,15 @@ Páginas de autenticación disponibles:
 - `/unauthorized`
 - `/session-expired`
 
+Vistas operativas read-only disponibles para sesiones con `inventory.read`:
+
+- `/products`
+- `/products/:id`
+- `/inventory`
+
+La API sigue siendo la autoridad de autorización. Estas vistas no ofrecen
+creación, edición, ajustes, transferencias ni otras mutaciones de inventario.
+
 Swagger y `/api/docs` no están montados. `SWAGGER_ENABLED` permanece reservado
 e inerte hasta que se apruebe una puerta autenticada.
 
