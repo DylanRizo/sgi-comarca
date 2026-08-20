@@ -51,12 +51,13 @@ El diseño objetivo de mutaciones críticas requiere `Idempotency-Key`:
 - aprobar/aplicar auditorías;
 - importaciones commit.
 
-La clave se almacenará con usuario, operación, hash canónico del payload, estado
-y respuesta. Reusar la clave con payload distinto producirá
-`409 IDEMPOTENCY_KEY_REUSED`. Esta infraestructura persistente aún no existe en
-el esquema actual: el ajuste de FASE 5C no acepta una clave que no puede honrar y
-su UI bloquea doble envío y no reintenta automáticamente. Añadir idempotencia
-persistente requiere una decisión y cambio de esquema separados.
+La clave no se almacena en claro. Reusar una clave con payload distinto produce
+`409 IDEMPOTENCY_KEY_REUSED`. FASE 6A añade exclusivamente el fundamento
+persistente de transferencias: hash de clave + request hash con scope por actor
+en `inventory_transfers`. El endpoint de transferencia y su claim atómico
+pertenecen a FASE 6B y todavía no existen. El ajuste de FASE 5C continúa sin
+aceptar una clave que no puede honrar; su UI bloquea doble envío y no reintenta
+automáticamente.
 
 Actualizaciones ordinarias usan versionado optimista (`version`/ETag) cuando un conflicto de edición sea posible. Stock usa bloqueo pesimista dentro de transacción.
 
@@ -132,7 +133,7 @@ construidos. No describe rutas actualmente disponibles.
 | catalogs | Mutaciones futuras de `/units` y `/warehouses`; `/product-groups` completo continúa futuro |
 | inventory | `GET /stock-movements`; transferencias, entradas y otras mutaciones continúan futuras |
 | receipts | `GET/POST /stock-receipts`, `GET /stock-receipts/{id}` |
-| transfers | `GET/POST /transfers`, `GET /transfers/{id}` |
+| transfers | Persistencia base disponible; `GET/POST /transfers`, `GET /transfers/{id}` continúan sin implementar |
 | sales | `GET/POST /sales`, `GET /sales/{id}`, `POST /sales/{id}/confirm`, `POST /sales/{id}/cancel` |
 | finances | `GET/POST /financial-transactions`, `GET /financial-summary` |
 | closings | `GET/POST /daily-closings`, `GET /daily-closings/{id}`, `POST /daily-closings/{id}/reopen` |

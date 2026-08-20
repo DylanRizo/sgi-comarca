@@ -113,12 +113,12 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  passwordCredential          PasswordCredential?   @relation("PasswordCredentialUser")
-  credentialRevocationsIssued PasswordCredential[]  @relation("PasswordCredentialRevokedBy")
+  passwordCredential          PasswordCredential?     @relation("PasswordCredentialUser")
+  credentialRevocationsIssued PasswordCredential[]    @relation("PasswordCredentialRevokedBy")
   sessions                    Session[]
-  invitations                 UserInvitation[]       @relation("UserInvitationTarget")
-  invitationsCreated          UserInvitation[]       @relation("UserInvitationCreatedBy")
-  invitationsInvalidated      UserInvitation[]       @relation("UserInvitationInvalidatedBy")
+  invitations                 UserInvitation[]        @relation("UserInvitationTarget")
+  invitationsCreated          UserInvitation[]        @relation("UserInvitationCreatedBy")
+  invitationsInvalidated      UserInvitation[]        @relation("UserInvitationInvalidatedBy")
   userRoles                   UserRole[]              @relation("UserRoleUser")
   roleGrantsIssued            UserRole[]              @relation("UserRoleGrantedBy")
   roleRevocationsIssued       UserRole[]              @relation("UserRoleRevokedBy")
@@ -127,8 +127,9 @@ model User {
   permissionRevocationsIssued UserPermission[]        @relation("UserPermissionRevokedBy")
   rolePermissionGrantsIssued  RolePermission[]        @relation("RolePermissionGrantedBy")
   rolePermissionRevocations   RolePermission[]        @relation("RolePermissionRevokedBy")
-  auditLogs                   AuditLog[]               @relation("AuditLogActor")
+  auditLogs                   AuditLog[]              @relation("AuditLogActor")
   inventoryMovements          InventoryMovement[]     @relation("InventoryMovementActor")
+  inventoryTransfers          InventoryTransfer[]     @relation("InventoryTransferActor")
   sales                       Sale[]                  @relation("SaleSeller")
   saleCancellations           SaleCancellation[]      @relation("SaleCancellationActor")
   inTransitConfirmations      InTransitConfirmation[] @relation("InTransitConfirmationActor")
@@ -239,7 +240,6 @@ model PasswordCredential {
 
   @@index([revokedAt], map: "password_credentials_revoked_at_idx")
   @@index([revokedByUserId, revokedAt], map: "password_credentials_revoker_time_idx")
-
   @@map("password_credentials")
 }
 
@@ -330,8 +330,10 @@ model Warehouse {
   inventoryBalances          InventoryBalance[]
   productWarehouseValuations ProductWarehouseValuation[]
   inventoryMovements         InventoryMovement[]
+  outgoingInventoryTransfers InventoryTransfer[]         @relation("InventoryTransferFromWarehouse")
+  incomingInventoryTransfers InventoryTransfer[]         @relation("InventoryTransferToWarehouse")
   saleItems                  SaleItem[]
-  legacyRecords              LegacyRecord[]             @relation("LegacyRecordWarehouse")
+  legacyRecords              LegacyRecord[]              @relation("LegacyRecordWarehouse")
 
   @@index([active, name], map: "warehouses_active_name_idx")
   @@map("warehouses")
@@ -367,8 +369,9 @@ model Product {
   inventoryBalances          InventoryBalance[]
   productWarehouseValuations ProductWarehouseValuation[]
   inventoryMovements         InventoryMovement[]
+  inventoryTransferItems     InventoryTransferItem[]
   saleItems                  SaleItem[]
-  legacyRecords              LegacyRecord[]             @relation("LegacyRecordProduct")
+  legacyRecords              LegacyRecord[]              @relation("LegacyRecordProduct")
 
   @@index([name], map: "products_name_idx")
   @@index([unitId, active], map: "products_unit_active_idx")
@@ -422,55 +425,96 @@ model ProductWarehouseValuation {
 }
 
 model InventoryMovement {
-  id            String                @id @default(uuid()) @db.Uuid
-  productId     String                @map("product_id") @db.Uuid
-  warehouseId   String                @map("warehouse_id") @db.Uuid
-  type          InventoryMovementType
-  quantityDelta Decimal               @map("quantity_delta") @db.Decimal(18, 4)
-  balanceBefore Decimal               @map("balance_before") @db.Decimal(18, 4)
-  balanceAfter  Decimal               @map("balance_after") @db.Decimal(18, 4)
-  occurredAt    DateTime              @map("occurred_at") @db.Timestamptz(6)
-  actorUserId   String?               @map("actor_user_id") @db.Uuid
-  sourceType    String?               @map("source_type") @db.VarChar(80)
-  sourceId      String?               @map("source_id") @db.Uuid
-  saleItemId    String?               @map("sale_item_id") @db.Uuid
-  observation   String?
-  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String                @id @default(uuid()) @db.Uuid
+  productId      String                @map("product_id") @db.Uuid
+  warehouseId    String                @map("warehouse_id") @db.Uuid
+  type           InventoryMovementType
+  quantityDelta  Decimal               @map("quantity_delta") @db.Decimal(18, 4)
+  balanceBefore  Decimal               @map("balance_before") @db.Decimal(18, 4)
+  balanceAfter   Decimal               @map("balance_after") @db.Decimal(18, 4)
+  occurredAt     DateTime              @map("occurred_at") @db.Timestamptz(6)
+  actorUserId    String?               @map("actor_user_id") @db.Uuid
+  sourceType     String?               @map("source_type") @db.VarChar(80)
+  sourceId       String?               @map("source_id") @db.Uuid
+  saleItemId     String?               @map("sale_item_id") @db.Uuid
+  transferItemId String?               @map("transfer_item_id") @db.Uuid
+  observation    String?
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  actor         User?          @relation("InventoryMovementActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  saleItem      SaleItem?      @relation(fields: [saleItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  legacyRecords LegacyRecord[] @relation("LegacyRecordInventoryMovement")
+  product       Product                @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor         User?                  @relation("InventoryMovementActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  saleItem      SaleItem?              @relation(fields: [saleItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  transferItem  InventoryTransferItem? @relation(fields: [transferItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecords LegacyRecord[]         @relation("LegacyRecordInventoryMovement")
 
   @@index([productId, warehouseId, occurredAt], map: "inventory_movements_product_warehouse_time_idx")
   @@index([type, occurredAt], map: "inventory_movements_type_time_idx")
   @@index([saleItemId], map: "inventory_movements_sale_item_idx")
   @@index([actorUserId], map: "inventory_movements_actor_idx")
+  @@index([transferItemId], map: "inventory_movements_transfer_item_idx")
   @@map("inventory_movements")
 }
 
+model InventoryTransfer {
+  id                 String   @id @default(uuid()) @db.Uuid
+  fromWarehouseId    String   @map("from_warehouse_id") @db.Uuid
+  toWarehouseId      String   @map("to_warehouse_id") @db.Uuid
+  actorUserId        String   @map("actor_user_id") @db.Uuid
+  reason             String   @db.VarChar(500)
+  occurredAt         DateTime @map("occurred_at") @db.Timestamptz(6)
+  idempotencyKeyHash String   @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String   @map("request_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  fromWarehouse Warehouse               @relation("InventoryTransferFromWarehouse", fields: [fromWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  toWarehouse   Warehouse               @relation("InventoryTransferToWarehouse", fields: [toWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor         User                    @relation("InventoryTransferActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  items         InventoryTransferItem[]
+
+  @@unique([actorUserId, idempotencyKeyHash], map: "inventory_transfers_actor_idempotency_key")
+  @@index([fromWarehouseId, occurredAt(sort: Desc)], map: "inventory_transfers_from_time_idx")
+  @@index([toWarehouseId, occurredAt(sort: Desc)], map: "inventory_transfers_to_time_idx")
+  @@index([actorUserId, occurredAt(sort: Desc)], map: "inventory_transfers_actor_time_idx")
+  @@map("inventory_transfers")
+}
+
+model InventoryTransferItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  transferId String  @map("transfer_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  quantity   Decimal @db.Decimal(18, 4)
+
+  transfer  InventoryTransfer   @relation(fields: [transferId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  movements InventoryMovement[]
+
+  @@unique([transferId, productId], map: "inventory_transfer_items_transfer_product_key")
+  @@index([productId], map: "inventory_transfer_items_product_idx")
+  @@map("inventory_transfer_items")
+}
+
 model Sale {
-  id                 String        @id @default(uuid()) @db.Uuid
-  saleNumber         String        @unique(map: "sales_sale_number_key") @map("sale_number") @db.VarChar(80)
-  businessDate       DateTime      @map("business_date") @db.Date
-  status             SaleStatus
-  paymentStatus      PaymentStatus @default(UNKNOWN) @map("payment_status")
-  departureAt        DateTime?     @map("departure_at") @db.Timestamptz(6)
-  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
-  sellerUserId       String?       @map("seller_user_id") @db.Uuid
-  legacySellerText   String?       @map("legacy_seller_text") @db.VarChar(200)
-  delivererText      String?       @map("deliverer_text") @db.VarChar(200)
-  salesChannelText   String?       @map("sales_channel_text") @db.VarChar(160)
-  paymentMethodText  String?       @map("payment_method_text") @db.VarChar(160)
-  deliveryPlace      String?       @map("delivery_place")
-  shippingAmount     Decimal       @default(0) @map("shipping_amount") @db.Decimal(18, 2)
-  subtotal           Decimal       @db.Decimal(18, 2)
-  total              Decimal       @db.Decimal(18, 2)
-  currencyCode       String        @default("NIO") @map("currency_code") @db.VarChar(3)
-  observations       String?
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String        @id @default(uuid()) @db.Uuid
+  saleNumber        String        @unique(map: "sales_sale_number_key") @map("sale_number") @db.VarChar(80)
+  businessDate      DateTime      @map("business_date") @db.Date
+  status            SaleStatus
+  paymentStatus     PaymentStatus @default(UNKNOWN) @map("payment_status")
+  departureAt       DateTime?     @map("departure_at") @db.Timestamptz(6)
+  completedAt       DateTime?     @map("completed_at") @db.Timestamptz(6)
+  sellerUserId      String?       @map("seller_user_id") @db.Uuid
+  legacySellerText  String?       @map("legacy_seller_text") @db.VarChar(200)
+  delivererText     String?       @map("deliverer_text") @db.VarChar(200)
+  salesChannelText  String?       @map("sales_channel_text") @db.VarChar(160)
+  paymentMethodText String?       @map("payment_method_text") @db.VarChar(160)
+  deliveryPlace     String?       @map("delivery_place")
+  shippingAmount    Decimal       @default(0) @map("shipping_amount") @db.Decimal(18, 2)
+  subtotal          Decimal       @db.Decimal(18, 2)
+  total             Decimal       @db.Decimal(18, 2)
+  currencyCode      String        @default("NIO") @map("currency_code") @db.VarChar(3)
+  observations      String?
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   seller                User?                  @relation("SaleSeller", fields: [sellerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   items                 SaleItem[]
@@ -553,18 +597,18 @@ model LegacySource {
 }
 
 model ImportBatch {
-  id               String       @id @default(uuid()) @db.Uuid
-  legacySourceId   String       @map("legacy_source_id") @db.Uuid
-  mode             ImportMode
-  status           ImportStatus @default(PENDING)
-  sourceChecksum   String       @map("source_checksum") @db.VarChar(128)
-  mappingVersion   String?      @map("mapping_version") @db.VarChar(120)
-  startedAt        DateTime     @map("started_at") @db.Timestamptz(6)
-  completedAt      DateTime?    @map("completed_at") @db.Timestamptz(6)
-  summary          Json?        @db.JsonB
-  failureCode      String?      @map("failure_code") @db.VarChar(120)
-  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String       @id @default(uuid()) @db.Uuid
+  legacySourceId String       @map("legacy_source_id") @db.Uuid
+  mode           ImportMode
+  status         ImportStatus @default(PENDING)
+  sourceChecksum String       @map("source_checksum") @db.VarChar(128)
+  mappingVersion String?      @map("mapping_version") @db.VarChar(120)
+  startedAt      DateTime     @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?    @map("completed_at") @db.Timestamptz(6)
+  summary        Json?        @db.JsonB
+  failureCode    String?      @map("failure_code") @db.VarChar(120)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   legacySource         LegacySource          @relation(fields: [legacySourceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   legacyRecords        LegacyRecord[]
@@ -576,31 +620,31 @@ model ImportBatch {
 }
 
 model LegacyRecord {
-  id                       String             @id @default(uuid()) @db.Uuid
-  legacySourceId           String             @map("legacy_source_id") @db.Uuid
-  importBatchId            String             @map("import_batch_id") @db.Uuid
-  sourceEntity             String             @map("source_entity") @db.VarChar(120)
-  legacyId                 String?            @map("legacy_id") @db.VarChar(160)
-  legacyRowNumber          Int                @map("legacy_row_number")
-  rawData                  Json               @map("raw_data") @db.JsonB
-  rawHash                  String             @map("raw_hash") @db.VarChar(128)
-  status                   LegacyRecordStatus @default(STAGED)
-  targetWarehouseId        String?            @map("target_warehouse_id") @db.Uuid
-  targetUnitId             String?            @map("target_unit_id") @db.Uuid
-  targetProductId          String?            @map("target_product_id") @db.Uuid
-  targetInventoryBalanceId String?            @map("target_inventory_balance_id") @db.Uuid
-  targetInventoryMovementId String?           @map("target_inventory_movement_id") @db.Uuid
-  targetSaleId             String?            @map("target_sale_id") @db.Uuid
-  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                        String             @id @default(uuid()) @db.Uuid
+  legacySourceId            String             @map("legacy_source_id") @db.Uuid
+  importBatchId             String             @map("import_batch_id") @db.Uuid
+  sourceEntity              String             @map("source_entity") @db.VarChar(120)
+  legacyId                  String?            @map("legacy_id") @db.VarChar(160)
+  legacyRowNumber           Int                @map("legacy_row_number")
+  rawData                   Json               @map("raw_data") @db.JsonB
+  rawHash                   String             @map("raw_hash") @db.VarChar(128)
+  status                    LegacyRecordStatus @default(STAGED)
+  targetWarehouseId         String?            @map("target_warehouse_id") @db.Uuid
+  targetUnitId              String?            @map("target_unit_id") @db.Uuid
+  targetProductId           String?            @map("target_product_id") @db.Uuid
+  targetInventoryBalanceId  String?            @map("target_inventory_balance_id") @db.Uuid
+  targetInventoryMovementId String?            @map("target_inventory_movement_id") @db.Uuid
+  targetSaleId              String?            @map("target_sale_id") @db.Uuid
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  legacySource            LegacySource              @relation(fields: [legacySourceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  importBatch             ImportBatch               @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetWarehouse         Warehouse?                @relation("LegacyRecordWarehouse", fields: [targetWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetUnit              Unit?                     @relation("LegacyRecordUnit", fields: [targetUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetProduct           Product?                  @relation("LegacyRecordProduct", fields: [targetProductId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetInventoryBalance  InventoryBalance?         @relation("LegacyRecordInventoryBalance", fields: [targetInventoryBalanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetInventoryMovement InventoryMovement?        @relation("LegacyRecordInventoryMovement", fields: [targetInventoryMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetSale              Sale?                     @relation("LegacyRecordSale", fields: [targetSaleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacySource            LegacySource                @relation(fields: [legacySourceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  importBatch             ImportBatch                 @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetWarehouse         Warehouse?                  @relation("LegacyRecordWarehouse", fields: [targetWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetUnit              Unit?                       @relation("LegacyRecordUnit", fields: [targetUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetProduct           Product?                    @relation("LegacyRecordProduct", fields: [targetProductId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetInventoryBalance  InventoryBalance?           @relation("LegacyRecordInventoryBalance", fields: [targetInventoryBalanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetInventoryMovement InventoryMovement?          @relation("LegacyRecordInventoryMovement", fields: [targetInventoryMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  targetSale              Sale?                       @relation("LegacyRecordSale", fields: [targetSaleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   valuations              ProductWarehouseValuation[]
   saleItems               SaleItem[]
   reconciliationIssues    ReconciliationIssue[]
@@ -628,7 +672,7 @@ model ReconciliationIssue {
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  importBatch  ImportBatch  @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  importBatch  ImportBatch   @relation(fields: [importBatchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   legacyRecord LegacyRecord? @relation(fields: [legacyRecordId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   resolvedBy   User?         @relation("ReconciliationIssueResolver", fields: [resolvedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 

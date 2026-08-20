@@ -7,8 +7,10 @@
 - Cada comando crítico incluye `actor_id` y un payload validado. Cuando la
   infraestructura de idempotencia sea aprobada para el módulo, también incluirá
   `idempotency_key`.
-- El diseño objetivo de `idempotency_records` conserva `(actor, operation, key)`,
-  hash del payload y respuesta; esa entidad no existe todavía en el esquema.
+- La persistencia de idempotencia es específica de cada operación aprobada. El
+  fundamento de transferencias de FASE 6A conserva en `inventory_transfers` el
+  hash de la clave y el hash canónico de la solicitud, con scope por actor. Los
+  demás módulos no obtienen idempotencia implícita por este cambio.
 - Los balances se bloquean con `SELECT ... FOR UPDATE` en orden estable `(product_id, warehouse_id)` para reducir deadlocks.
 - El constraint único `(product_id, warehouse_id)` y una comprobación dentro de la transacción impiden saldo negativo.
 - Documento, balances, movimientos y audit log se escriben en la misma transacción.
@@ -120,12 +122,18 @@ sequenceDiagram
     end
 ```
 
-## 3. Transferencia
+## 3. Transferencia — fundamento persistente en FASE 6A
+
+FASE 6A incorpora `inventory_transfers`, `inventory_transfer_items` y
+`inventory_movements.transfer_item_id`, pero no expone todavía un endpoint ni
+ejecuta transferencias. `transfers.create` se concede exclusivamente a
+`INVENTORY_MANAGER`; sesión activa, permiso efectivo y precedencia de DENY
+seguirán siendo obligatorios en FASE 6B.
 
 ```text
 begin
 claim idempotency("transfer:create")
-require transfers.create (no user or role has this grant in FASE 3A)
+require transfers.create
 validate origin != destination and quantity > 0
 lock origin and destination balances in deterministic order
 if origin.quantity < quantity: raise INSUFFICIENT_STOCK
@@ -137,7 +145,23 @@ append audit_log
 complete idempotency and commit
 ```
 
-La pareja de movimientos comparte `transfer_item_id` y nunca existe uno sin el otro. Un fallo en destino revierte también la salida.
+La pareja de movimientos comparte `transfer_item_id` y nunca existe uno sin el
+otro. PostgreSQL limita cada ítem a un `TRANSFER_OUT` y un `TRANSFER_IN`; un
+constraint trigger diferido comprueba al commit que existen exactamente ambos y
+que producto, almacenes, magnitud y actor coinciden con el documento. Las tablas
+de documento e ítems reutilizan la protección append-only del ledger. Un fallo
+en destino revierte también la salida.
+
+La idempotencia no persiste la clave original. FASE 6B deberá calcular
+`idempotency_key_hash = SHA-256(Idempotency-Key)` y reclamar atómicamente la
+unicidad `(actor_user_id, idempotency_key_hash)`. El `request_hash` será SHA-256
+UTF-8 del objeto canónico validado, con claves en este orden fijo:
+`fromWarehouseId`, `productId`, `quantity`, `reason`, `toWarehouseId`. La
+cantidad se expresará como decimal canónico y el motivo conservará el valor ya
+validado. No forman parte del hash el actor, la clave original ni timestamps del
+servidor. Misma clave y mismo hash devuelve el documento existente; misma clave
+y hash distinto produce `409 IDEMPOTENCY_KEY_REUSED`. Un rollback no deja claim
+parcial.
 
 ```mermaid
 sequenceDiagram

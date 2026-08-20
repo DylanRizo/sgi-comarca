@@ -16,6 +16,8 @@ const applicationTables = [
   'in_transit_confirmations',
   'inventory_balances',
   'inventory_movements',
+  'inventory_transfer_items',
+  'inventory_transfers',
   'legacy_records',
   'legacy_sources',
   'login_throttles',
@@ -116,7 +118,7 @@ async function insertSaleFixture(
   return { saleId, saleItemId };
 }
 
-describe('PostgreSQL structure through FASE 3B', () => {
+describe('PostgreSQL structure through FASE 6A', () => {
   beforeAll(async () => {
     await pool.query('SELECT 1');
   });
@@ -125,7 +127,7 @@ describe('PostgreSQL structure through FASE 3B', () => {
     await pool.end();
   });
 
-  it('has exactly 25 application tables and only the Prisma technical table', async () => {
+  it('has exactly 27 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -141,18 +143,18 @@ describe('PostgreSQL structure through FASE 3B', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(25);
+    expect(actualApplicationTables).toHaveLength(27);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly three non-internal triggers', async () => {
+  it('has the approved functions and exactly seven non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('enforce_session_lifecycle', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_session_lifecycle', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -171,6 +173,8 @@ describe('PostgreSQL structure through FASE 3B', () => {
     );
 
     expect(functions.rows).toEqual([
+      { proname: 'enforce_inventory_transfer_has_items' },
+      { proname: 'enforce_inventory_transfer_item_ledger' },
       { proname: 'enforce_session_lifecycle' },
       { proname: 'prevent_immutable_row_change' },
     ]);
@@ -179,6 +183,22 @@ describe('PostgreSQL structure through FASE 3B', () => {
       {
         table_name: 'inventory_movements',
         trigger_name: 'inventory_movements_immutable',
+      },
+      {
+        table_name: 'inventory_transfer_items',
+        trigger_name: 'inventory_transfer_item_complete_ledger',
+      },
+      {
+        table_name: 'inventory_transfer_items',
+        trigger_name: 'inventory_transfer_items_immutable',
+      },
+      {
+        table_name: 'inventory_transfers',
+        trigger_name: 'inventory_transfer_requires_item',
+      },
+      {
+        table_name: 'inventory_transfers',
+        trigger_name: 'inventory_transfers_immutable',
       },
       {
         table_name: 'sessions',

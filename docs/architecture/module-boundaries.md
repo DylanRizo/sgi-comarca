@@ -18,7 +18,7 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 | `inventory` | balance único producto–almacén, alertas y consultas | inventory_balances | products, warehouses, stock-movements |
 | `stock-movements` | ledger inmutable de cambios | stock_movements | products, warehouses, users |
 | `stock-receipts` | entradas y sus artículos | stock_receipts, stock_receipt_items | inventory, stock-movements, products |
-| `transfers` | transferencia entre almacenes | inventory_transfers, transfer_items | inventory, stock-movements, warehouses |
+| `transfers` | transferencia entre almacenes; fundamento persistente FASE 6A, aplicación futura FASE 6B | inventory_transfers, inventory_transfer_items | inventory, stock-movements, warehouses, users |
 | `sales` | venta, artículos, estados, confirmación y cancelación | sales, sale_items | inventory, stock-movements, products, warehouses |
 | `finances` | ingresos/gastos manuales y vista calculada de ventas | financial_categories, financial_transactions | sales, users, audit-logs |
 | `daily-closings` | cierre, detalle por vendedor y reapertura | daily_closings, closing_details | sales, finances, audit-logs |
@@ -55,7 +55,8 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 
 ## Decisiones aún abiertas
 
-La asignación inicial de SALES quedó resuelta en FASE 3B. Permanecen abiertas
-las capacidades futuras de transferencias, la fórmula/tolerancia de cierre y
-el dashboard canónico. La administración completa de usuarios/roles no debe
+La asignación inicial de SALES quedó resuelta en FASE 3B y el grant
+`transfers.create → INVENTORY_MANAGER` en FASE 6A. Permanece futura la API/UI y
+ejecución de transferencias, además de la fórmula/tolerancia de cierre y el
+dashboard canónico. La administración completa de usuarios/roles no debe
 duplicar los cuatro comandos limitados ya entregados por `auth`.

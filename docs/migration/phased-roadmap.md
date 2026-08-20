@@ -14,7 +14,7 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 3C | Perfilador reproducible — `COMPLETE` | Lectura XLSX sin modificación; evidencia canónica privada; cero PostgreSQL/Prisma | Nueve hojas y columnas perfiladas; manifest verificado; evidencia determinista; sin importación |
 | 4 | Importador XLSX/reconciliación — `IN_PROGRESS` (`4A PASSED`; `4B WAVES 1–2 READY`; `4C.1 READY FOR REVIEW`) | Raw-first; motor commit protegido implementado y probado solo en PostgreSQL temporal; Ventas/Movimientos/Cierres diferidos | 2,064/2,064 raw, 14 Unit, 144 Product, 357 balances, 357 valuations, 189 issues; ejecución persistente no autorizada |
 | 5 histórica | `ABSORBIDA_EN_FASE_3B` | No es una fase futura ni se vuelve a ejecutar | Trazabilidad conservada en el informe de cierre de 3B |
-| 6 | Catálogos e inventario | Mapeo Unidad/Unidades; permisos de transferencias; protección append-only de ProductWarehouseValuation resuelta antes de cualquier escritura operacional | concurrencia, stock no negativo, flujos atómicos; la fase no se aprueba con la protección de valoraciones pendiente |
+| 6 | Catálogos e inventario — `IN_PROGRESS` (`6A FOUNDATION`) | Grant de transferencias y persistencia/constraints aprobados; API/UI y primera transferencia quedan para 6B; movimientos legacy no importados | concurrencia, stock no negativo, flujos atómicos y gate separado de escritura staging |
 | 7 | Ventas | Estados/pagos históricos y precio/costo operativo; SALES ya fue asignado en 3B | venta, confirmación y cancelación E2E/idempotentes |
 | 8 | Finanzas y cierres | Fórmula, tolerancia, pendientes y política de reapertura detallada | no doble conteo; cierres/roles/zona probados |
 | 9 | Auditoría, reportes y analytics | Dashboard/KPIs canónicos y permisos de aprobación de auditoría | KPIs contra SQL y exportaciones verificadas |
@@ -51,7 +51,7 @@ flowchart LR
 | NIO/C$ y zona | Cerrada | FASE 1 |
 | Usuarios iniciales | Cerrada en ADR-007 | FASE 3B completada |
 | Finanzas/ajustes/cancelación/cierres | Grants iniciales cerrados; reglas de módulos siguen su fase | FASE 3B/6–8 |
-| Transferencias y SALES | SALES cerrada; `transfers.create` permanece sin grants | FASE 3B/6 |
+| Transferencias y SALES | SALES cerrada; `transfers.create → INVENTORY_MANAGER` resuelto en FASE 6A | FASE 3B/6A |
 | Protección append-only de ProductWarehouseValuation | Abierta; sin trigger ni escritores operacionales en FASE 3A | entrada a FASE 6, antes de cualquier escritura de precios, costos o valoraciones |
 | Duplicados/anomalías individuales | Abiertas por registro | antes de importación commit/rehearsal |
 | Unidad/personas/canales/estados históricos | Abiertas | antes del commit de las entidades afectadas |
@@ -81,7 +81,7 @@ En cada fase:
 |---|---|---:|---:|---:|---:|---|---:|
 | DEC-001 | APPROVED | No | No | No | — | NIO, C$, Managua; sin conversión legacy | 1 |
 | DEC-002 | APPROVED_IN_PHASE_3B | No | No | Sí | Sí | Cuatro cuentas explícitas; textos legacy no son usuarios | 3B |
-| DEC-003 | PARTIALLY_RESOLVED | No | No | Sí | Parcial | Matriz inicial cerrada en ADR-007; transferencias continúan sin grants | 3B/6 |
+| DEC-003 | RESOLVED_IN_PHASE_6A | No | No | Sí | — | Matriz inicial cerrada en ADR-007; `transfers.create` concedido exclusivamente a `INVENTORY_MANAGER` | 3B/6A |
 | DEC-004 | RESOLVED_IN_PHASE_4B | Sí | Sí | Sí | — | Fila 29 canónica; fila 30 raw-only | 4B |
 | DEC-005 | RESOLVED_IN_PHASE_4B | Sí | Sí | Sí | — | Snapshot más reciente para balance; observaciones válidas append-only | 4B |
 | DEC-006 | PARTIAL por procedimiento | No | Sí | Sí | No para totales finales | Marcar candidatos; excluir solo con aprobación | 4/13 |
