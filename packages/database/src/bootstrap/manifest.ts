@@ -146,6 +146,10 @@ export const bootstrapRolePermissions = [
     roleCode: 'INVENTORY_MANAGER',
     permissionCode: 'inventory.read',
   },
+  {
+    roleCode: 'INVENTORY_MANAGER',
+    permissionCode: 'transfers.create',
+  },
   { roleCode: 'SALES', permissionCode: 'sales.create' },
   {
     roleCode: 'SALES',

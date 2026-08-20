@@ -443,7 +443,7 @@ export async function runBootstrap(
             entityType: 'SYSTEM_BOOTSTRAP',
             metadata: {
               createdRecordCount: mutationCount,
-              phase: '5A-RBAC',
+              phase: '6A-RBAC',
             },
           },
         });

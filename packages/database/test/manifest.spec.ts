@@ -95,6 +95,7 @@ describe('FASE 3B bootstrap manifest', () => {
         'FINANCE:finances.read',
         'INVENTORY_MANAGER:inventory.adjust',
         'INVENTORY_MANAGER:inventory.read',
+        'INVENTORY_MANAGER:transfers.create',
         'SALES:sales.confirm_in_transit',
         'SALES:sales.create',
       ].sort(),
@@ -104,7 +105,7 @@ describe('FASE 3B bootstrap manifest', () => {
     ]);
     expect(bootstrapPermissions).toHaveLength(15);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(13);
+    expect(bootstrapRolePermissions).toHaveLength(14);
     expect(bootstrapUserPermissions).toHaveLength(1);
   });
 
@@ -120,10 +121,10 @@ describe('FASE 3B bootstrap manifest', () => {
     expect(inventoryReadGrants).not.toContain('SALES');
   });
 
-  it('leaves transfers.create without grants and omits unapproved permissions', () => {
-    const rolePermissionCodes: readonly string[] = bootstrapRolePermissions.map(
-      ({ permissionCode }) => permissionCode,
-    );
+  it('grants transfers.create only to INVENTORY_MANAGER and omits unapproved permissions', () => {
+    const transferRoleGrants = bootstrapRolePermissions
+      .filter(({ permissionCode }) => permissionCode === 'transfers.create')
+      .map(({ roleCode }) => roleCode);
     const userPermissionCodes: readonly string[] = bootstrapUserPermissions.map(
       ({ permissionCode }) => permissionCode,
     );
@@ -131,7 +132,11 @@ describe('FASE 3B bootstrap manifest', () => {
       ({ code }) => code,
     );
 
-    expect(rolePermissionCodes).not.toContain('transfers.create');
+    expect(transferRoleGrants).toEqual(['INVENTORY_MANAGER']);
+    expect(transferRoleGrants).not.toContain('ADMIN');
+    expect(transferRoleGrants).not.toContain('FINANCE');
+    expect(transferRoleGrants).not.toContain('READ_ONLY');
+    expect(transferRoleGrants).not.toContain('SALES');
     expect(userPermissionCodes).not.toContain('transfers.create');
     expect(permissionCodes).not.toContain('roles.manage_financial_access');
   });

@@ -168,7 +168,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(invitationCount).toBe(0);
     expect(permissions).toHaveLength(15);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(13);
+    expect(rolePermissions).toHaveLength(14);
     expect(userPermissions).toHaveLength(1);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
@@ -180,7 +180,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 53, phase: '5A-RBAC' },
+      metadata: { createdRecordCount: 54, phase: '6A-RBAC' },
     });
   });
 
@@ -271,7 +271,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     });
   });
 
-  it('leaves restricted roles empty and transfers.create ungranted', async () => {
+  it('leaves restricted roles empty and grants transfers.create only to inventory managers', async () => {
     const [
       restrictedRoleAssignments,
       administrativeRoleAssignments,
@@ -322,7 +322,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(administrativeRolePermissions).toBe(4);
     expect(salesRoleAssignments).toBe(4);
     expect(salesRolePermissions).toBe(2);
-    expect(transferGrants).toEqual([0, 0]);
+    expect(transferGrants).toEqual([1, 0]);
   });
 
   it('rolls back every partial change when the matrix is incompatible', async () => {

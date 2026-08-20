@@ -1,7 +1,7 @@
 # Matriz de autorización
 
-Estado vigente: FASE 3B completa, ampliado por la decisión aprobada de FASE
-5A para lectura de productos e inventario. La fuente base es
+Estado vigente: FASE 3B completa, ampliado por las decisiones aprobadas de FASE
+5A para lectura de productos e inventario y FASE 6A para transferencias. La fuente base es
 [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
 
 ## Modelo de evaluación
@@ -23,14 +23,14 @@ forma explícita.
 |---|---|
 | `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
 | `PARTNER` | Ninguno |
-| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read` |
+| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read`, `transfers.create` |
 | `SALES` | `sales.create`, `sales.confirm_in_transit` |
 | `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen` |
 | `READ_ONLY` | Ninguno |
 
-Existen 13 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, dos
-INVENTORY_MANAGER y dos SALES. `transfers.create` existe como permiso técnico,
-pero no tiene grants.
+Existen 14 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, tres
+INVENTORY_MANAGER y dos SALES. `transfers.create` se concede exclusivamente a
+`INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
 
 ## UserRole y UserPermission iniciales
 
@@ -62,8 +62,8 @@ pero ninguna política de autorización depende de su nombre, login o ID.
 | `sales.create` | Sí | Sí | Sí | Sí |
 | `sales.confirm_in_transit` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
-| `transfers.create` | No | No | No | No |
-| Total | 14 | 9 | 4 | 4 |
+| `transfers.create` | Sí | Sí | Sí | Sí |
+| Total | 15 | 10 | 5 | 5 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el

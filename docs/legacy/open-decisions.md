@@ -1,5 +1,11 @@
 # Decisiones humanas pendientes
 
+## Actualización FASE 6A — 2026-08-20
+
+El propietario aprobó `transfers.create → INVENTORY_MANAGER`. El permiso no
+proviene de `ADMIN`, no se concede a otros roles y un `UserPermission DENY`
+directo continúa prevaleciendo. DEC-003 queda resuelta para transferencias.
+
 ## Actualización FASE 4B Waves 1–2 — 2026-08-09
 
 El propietario aprobó y el dry-run temporal aplicó las siguientes decisiones:
@@ -44,7 +50,7 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 |---|---|---|---|---|
 | DEC-001 | Moneda canónica y símbolo | UI mezcla `$` y `C$`; datos no declaran moneda | Guardar valores sin conversión y moneda `UNKNOWN`/configurable | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-002 | Usuarios reales y vinculación de nombres | Vendedores, entregadores, responsables y emails legacy | Cuatro cuentas explícitas aprobadas; preservar otros textos sin crear cuentas automáticamente | `RESOLVED_IN_PHASE_3B` |
-| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | La matriz inicial se cerró en ADR-007; `transfers.create` permanece sin grants | `PARTIALLY_RESOLVED` |
+| DEC-003 | Matriz exacta de permisos | Roles base en `AGENTS.md`, sin equivalente legacy | FASE 6A concede `transfers.create` exclusivamente a `INVENTORY_MANAGER`; sin bypass ADMIN | `RESOLVED_IN_PHASE_6A` |
 | DEC-004 | Duplicado `DGGR-X` | Productos filas 29–30 | Fila 29 canónica; fila 30 raw-only; sin merge ni código artificial | `RESOLVED_IN_PHASE_4B` |
 | DEC-005 | Duplicados `CCWH-L` | Dos filas por Casa Dylan y dos por Casa Luden con valores distintos | Balance usa snapshot más reciente; observaciones válidas se preservan; nunca sumar | `RESOLVED_IN_PHASE_4B` |
 | DEC-006 | Cuatro líneas de venta duplicadas | Pares en filas 124–125, 176/179, 214–215, 255/257 | Importar con marca `duplicate_candidate`; excluir de totales aprobados | `REQUIRES_HUMAN_APPROVAL` |

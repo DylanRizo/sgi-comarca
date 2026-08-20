@@ -455,7 +455,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       [...session.body.data.permissions].sort(),
     );
     expect(session.body.data.permissions).toContain('users.status.manage');
-    expect(session.body.data.permissions).not.toContain('transfers.create');
+    expect(session.body.data.permissions).toContain('transfers.create');
     expect(session.body.data).not.toHaveProperty('roles');
 
     const csrf = await request(app.getHttpServer())
@@ -489,6 +489,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
+        'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
         'users.sessions.revoke',
@@ -499,12 +500,14 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'transfers.create',
       ],
       luden: [
         'inventory.adjust',
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'transfers.create',
       ],
       samantha: [
         'closings.create',
@@ -516,6 +519,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'transfers.create',
       ],
     } as const;
     const authentications = [];
@@ -557,7 +561,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
           expectedPermissions[identifier as keyof typeof expectedPermissions],
         );
         expect(permissions).toEqual([...permissions].sort());
-        expect(permissions).not.toContain('transfers.create');
+        expect(permissions).toContain('transfers.create');
         expect(permissions).not.toContain(ungrantedPermission.code);
         expect(response.body.data).not.toHaveProperty('roles');
         expect(response.text).not.toContain('"roles"');

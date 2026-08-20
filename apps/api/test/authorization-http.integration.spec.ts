@@ -394,9 +394,7 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
     const service = app.get(EffectivePermissionsService);
     expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
     expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(true);
-    expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(
-      false,
-    );
+    expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(true);
     expect(await service.hasPermission(dylanId, 'users.status.manage')).toBe(
       true,
     );
@@ -414,6 +412,25 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
     });
     expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(false);
     expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
+    const transferPermission = await client.permission.findUniqueOrThrow({
+      where: { code: 'transfers.create' },
+      select: { id: true },
+    });
+    const transferDeny = await client.userPermission.create({
+      data: {
+        effect: 'DENY',
+        permissionId: transferPermission.id,
+        userId: dylanId,
+      },
+    });
+    expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(
+      false,
+    );
+    await client.userPermission.update({
+      where: { id: transferDeny.id },
+      data: { revokedAt: new Date() },
+    });
+    expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(true);
     await client.userPermission.update({
       where: { id: readDeny.id },
       data: { revokedAt: new Date() },
@@ -513,7 +530,28 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
       .get('/api/v1/block-four-test/transfer')
       .set('Host', 'localhost:3001')
       .set('Cookie', cookie(token))
+      .expect(200);
+
+    const transferPermission = await client.permission.findUniqueOrThrow({
+      where: { code: 'transfers.create' },
+      select: { id: true },
+    });
+    const transferDeny = await client.userPermission.create({
+      data: {
+        effect: 'DENY',
+        permissionId: transferPermission.id,
+        userId: dylanId,
+      },
+    });
+    await request(app.getHttpServer())
+      .get('/api/v1/block-four-test/transfer')
+      .set('Host', 'localhost:3001')
+      .set('Cookie', cookie(token))
       .expect(403);
+    await client.userPermission.update({
+      where: { id: transferDeny.id },
+      data: { revokedAt: new Date() },
+    });
 
     const permission = await client.permission.findUniqueOrThrow({
       where: { code: 'inventory.adjust' },

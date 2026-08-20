@@ -49,6 +49,7 @@ const approvedRolePermissionKeys = [
   'FINANCE:finances.read',
   'INVENTORY_MANAGER:inventory.adjust',
   'INVENTORY_MANAGER:inventory.read',
+  'INVENTORY_MANAGER:transfers.create',
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
 ] as const;
