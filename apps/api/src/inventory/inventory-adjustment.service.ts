@@ -6,6 +6,11 @@ import type { DatabaseClient } from '@sgi/database';
 
 import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 import { InventoryAuditService } from './inventory-audit.service.js';
+import {
+  inventoryDecimalString,
+  inventoryScaledInteger,
+  maximumScaledInventoryQuantity,
+} from './inventory-quantity.js';
 
 type TransactionClient = Omit<
   DatabaseClient,
@@ -36,29 +41,12 @@ export class InventoryAdjustmentError extends Error {
 export type InventoryClock = { now(): Date };
 
 const systemClock: InventoryClock = { now: () => new Date() };
-const decimalPattern = /^([+-]?)(\d{1,14})(?:\.(\d{1,4}))?$/u;
-const decimalScale = 4;
-const maximumScaledDecimal = 999_999_999_999_999_999n;
-
 function scaledInteger(value: string): bigint {
-  const match = decimalPattern.exec(value);
-  if (!match) {
+  const parsed = inventoryScaledInteger(value);
+  if (parsed === null) {
     throw new InventoryAdjustmentError('INVENTORY_ADJUSTMENT_INVALID');
   }
-  const sign = match[1] === '-' ? -1n : 1n;
-  const whole = match[2] ?? '0';
-  const fraction = (match[3] ?? '').padEnd(decimalScale, '0');
-  return sign * BigInt(`${whole}${fraction}`);
-}
-
-function decimalString(value: bigint): string {
-  if (value === 0n) return '0';
-  const sign = value < 0n ? '-' : '';
-  const absolute = value < 0n ? -value : value;
-  const padded = absolute.toString().padStart(decimalScale + 1, '0');
-  const whole = padded.slice(0, -decimalScale);
-  const fraction = padded.slice(-decimalScale).replace(/0+$/u, '');
-  return `${sign}${whole}${fraction ? `.${fraction}` : ''}`;
+  return parsed;
 }
 
 export function calculateInventoryAdjustment(
@@ -74,13 +62,13 @@ export function calculateInventoryAdjustment(
   if (after < 0n) {
     throw new InventoryAdjustmentError('INVENTORY_NEGATIVE_BALANCE');
   }
-  if (after > maximumScaledDecimal) {
+  if (after > maximumScaledInventoryQuantity) {
     throw new InventoryAdjustmentError('INVENTORY_ADJUSTMENT_INVALID');
   }
   return {
-    balanceAfter: decimalString(after),
-    balanceBefore: decimalString(before),
-    quantityDelta: decimalString(delta),
+    balanceAfter: inventoryDecimalString(after),
+    balanceBefore: inventoryDecimalString(before),
+    quantityDelta: inventoryDecimalString(delta),
   };
 }
 

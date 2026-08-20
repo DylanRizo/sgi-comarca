@@ -52,10 +52,10 @@ El diseño objetivo de mutaciones críticas requiere `Idempotency-Key`:
 - importaciones commit.
 
 La clave no se almacena en claro. Reusar una clave con payload distinto produce
-`409 IDEMPOTENCY_KEY_REUSED`. FASE 6A añade exclusivamente el fundamento
-persistente de transferencias: hash de clave + request hash con scope por actor
-en `inventory_transfers`. El endpoint de transferencia y su claim atómico
-pertenecen a FASE 6B y todavía no existen. El ajuste de FASE 5C continúa sin
+`409 IDEMPOTENCY_KEY_REUSED`. FASE 6B utiliza el fundamento persistente de
+transferencias: hash de clave + request hash con scope por actor en
+`inventory_transfers`, y reclama cada intención mediante advisory lock
+transaccional antes de comprobar o crear el documento. El ajuste de FASE 5C continúa sin
 aceptar una clave que no puede honrar; su UI bloquea doble envío y no reintenta
 automáticamente.
 
@@ -121,6 +121,27 @@ balance y un `AuditLog` `inventory.adjusted`. Un DENY directo prevalece y
 `ADMIN`, `inventory.read` o `inventory.adjust` por separado no conceden otros
 permisos. La respuesta usa `Cache-Control: no-store`.
 
+## Movimientos y transferencias implementados en FASE 6B
+
+| Recurso | Endpoint | Acceso | Resultado |
+|---|---|---|---|
+| Historial | `GET /api/v1/inventory/movements` | `inventory.read` | Paginación y filtros por producto, almacén, tipo, origen, actor y fechas |
+| Movimiento | `GET /api/v1/inventory/movements/:id` | `inventory.read` | Movimiento con actor y correlación de transferencia cuando exista |
+| Transferencia | `POST /api/v1/inventory/transfers` | Origin, sesión, CSRF, `transfers.create` e `Idempotency-Key` | Documento, ítem, balances anterior/nuevo y pareja OUT/IN |
+
+El historial ordena `occurredAt DESC, id DESC`, no expone `LegacyRecord` y
+distingue `ADJUSTMENT`, `TRANSFER_OUT` y `TRANSFER_IN`. La transferencia exige
+una clave visible ASCII de 16–128 caracteres y un motivo no vacío de hasta 500
+caracteres. Errores de DTO/clave son `400`, recursos ausentes `404`, falta de
+sesión/permiso `401/403`, y stock insuficiente, conflicto concurrente o clave
+reutilizada son `409`.
+
+La clave original nunca se persiste ni registra. Misma clave, actor y payload
+canónico devuelve la transferencia existente sin nuevo stock, ledger o
+auditoría; payload distinto devuelve `IDEMPOTENCY_KEY_REUSED`. Cada transferencia
+crea exactamente un `AuditLog` `inventory.transferred` y no crea ni copia
+`ProductWarehouseValuation`.
+
 ## Endpoints futuros propuestos
 
 La tabla siguiente conserva destinos arquitectónicos para módulos aún no
@@ -131,9 +152,8 @@ construidos. No describe rutas actualmente disponibles.
 | users/roles | listados, creación, edición de perfil y asignación de roles por definir; no implementados en FASE 3B |
 | products | Mutaciones futuras `POST /products`, `PATCH /products/{id}` y `POST /products/{id}/deactivate` |
 | catalogs | Mutaciones futuras de `/units` y `/warehouses`; `/product-groups` completo continúa futuro |
-| inventory | `GET /stock-movements`; transferencias, entradas y otras mutaciones continúan futuras |
+| inventory | Entradas y otras mutaciones distintas de ajustes/transferencias continúan futuras |
 | receipts | `GET/POST /stock-receipts`, `GET /stock-receipts/{id}` |
-| transfers | Persistencia base disponible; `GET/POST /transfers`, `GET /transfers/{id}` continúan sin implementar |
 | sales | `GET/POST /sales`, `GET /sales/{id}`, `POST /sales/{id}/confirm`, `POST /sales/{id}/cancel` |
 | finances | `GET/POST /financial-transactions`, `GET /financial-summary` |
 | closings | `GET/POST /daily-closings`, `GET /daily-closings/{id}`, `POST /daily-closings/{id}/reopen` |

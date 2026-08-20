@@ -3,7 +3,9 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   Inject,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -13,6 +15,8 @@ import {
 import type {
   ApiSuccess,
   InventoryAdjustmentResult,
+  InventoryMovementView,
+  InventoryTransferResult,
   PaginatedData,
   ProductInventoryView,
 } from '@sgi/contracts';
@@ -43,8 +47,26 @@ import {
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { InventoryAdjustmentDto } from './dto/inventory-adjustment.dto.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
+  InventoryMovementIdParamDto,
+  InventoryMovementQueryDto,
+  inventoryMovementQueryPipe,
+} from './dto/inventory-movement-query.dto.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { InventoryTransferDto } from './dto/inventory-transfer.dto.js';
 import { InventoryHttpException } from './inventory-http.exception.js';
+import {
+  InventoryMovementNotFoundError,
+  InventoryMovementReadService,
+} from './inventory-movement-read.service.js';
 import { InventoryReadService } from './inventory-read.service.js';
+import {
+  InventoryTransferError,
+  InventoryTransferService,
+} from './inventory-transfer.service.js';
 
 export function mapInventoryAdjustmentError(error: unknown): never {
   if (error instanceof InventoryAdjustmentError) {
@@ -68,6 +90,34 @@ export function mapInventoryAdjustmentError(error: unknown): never {
   throw error;
 }
 
+export function mapInventoryTransferError(error: unknown): never {
+  if (error instanceof InventoryTransferError) {
+    switch (error.code) {
+      case 'IDEMPOTENCY_KEY_INVALID':
+        throw InventoryHttpException.idempotencyKeyInvalid();
+      case 'IDEMPOTENCY_KEY_REQUIRED':
+        throw InventoryHttpException.idempotencyKeyRequired();
+      case 'IDEMPOTENCY_KEY_REUSED':
+        throw InventoryHttpException.idempotencyKeyReused();
+      case 'INVENTORY_PERMISSION_DENIED':
+        throw new ForbiddenException('Permission denied.');
+      case 'INVENTORY_TRANSFER_CONFLICT':
+        throw InventoryHttpException.transferConflict();
+      case 'INVENTORY_TRANSFER_INSUFFICIENT_STOCK':
+        throw InventoryHttpException.transferInsufficientStock();
+      case 'INVENTORY_TRANSFER_INVALID':
+        throw InventoryHttpException.transferInvalid();
+      case 'INVENTORY_TRANSFER_PRODUCT_NOT_FOUND':
+        throw InventoryHttpException.transferProductNotFound();
+      case 'INVENTORY_TRANSFER_SOURCE_BALANCE_NOT_FOUND':
+        throw InventoryHttpException.transferSourceBalanceNotFound();
+      case 'INVENTORY_TRANSFER_WAREHOUSE_NOT_FOUND':
+        throw InventoryHttpException.transferWarehouseNotFound();
+    }
+  }
+  throw error;
+}
+
 @Controller({ path: 'inventory', version: '1' })
 @RequirePermission('inventory.read')
 export class InventoryController {
@@ -76,6 +126,10 @@ export class InventoryController {
     private readonly inventory: InventoryReadService,
     @Inject(InventoryAdjustmentService)
     private readonly adjustments: InventoryAdjustmentService,
+    @Inject(InventoryMovementReadService)
+    private readonly movements: InventoryMovementReadService,
+    @Inject(InventoryTransferService)
+    private readonly transfers: InventoryTransferService,
   ) {}
 
   @Post('adjustments')
@@ -94,6 +148,55 @@ export class InventoryController {
       );
     } catch (error) {
       mapInventoryAdjustmentError(error);
+    }
+  }
+
+  @Get('movements')
+  async movementList(
+    @Query(inventoryMovementQueryPipe) query: InventoryMovementQueryDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<PaginatedData<InventoryMovementView>>> {
+    return readSuccess(await this.movements.list(query), request, response);
+  }
+
+  @Get('movements/:id')
+  async movement(
+    @Param() params: InventoryMovementIdParamDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<InventoryMovementView>> {
+    try {
+      return readSuccess(
+        await this.movements.get(params.id),
+        request,
+        response,
+      );
+    } catch (error) {
+      if (error instanceof InventoryMovementNotFoundError) {
+        throw new NotFoundException('Inventory movement was not found.');
+      }
+      throw error;
+    }
+  }
+
+  @Post('transfers')
+  @RequirePermission('transfers.create')
+  async transfer(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() input: InventoryTransferDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<InventoryTransferResult>> {
+    try {
+      return readSuccess(
+        await this.transfers.transfer(current.userId, idempotencyKey, input),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapInventoryTransferError(error);
     }
   }
 

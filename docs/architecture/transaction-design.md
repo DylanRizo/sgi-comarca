@@ -122,27 +122,31 @@ sequenceDiagram
     end
 ```
 
-## 3. Transferencia — fundamento persistente en FASE 6A
+## 3. Transferencia — implementada en FASE 6B
 
-FASE 6A incorpora `inventory_transfers`, `inventory_transfer_items` y
-`inventory_movements.transfer_item_id`, pero no expone todavía un endpoint ni
-ejecuta transferencias. `transfers.create` se concede exclusivamente a
-`INVENTORY_MANAGER`; sesión activa, permiso efectivo y precedencia de DENY
-seguirán siendo obligatorios en FASE 6B.
+FASE 6A incorporó `inventory_transfers`, `inventory_transfer_items` y
+`inventory_movements.transfer_item_id`. FASE 6B expone el comando y el historial.
+`transfers.create` se concede exclusivamente a `INVENTORY_MANAGER`; sesión
+activa, permiso efectivo y precedencia de DENY son obligatorios.
 
 ```text
 begin
-claim idempotency("transfer:create")
 require transfers.create
 validate origin != destination and quantity > 0
-lock origin and destination balances in deterministic order
+begin READ COMMITTED
+take transaction-scoped advisory lock for actor + idempotency key hash
+load existing transfer; return it only when request hash matches
+lock product and both warehouses in stable order
+create destination zero balance with ON CONFLICT DO NOTHING when absent
+lock every balance of the product ordered by warehouse id
 if origin.quantity < quantity: raise INSUFFICIENT_STOCK
 create inventory_transfer and item
 decrease origin; increase destination
 append stock_movement(TRANSFER_OUT, -quantity, origin, transfer_item_id)
 append stock_movement(TRANSFER_IN, +quantity, destination, transfer_item_id)
-append audit_log
-complete idempotency and commit
+append exactly one inventory.transferred audit_log
+validate consolidated stock is unchanged
+commit
 ```
 
 La pareja de movimientos comparte `transfer_item_id` y nunca existe uno sin el
@@ -152,7 +156,7 @@ que producto, almacenes, magnitud y actor coinciden con el documento. Las tablas
 de documento e ítems reutilizan la protección append-only del ledger. Un fallo
 en destino revierte también la salida.
 
-La idempotencia no persiste la clave original. FASE 6B deberá calcular
+La idempotencia no persiste la clave original. FASE 6B calcula
 `idempotency_key_hash = SHA-256(Idempotency-Key)` y reclamar atómicamente la
 unicidad `(actor_user_id, idempotency_key_hash)`. El `request_hash` será SHA-256
 UTF-8 del objeto canónico validado, con claves en este orden fijo:
@@ -161,7 +165,15 @@ cantidad se expresará como decimal canónico y el motivo conservará el valor y
 validado. No forman parte del hash el actor, la clave original ni timestamps del
 servidor. Misma clave y mismo hash devuelve el documento existente; misma clave
 y hash distinto produce `409 IDEMPOTENCY_KEY_REUSED`. Un rollback no deja claim
-parcial.
+parcial. El advisory lock evita la carrera `SELECT → INSERT` entre dos requests
+con la misma intención. Los locks de producto, almacenes y balances tienen orden
+estable; no existen retries ilimitados. Conflictos transitorios se devuelven como
+`409 INVENTORY_TRANSFER_CONFLICT`.
+
+Si el destino no tiene balance, se crea en cero dentro de la misma transacción y
+la entrada informa `before = 0`. La operación no crea, copia ni modifica
+valoraciones. Dos movimientos correlacionados, el audit log y ambos balances se
+confirman juntos o se revierten juntos.
 
 ```mermaid
 sequenceDiagram

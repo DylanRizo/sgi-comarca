@@ -17,6 +17,20 @@ export type InventoryAdjustmentAuditInput = {
   warehouseId: string;
 };
 
+export type InventoryTransferAuditInput = {
+  actorUserId: string;
+  fromWarehouseId: string;
+  incomingMovementId: string;
+  occurredAt: Date;
+  outgoingMovementId: string;
+  productId: string;
+  quantity: string;
+  reason: string;
+  toWarehouseId: string;
+  transferId: string;
+  transferItemId: string;
+};
+
 export class InventoryAuditService {
   async recordAdjustment(
     transaction: TransactionClient,
@@ -35,6 +49,31 @@ export class InventoryAuditService {
           quantityDelta: input.quantityDelta,
           reason: input.reason,
           warehouseId: input.warehouseId,
+        },
+        occurredAt: input.occurredAt,
+      },
+    });
+  }
+
+  async recordTransfer(
+    transaction: TransactionClient,
+    input: InventoryTransferAuditInput,
+  ): Promise<void> {
+    await transaction.auditLog.create({
+      data: {
+        action: 'inventory.transferred',
+        actorUserId: input.actorUserId,
+        entityId: input.transferId,
+        entityType: 'InventoryTransfer',
+        metadata: {
+          fromWarehouseId: input.fromWarehouseId,
+          incomingMovementId: input.incomingMovementId,
+          outgoingMovementId: input.outgoingMovementId,
+          productId: input.productId,
+          quantity: input.quantity,
+          reason: input.reason,
+          toWarehouseId: input.toWarehouseId,
+          transferItemId: input.transferItemId,
         },
         occurredAt: input.occurredAt,
       },

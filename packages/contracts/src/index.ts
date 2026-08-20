@@ -27,6 +27,16 @@ export type {
   UnitSummary,
   WarehouseSummary,
 } from './inventory-read.js';
+export {
+  inventoryMovementTypes,
+  type InventoryMovementActor,
+  type InventoryMovementTransferInfo,
+  type InventoryMovementType,
+  type InventoryMovementView,
+  type InventoryTransferPublicErrorCode,
+  type InventoryTransferRequest,
+  type InventoryTransferResult,
+} from './inventory-transfer.js';
 export type {
   AdminInvitationData,
   UserAdministrationPublicErrorCode,

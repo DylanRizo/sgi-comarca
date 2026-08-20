@@ -26,6 +26,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
           redact: [
             'req.headers.authorization',
             'req.headers.cookie',
+            'req.headers.idempotency-key',
             'req.headers.origin',
             'req.headers.x-csrf-token',
             'res.headers.set-cookie',
