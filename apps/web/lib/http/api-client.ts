@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   ApiSuccess,
   AuthPublicErrorCode,
+  InventoryAdjustmentPublicErrorCode,
 } from '@sgi/contracts';
 
 import { publicApiUrl } from '@/lib/environment';
@@ -16,7 +17,8 @@ export type ApiRequestOptions = {
 export class ApiHttpError extends Error {
   constructor(
     readonly status: number,
-    readonly code: AuthPublicErrorCode | 'HTTP_ERROR',
+    readonly code:
+      AuthPublicErrorCode | InventoryAdjustmentPublicErrorCode | 'HTTP_ERROR',
     message: string,
     readonly requestId?: string,
   ) {
@@ -99,7 +101,8 @@ export async function apiRequest<T>(
     if (isApiErrorBody(parsed)) {
       throw new ApiHttpError(
         response.status,
-        parsed.error.code as AuthPublicErrorCode,
+        parsed.error.code as
+          AuthPublicErrorCode | InventoryAdjustmentPublicErrorCode,
         parsed.error.message,
         parsed.error.requestId,
       );

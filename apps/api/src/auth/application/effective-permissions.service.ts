@@ -2,6 +2,7 @@ import type { DatabaseClient } from '@sgi/database';
 
 type AuthorizationResult = { allowed: boolean };
 type PermissionCodeResult = { code: string };
+type PermissionQueryClient = Pick<DatabaseClient, '$queryRaw'>;
 
 export class EffectivePermissionsService {
   constructor(private readonly client: DatabaseClient) {}
@@ -10,7 +11,15 @@ export class EffectivePermissionsService {
     userId: string,
     permissionCode: string,
   ): Promise<boolean> {
-    const rows = await this.client.$queryRaw<AuthorizationResult[]>`
+    return this.hasPermissionUsing(this.client, userId, permissionCode);
+  }
+
+  async hasPermissionUsing(
+    client: PermissionQueryClient,
+    userId: string,
+    permissionCode: string,
+  ): Promise<boolean> {
+    const rows = await client.$queryRaw<AuthorizationResult[]>`
       SELECT
         EXISTS (
           SELECT 1

@@ -8,10 +8,10 @@ PostgreSQL.
 - FASE 3B: autenticación, sesiones, autorización, administración limitada y
   frontend de autenticación — completa.
 - FASE 3C: perfilador reproducible del XLSX — completa.
-- FASE 4: importador y reconciliación legacy — en progreso; FASE 4A dispone de
-  framework raw-first, FASE 4B Waves 1–2 está lista y FASE 4C.1 implementa el
-  motor commit protegido para revisión. La importación persistente continúa sin
-  autorización.
+- FASE 4: importador y reconciliación legacy — Waves 1–2 fueron importadas y
+  verificadas en staging; Waves 3+ no han iniciado.
+- FASE 5A/5B: read model, API y UI de productos e inventario — completas.
+- FASE 5C: ajustes manuales de inventario transaccionales y auditados.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -103,14 +103,17 @@ Páginas de autenticación disponibles:
 - `/unauthorized`
 - `/session-expired`
 
-Vistas operativas read-only disponibles para sesiones con `inventory.read`:
+Vistas operativas disponibles para sesiones con `inventory.read`:
 
 - `/products`
 - `/products/:id`
 - `/inventory`
 
-La API sigue siendo la autoridad de autorización. Estas vistas no ofrecen
-creación, edición, ajustes, transferencias ni otras mutaciones de inventario.
+La API sigue siendo la autoridad de autorización. En `/inventory`, los usuarios
+con `inventory.adjust` pueden registrar un delta firmado y un motivo obligatorio.
+Cada ajuste crea un movimiento append-only, actualiza un único balance y crea su
+auditoría dentro de una transacción. Transferencias y otras mutaciones continúan
+fuera de alcance.
 
 Swagger y `/api/docs` no están montados. `SWAGGER_ENABLED` permanece reservado
 e inerte hasta que se apruebe una puerta autenticada.
@@ -169,9 +172,9 @@ pnpm import:legacy -- --dry-run `
   --report-dir reports/private/importing
 ```
 
-Los reportes son privados. El dry-run aprobado de Waves 1–2 simula 14 Units,
-144 Products, 357 balances y 357 valoraciones, preservando 2,064/2,064 filas.
-**PERSISTENT IMPORT NOT AUTHORIZED.**
+Los reportes son privados. Waves 1–2 preservaron 2,064/2,064 filas e importaron
+en staging 14 Units, 144 Products, 357 balances y 357 valoraciones. Waves 3+
+continúan sin iniciar.
 
 ## Solución de problemas
 

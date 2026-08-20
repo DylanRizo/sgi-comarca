@@ -12,6 +12,11 @@ export type {
 } from './auth.js';
 export type { HealthData, ReadinessData } from './health.js';
 export type {
+  InventoryAdjustmentPublicErrorCode,
+  InventoryAdjustmentRequest,
+  InventoryAdjustmentResult,
+} from './inventory-adjustment.js';
+export type {
   InventoryBalanceView,
   PaginatedData,
   PaginationMeta,

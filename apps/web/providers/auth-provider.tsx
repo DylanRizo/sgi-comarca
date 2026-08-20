@@ -32,6 +32,7 @@ export type AuthState =
 type AuthContextValue = {
   changePassword: (input: ChangePasswordRequest) => Promise<void>;
   establish: (result: AuthenticationData) => Promise<void>;
+  getCsrfToken: (forceRefresh?: boolean) => Promise<string>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
   state: AuthState;
@@ -114,7 +115,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     [updateState],
   );
 
-  const csrfToken = useCallback(
+  const getCsrfToken = useCallback(
     async (forceRefresh = false): Promise<string> => {
       const current = stateRef.current;
       if (current.kind !== 'authenticated') {
@@ -138,7 +139,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const logout = useCallback(async () => {
     try {
-      const token = await csrfToken();
+      const token = await getCsrfToken();
       try {
         await authApi.logout(token);
       } catch (error) {
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
           error.status === 403 &&
           error.code === 'REQUEST_VERIFICATION_FAILED'
         ) {
-          await authApi.logout(await csrfToken(true));
+          await authApi.logout(await getCsrfToken(true));
         } else {
           throw error;
         }
@@ -158,12 +159,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       authenticatedOnce.current = false;
       markAnonymous('logout');
     }
-  }, [csrfToken, markAnonymous]);
+  }, [getCsrfToken, markAnonymous]);
 
   const changePassword = useCallback(
     async (input: ChangePasswordRequest) => {
       try {
-        await authApi.changePassword(input, await csrfToken());
+        await authApi.changePassword(input, await getCsrfToken());
         authenticatedOnce.current = false;
         markAnonymous('password-change');
       } catch (error) {
@@ -173,12 +174,19 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         throw error;
       }
     },
-    [csrfToken, markAnonymous],
+    [getCsrfToken, markAnonymous],
   );
 
   return (
     <AuthContext.Provider
-      value={{ changePassword, establish, logout, refreshSession, state }}
+      value={{
+        changePassword,
+        establish,
+        getCsrfToken,
+        logout,
+        refreshSession,
+        state,
+      }}
     >
       {children}
     </AuthContext.Provider>

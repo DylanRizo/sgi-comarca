@@ -1,4 +1,6 @@
 import type {
+  InventoryAdjustmentRequest,
+  InventoryAdjustmentResult,
   PaginatedData,
   ProductInventoryView,
   ProductSummary,
@@ -21,6 +23,12 @@ export interface InventoryQuery extends CatalogQuery {
 }
 
 export const inventoryApi = {
+  adjust: (input: InventoryAdjustmentRequest, csrfToken: string) =>
+    apiRequest<InventoryAdjustmentResult>('/api/v1/inventory/adjustments', {
+      body: input,
+      csrfToken,
+      method: 'POST',
+    }),
   inventory: (query: InventoryQuery, signal?: AbortSignal) => {
     const filters = { ...query };
     delete filters.warehouseId;

@@ -1,12 +1,22 @@
-import type { ProductInventoryView } from '@sgi/contracts';
+import type {
+  InventoryBalanceView,
+  ProductDetail,
+  ProductInventoryView,
+} from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
 
 import { formatQuantity } from '@/lib/inventory/presentation';
 
 export function InventorySummaryTable({
+  canAdjust = false,
   items,
-}: Readonly<{ items: readonly ProductInventoryView[] }>) {
+  onAdjust,
+}: Readonly<{
+  canAdjust?: boolean;
+  items: readonly ProductInventoryView[];
+  onAdjust?: (product: ProductDetail, balance: InventoryBalanceView) => void;
+}>) {
   return (
     <div className="data-table-wrap">
       <table className="data-table">
@@ -17,6 +27,7 @@ export function InventorySummaryTable({
             <th scope="col">Stock total</th>
             <th scope="col">Desglose por almacén</th>
             <th scope="col">Detalle</th>
+            {canAdjust ? <th scope="col">Acciones</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -50,6 +61,23 @@ export function InventorySummaryTable({
                   Ver producto
                 </Link>
               </td>
+              {canAdjust ? (
+                <td data-label="Acciones">
+                  <div className="balance-actions">
+                    {item.balances.map((balance) => (
+                      <button
+                        aria-label={`Ajustar ${item.product.code} en ${balance.warehouse.name}`}
+                        className="table-action"
+                        key={balance.id}
+                        onClick={() => onAdjust?.(item.product, balance)}
+                        type="button"
+                      >
+                        Ajustar {balance.warehouse.code}
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

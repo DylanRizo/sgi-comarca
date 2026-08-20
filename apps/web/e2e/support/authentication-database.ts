@@ -27,6 +27,9 @@ export class AuthenticationDatabase {
         },
       });
       const productIds = fixtureProducts.map(({ id }) => id);
+      await transaction.inventoryMovement.deleteMany({
+        where: { productId: { in: productIds } },
+      });
       await transaction.productWarehouseValuation.deleteMany({
         where: { productId: { in: productIds } },
       });
@@ -147,6 +150,20 @@ export class AuthenticationDatabase {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({
         where: { code: 'inventory.read' },
+      }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
+  }
+
+  async denyInventoryAdjust(): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({
+        where: { code: 'inventory.adjust' },
       }),
       this.client.user.findUniqueOrThrow({
         where: { loginIdentifier: 'dylan' },

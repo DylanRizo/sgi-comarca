@@ -29,7 +29,7 @@ async function activateAndLogin(
   await expect(page).toHaveURL('/app');
 }
 
-test.describe('FASE 5B product and inventory views', () => {
+test.describe('FASE 5B/5C product and inventory flows', () => {
   test.beforeEach(async () => {
     await database.reset();
     await database.seedInventoryReadFixtures();
@@ -144,5 +144,86 @@ test.describe('FASE 5B product and inventory views', () => {
     await expect(
       page.getByRole('heading', { name: 'No encontrado' }),
     ).toBeVisible();
+  });
+
+  test('adjusts inventory safely and enforces inventory.adjust', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    await page.getByRole('link', { name: 'Inventario' }).click();
+
+    await page
+      .getByRole('button', { name: 'Ajustar DGGR-X en Casa Dylan' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Ajustar inventario' }),
+    ).toBeVisible();
+    await page.getByLabel('Delta firmado').fill('+5');
+    await page.getByLabel('Motivo obligatorio').fill('Conteo E2E positivo');
+    await expect(page.getByText('ENTRADA +5', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Confirmar entrada +5' }).click();
+    await expect(page.getByText('Ajuste registrado.')).toBeVisible();
+    await expect(page.getByText('7.5', { exact: true })).toBeVisible();
+
+    await page
+      .getByRole('button', { name: 'Ajustar DGGR-X en Casa Dylan' })
+      .click();
+    await page.getByLabel('Delta firmado').fill('-3');
+    await page.getByLabel('Motivo obligatorio').fill('Conteo E2E negativo');
+    await expect(page.getByText('SALIDA -3', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Confirmar salida -3' }).click();
+    await expect(page.getByText('Ajuste registrado.')).toBeVisible();
+    await expect(page.getByText('4.5', { exact: true })).toBeVisible();
+
+    await page
+      .getByRole('button', { name: 'Ajustar DGGR-X en Casa Dylan' })
+      .click();
+    await page.getByLabel('Delta firmado').fill('-10');
+    await page
+      .getByLabel('Motivo obligatorio')
+      .fill('Intento E2E de saldo negativo');
+    await expect(
+      page.getByText('El saldo resultante no puede ser negativo.'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Confirmar/u }),
+    ).toBeDisabled();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+
+    const cookies = await page.context().cookies(apiUrl);
+    const cookieHeader = cookies
+      .map(({ name, value }) => `${name}=${value}`)
+      .join('; ');
+    const csrfResponse = await request.get(`${apiUrl}/api/v1/auth/csrf`, {
+      headers: { Cookie: cookieHeader, Origin: webUrl },
+    });
+    expect(csrfResponse.status()).toBe(200);
+    const csrfBody = (await csrfResponse.json()) as {
+      data: { csrfToken: string };
+    };
+    await database.denyInventoryAdjust();
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: /Ajustar DGGR-X/u }),
+    ).toHaveCount(0);
+
+    const forbidden = await request.post(
+      `${apiUrl}/api/v1/inventory/adjustments`,
+      {
+        data: {
+          productId: '00000000-0000-4000-8000-000000000001',
+          quantityDelta: '1',
+          reason: 'Debe ser rechazado por DENY',
+          warehouseId: '00000000-0000-4000-8000-000000000002',
+        },
+        headers: {
+          Cookie: cookieHeader,
+          Origin: webUrl,
+          'X-CSRF-Token': csrfBody.data.csrfToken,
+        },
+      },
+    );
+    expect(forbidden.status()).toBe(403);
   });
 });

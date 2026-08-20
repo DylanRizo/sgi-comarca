@@ -4,12 +4,19 @@
 
 - Todas las cantidades son `Decimal`; `quantity_delta` usa signo: positivo suma, negativo resta.
 - Dinero usa `Decimal` NIO; el API recibe/devuelve strings decimales.
-- Cada comando crítico incluye `actor_id`, `idempotency_key` y un payload validado.
-- `idempotency_records` conserva `(actor, operation, key)`, hash del payload y respuesta.
+- Cada comando crítico incluye `actor_id` y un payload validado. Cuando la
+  infraestructura de idempotencia sea aprobada para el módulo, también incluirá
+  `idempotency_key`.
+- El diseño objetivo de `idempotency_records` conserva `(actor, operation, key)`,
+  hash del payload y respuesta; esa entidad no existe todavía en el esquema.
 - Los balances se bloquean con `SELECT ... FOR UPDATE` en orden estable `(product_id, warehouse_id)` para reducir deadlocks.
 - El constraint único `(product_id, warehouse_id)` y una comprobación dentro de la transacción impiden saldo negativo.
 - Documento, balances, movimientos y audit log se escriben en la misma transacción.
 - Cualquier error revierte todo. Solo se reintentan conflictos transitorios cuando la idempotencia lo hace seguro.
+
+El siguiente flujo es la convención objetivo para comandos que ya dispongan de
+persistencia idempotente, no una afirmación de que todos los módulos actuales la
+implementen:
 
 ```text
 execute(command):
@@ -67,36 +74,43 @@ sequenceDiagram
     end
 ```
 
-## 2. Ajuste positivo o negativo
+## 2. Ajuste positivo o negativo — implementado en FASE 5C
 
 ```text
 begin
-claim idempotency("inventory-adjustment:create")
 require permission inventory.adjust, reason and non-zero signed delta
-lock target balance
+require active actor, active product and active warehouse
+lock target balance with SELECT ... FOR UPDATE
 read previous_quantity
 calculate new_quantity = previous_quantity + delta
-if new_quantity < 0: raise INSUFFICIENT_STOCK
-create inventory_adjustment(previous, new, reason, actor)
-update inventory_balance
-append stock_movement(ADJUSTMENT, delta, adjustment_id)
+if new_quantity < 0: raise INVENTORY_NEGATIVE_BALANCE
+append inventory_movement(ADJUSTMENT, previous, delta, new, reason, actor)
+update inventory_balance and increment version
 append audit_log with previous/new quantity
-complete idempotency and commit
+commit
 ```
 
-La cantidad introducida por UI puede expresarse como tipo + magnitud; el dominio la convierte a delta firmado. El motivo, actor y timestamp son obligatorios. Un error revierte ajuste, saldo y movimiento.
+La API recibe el delta firmado como string decimal. El motivo, actor y timestamp
+son obligatorios. Un error revierte movimiento, saldo y auditoría. Dos ajustes
+concurrentes del mismo producto–almacén se serializan sobre el lock de la fila y
+no pierden actualizaciones. No hay reintentos automáticos.
+
+El esquema no contiene todavía registros de idempotencia. FASE 5C bloquea el
+doble submit en UI, pero repetir deliberadamente una solicitud ya confirmada
+crearía otro ajuste. La idempotencia persistente queda como cambio separado de
+esquema y contrato; no se simula con memoria ni con una cabecera ignorada.
 
 ```mermaid
 sequenceDiagram
     participant U as Responsable
     participant I as inventory
     participant DB as PostgreSQL
-    U->>I: Ajuste, motivo y clave
-    I->>DB: BEGIN + clave idempotente
+    U->>I: Delta firmado y motivo
+    I->>DB: BEGIN + autorización efectiva
     I->>DB: Bloquear balance y leer cantidad anterior
     I->>I: Calcular nueva; validar >= 0
-    I->>DB: Insertar ajuste
-    I->>DB: Actualizar balance + movimiento firmado + audit_log
+    I->>DB: Insertar movimiento firmado
+    I->>DB: Actualizar balance + audit_log
     alt válido
         I->>DB: COMMIT
         I-->>U: Anterior/nueva confirmadas

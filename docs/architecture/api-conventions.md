@@ -42,7 +42,7 @@ Los mensajes son seguros y localizables; el cliente decide el texto final en esp
 
 ## Idempotencia y concurrencia
 
-Mutaciones críticas requieren `Idempotency-Key`:
+El diseño objetivo de mutaciones críticas requiere `Idempotency-Key`:
 
 - entradas, ajustes, transferencias;
 - crear, confirmar y cancelar ventas;
@@ -51,7 +51,12 @@ Mutaciones críticas requieren `Idempotency-Key`:
 - aprobar/aplicar auditorías;
 - importaciones commit.
 
-La clave se almacena con usuario, operación, hash canónico del payload, estado y respuesta. Reusar la clave con payload distinto produce `409 IDEMPOTENCY_KEY_REUSED`. Una operación en curso devuelve conflicto/reintento seguro; una completada devuelve la respuesta original.
+La clave se almacenará con usuario, operación, hash canónico del payload, estado
+y respuesta. Reusar la clave con payload distinto producirá
+`409 IDEMPOTENCY_KEY_REUSED`. Esta infraestructura persistente aún no existe en
+el esquema actual: el ajuste de FASE 5C no acepta una clave que no puede honrar y
+su UI bloquea doble envío y no reintenta automáticamente. Añadir idempotencia
+persistente requiere una decisión y cambio de esquema separados.
 
 Actualizaciones ordinarias usan versionado optimista (`version`/ETag) cuando un conflicto de edición sea posible. Stock usa bloqueo pesimista dentro de transacción.
 
@@ -101,6 +106,20 @@ la colección `valuations` queda vacía. No se fabrica `observedAt`, no se expon
 `LegacyRecord` ni `ReconciliationIssue` y el stock total es una suma derivada,
 no persistida.
 
+## Mutación de inventario implementada en FASE 5C
+
+| Recurso | Endpoint | Acceso | Resultado |
+|---|---|---|---|
+| Ajuste manual | `POST /api/v1/inventory/adjustments` | Sesión, Origin, CSRF y `inventory.adjust` | `201`, movimiento y saldos anterior/nuevo |
+
+El body contiene UUID de producto y almacén, `quantityDelta` decimal firmado y
+`reason` obligatorio. El servicio vuelve a autorizar dentro de la transacción,
+bloquea el balance con `SELECT ... FOR UPDATE`, impide cero y saldo negativo y
+crea exactamente un `InventoryMovement` `ADJUSTMENT`, la actualización del
+balance y un `AuditLog` `inventory.adjusted`. Un DENY directo prevalece y
+`ADMIN`, `inventory.read` o `inventory.adjust` por separado no conceden otros
+permisos. La respuesta usa `Cache-Control: no-store`.
+
 ## Endpoints futuros propuestos
 
 La tabla siguiente conserva destinos arquitectónicos para módulos aún no
@@ -111,7 +130,7 @@ construidos. No describe rutas actualmente disponibles.
 | users/roles | listados, creación, edición de perfil y asignación de roles por definir; no implementados en FASE 3B |
 | products | Mutaciones futuras `POST /products`, `PATCH /products/{id}` y `POST /products/{id}/deactivate` |
 | catalogs | Mutaciones futuras de `/units` y `/warehouses`; `/product-groups` completo continúa futuro |
-| inventory | `GET /stock-movements` y `POST /inventory-adjustments`; los balances de FASE 5A son solo lectura |
+| inventory | `GET /stock-movements`; transferencias, entradas y otras mutaciones continúan futuras |
 | receipts | `GET/POST /stock-receipts`, `GET /stock-receipts/{id}` |
 | transfers | `GET/POST /transfers`, `GET /transfers/{id}` |
 | sales | `GET/POST /sales`, `GET /sales/{id}`, `POST /sales/{id}/confirm`, `POST /sales/{id}/cancel` |

@@ -11,6 +11,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 import { AuthHttpException } from '../auth/http/auth-http.exception.js';
+import { InventoryHttpException } from '../inventory/inventory-http.exception.js';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -28,8 +29,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const internalError = status >= HttpStatus.INTERNAL_SERVER_ERROR;
     const authenticationFailure =
       status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
-    const publicAuthenticationError =
-      exception instanceof AuthHttpException ? exception : null;
+    const publicError =
+      exception instanceof AuthHttpException ||
+      exception instanceof InventoryHttpException
+        ? exception
+        : null;
     const invalidRequest = status === HttpStatus.BAD_REQUEST;
 
     if (internalError) {
@@ -44,8 +48,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const body: ApiErrorBody = {
       error: {
-        code: publicAuthenticationError
-          ? publicAuthenticationError.publicCode
+        code: publicError
+          ? publicError.publicCode
           : internalError
             ? 'INTERNAL_ERROR'
             : invalidRequest
@@ -54,8 +58,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
                 ? 'ACCESS_DENIED'
                 : 'REQUEST_FAILED',
         details: [],
-        message: publicAuthenticationError
-          ? publicAuthenticationError.publicMessage
+        message: publicError
+          ? publicError.publicMessage
           : internalError
             ? 'Ocurrio un error interno.'
             : invalidRequest
