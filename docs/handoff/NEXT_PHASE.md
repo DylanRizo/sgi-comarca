@@ -1,14 +1,18 @@
-# Next Gate — First Staging Inventory Transfer
+# Next Gate — Independent Review of the First Staging Transfer
 
-FASE 6B is complete. The next action is a separately authorized operational
-gate, not FASE 7 and not a new implementation phase.
+The first staging inventory transfer gate is closed and passed. FASE 6B is
+complete and FASE 6 is a completion candidate.
 
-Current state: **`STAGING_TRANSFER_WRITE_NOT_AUTHORIZED`**.
+Current state: **`FIRST_STAGING_TRANSFER_PASS`** and
+**`PHASE_6_COMPLETE_CANDIDATE`**.
 
-## Objective
+FASE 7 is not authorized by this document, and neither is any further staging
+write.
 
-Execute exactly one small, controlled inventory transfer in staging to validate
-the complete path:
+## What the closed gate covered
+
+On 2026-08-23 exactly one authorized transfer of quantity 1 was executed from
+the UI by Dylan and verified read-only. The complete path was validated:
 
 ```text
 UI
@@ -23,67 +27,55 @@ UI
   → UI refresh
 ```
 
-This document does not authorize the write. A human must approve the exact gate
-after a fresh preflight.
+Evidence, identifiers, and the resulting operational snapshot are recorded in
+[CURRENT_STATE.md](CURRENT_STATE.md). Pre-transfer and post-transfer
+checkpoints exist outside Git with recorded size, SHA-256, and a passing
+`pg_restore --list`.
 
-## Required preconditions
+That authorization was consumed by that single transfer. It does not permit a
+second transfer, a compensating reverse transfer, or general transfer use in
+staging.
 
-- Git is clean and synchronized at the approved commit.
-- Staging is operational and positively identified; do not rely only on a saved
-  database name or old fingerprint.
-- A new verified checkpoint exists and its restore path is understood.
-- Read-only checks still report:
-  - `InventoryTransfer = 0`;
-  - `InventoryTransferItem = 0`;
-  - `InventoryMovement = 1`, the approved FASE 5C adjustment only;
-  - `TRANSFER_OUT = 0` and `TRANSFER_IN = 0`.
-- Dylan is active and has effective `transfers.create` through
-  `INVENTORY_MANAGER`; no direct DENY applies.
-- Select an ordinary product, two approved distinct warehouses, a small positive
-  decimal quantity, sufficient origin stock, and a non-sensitive reason.
-- Avoid DGGR-X, CCWH-L, zero-cost review rows, missing-`observedAt` cases, and
-  other legacy exceptions for this first transfer.
-- Use one UI intention and its single generated idempotency key. Do not issue a
-  second transfer or manually replay the request.
+## Objective of the next gate
 
-Any mismatch stops the gate before the write.
+Independent review of the executed transfer, so the owner can decide whether to
+declare `PHASE_6_COMPLETE`. The review is read-only and changes no data.
 
-## Expected successful result
+The reviewer should reconfirm, against staging and the repository:
 
-Exactly one successful transfer must produce:
+- exactly one `InventoryTransfer` and one `InventoryTransferItem` exist;
+- exactly one coherent `TRANSFER_OUT`/`TRANSFER_IN` pair shares the transfer
+  item, with correct product, warehouses, actor, magnitude, and before/after
+  balances;
+- exactly two balances changed, consolidated product stock is unchanged, and no
+  balance is negative;
+- exactly one `inventory.transferred` audit event exists, with sanitized
+  metadata and no original idempotency key anywhere in the database;
+- product, valuation, reconciliation, import, sales, and legacy counts are
+  unchanged;
+- the FASE 5C `ADJUSTMENT` row is untouched;
+- the versioned test baseline still passes on the reviewed commit.
 
-- `InventoryTransfer +1`;
-- `InventoryTransferItem +1`;
-- `TRANSFER_OUT +1`;
-- `TRANSFER_IN +1`;
-- origin balance `-N`;
-- destination balance `+N`;
-- consolidated product stock unchanged;
-- exactly one `inventory.transferred` audit event;
-- no valuation creation, copy, or update;
-- no second transfer and no unrelated mutation.
+## Stop conditions
 
-The OUT/IN movements must share the same transfer item, preserve correct
-before/after balances, actor, warehouses, product, and magnitude, and appear in
-the refreshed UI. A retry/reload must not create another transfer.
-
-## Verification and stop conditions
-
-Keep a before/after read-only evidence set. Stop and retain the operational gate
-if any count, ledger pair, balance, audit, authorization, idempotency, valuation,
-or privacy invariant differs. Do not repair historical rows manually or execute
-a compensating second transfer without a new approved recovery procedure.
+Stop and report before any remediation if a count, ledger pair, balance, audit,
+authorization, idempotency, valuation, or privacy invariant differs from
+[CURRENT_STATE.md](CURRENT_STATE.md). Do not repair historical rows manually,
+do not execute a compensating transfer, and do not restore a checkpoint without
+a new approved recovery procedure.
 
 ## Afterwards
 
-Only after the single-transfer gate passes and is independently reviewed may the
-owner consider declaring `PHASE_6_COMPLETE` and planning the following phase.
-FASE 7 is not authorized by this handoff.
+If the review is clean, the owner may declare `PHASE_6_COMPLETE` and then plan
+the following phase. Planning is not execution.
 
-Until separate approval is granted, preserve:
+Until separate approval is granted for each item, preserve:
 
-- `STAGING_TRANSFER_WRITE_NOT_AUTHORIZED`;
+- `FIRST_STAGING_TRANSFER_PASS` as a single, non-repeated operation;
 - `FIRST_STAGING_IMPORT_COMMITTED`;
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`;
 - `PHASE_6B_COMPLETE`;
 - `WAVES_3_PLUS_NOT_STARTED`.
+
+No further staging transfer, no legacy `Movimientos` import, no sales module
+work, and no FASE 7 activity is authorized by this document.
