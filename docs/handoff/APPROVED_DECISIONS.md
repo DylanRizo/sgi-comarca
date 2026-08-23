@@ -1,0 +1,135 @@
+# SGI La Comarca — Approved Decisions
+
+This file summarizes durable decisions already backed by versioned sources. It
+does not resolve open legacy questions. When details matter, consult the linked
+ADR, architecture document, migration, and tests.
+
+## Business
+
+- Monetary values use PostgreSQL `NUMERIC`/Prisma `Decimal`; the principal
+  currency is NIO and the presentation symbol is C$.
+- Timestamps are stored in UTC and presented in `America/Managua`.
+- Approved warehouses are `CASA_DYLAN`, `CASA_LUDEN`, and `CASA_JEAN`; legacy
+  route text does not create warehouses automatically.
+- Initial users are Dylan, Samantha, Jean, and Luden. Legacy person text does
+  not create accounts or permissions.
+- A sale may contain multiple items from multiple warehouses. A sale in transit
+  consumes inventory when created; confirmation does not deduct it again.
+- Cancellation is total, never partial. Only an eligible unpaid/in-transit sale
+  can be cancelled; stock returns exactly once to each original warehouse.
+  `sales.cancel` is initially a direct grant only to Dylan. Sales behavior is an
+  approved target rule, not an assertion that the sales module is implemented.
+
+## RBAC
+
+- Roles are `ADMIN`, `PARTNER`, `INVENTORY_MANAGER`, `SALES`, `FINANCE`, and
+  `READ_ONLY`.
+- Authorization is deny-by-default and based on explicit permission codes.
+- `ADMIN` grants exactly `users.invitations.create`,
+  `users.credentials.revoke`, `users.sessions.revoke`, and
+  `users.status.manage`; it is not a superuser or bypass.
+- `FINANCE` grants `finances.read`, `finances.manual.create`, `closings.read`,
+  `closings.create`, and `closings.reopen`.
+- `INVENTORY_MANAGER` grants `inventory.adjust`, `inventory.read`, and
+  `transfers.create`.
+- `SALES` grants `sales.create` and `sales.confirm_in_transit`.
+- `PARTNER` and `READ_ONLY` have no grants initially.
+- Dylan has `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, and `SALES`, plus direct
+  `sales.cancel`. Samantha has `FINANCE`, `INVENTORY_MANAGER`, and `SALES`.
+  Jean and Luden have `INVENTORY_MANAGER` and `SALES`.
+- A direct active `DENY` wins over any direct or role grant. There are no
+  wildcards, prefix matching, role inheritance, or ADMIN bypass.
+- `inventory.read`, `inventory.adjust`, and `transfers.create` remain separate
+  capabilities even though the initial inventory-manager role has all three.
+
+See [authorization-matrix.md](../architecture/authorization-matrix.md) and
+[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
+
+## Authentication and HTTP security
+
+- Activation invitations use a cryptographically random 32-byte, one-time
+  token, expire after 24 hours, and store only its SHA-256.
+- Passwords contain 12–128 Unicode code points, are normalized to NFC, preserve
+  spaces without trimming, and pass blocklist/similarity checks. Hashing is
+  Argon2id with the currently approved 65536 KiB / 3 iterations / parallelism 4
+  / 32-byte hash parameters.
+- Sessions use opaque random tokens with hash-only persistence, 30-minute idle
+  expiry and 8-hour absolute expiry in an `HttpOnly`, `SameSite=Lax` cookie
+  (`Secure` in production). Authentication uses neither JWT nor Web Storage.
+- Routes are private by default. The only public routes are health, readiness,
+  activation, and login as enumerated in `AGENTS.md`.
+- Authenticated mutations use session-derived CSRF protection. Host, Origin,
+  CORS, trust proxy, and Helmet are explicit. Swagger is not mounted.
+- The last enabled ADMIN cannot be deactivated or have the credential revoked
+  administratively. Session revocation, logout, normal password change, and the
+  approved local break-glass recovery remain possible.
+
+## Legacy profiling and import
+
+- Profiling is deterministic and read-only; importing is raw-first and
+  preserves original row identity and `rawData`.
+- Waves 1–2 preserve all 2,064 source rows; no row is silently dropped because
+  parsing, duplication, an orphan, or a business decision is unresolved.
+- The approved unit catalog contains 14 Units and the versioned alias
+  `Unidad → Unidades`.
+- For DGGR-X, the approved canonical source row materializes once and the
+  duplicate remains raw evidence; no automatic merge or fabricated code.
+- For CCWH-L, the latest valid snapshot determines the balance; valid valuation
+  observations remain append-only and quantities are not summed.
+- Inventario is authoritative for the initial balance when it differs from
+  Movimientos. Differences remain reconciliation evidence.
+- Warehouse-specific price/cost is preserved without averaging. A zero cost
+  remains zero and requires review; it is not replaced silently.
+- Two inventory rows without faithful `observedAt` create balances when otherwise
+  valid but no valuation. They remain reconciliation issues; no artificial date
+  is invented and `observedAt` remains required by the schema.
+- Legacy Movimientos, Ventas, Finanzas, CierresDiarios, Entrada de Productos,
+  and Grupos were preserved raw-only outside their approved Waves 1–2 business
+  entities. Their later mappings remain gated.
+- Persistent import uses positive target verification, checkpoints, an empty
+  target guard, one transaction, immutable evidence, and explicit authorization.
+
+See [ADR-008](../decisions/ADR-008-legacy-import-boundaries.md),
+[phase-4-importer.md](../migration/phase-4-importer.md), and
+[open-decisions.md](../legacy/open-decisions.md).
+
+## Inventory
+
+- Every stock change creates an immutable `InventoryMovement`; historical
+  ledger rows are never edited or deleted manually.
+- A balance is unique per product/warehouse and approved commands cannot leave
+  it negative.
+- An adjustment is atomic: lock balance, validate signed delta and reason,
+  update balance, append `ADJUSTMENT`, and append one audit event or roll back
+  all effects.
+- A transfer is atomic across origin and destination and creates an immutable
+  `InventoryTransfer`, its item, one negative `TRANSFER_OUT`, one positive
+  `TRANSFER_IN`, both balance updates, and exactly one
+  `inventory.transferred` audit event.
+- The database enforces one complete coherent OUT/IN pair per transfer item.
+  Product, warehouse, actor, and magnitude must match the transfer document.
+- Consolidated product stock does not change. A missing destination balance may
+  be created at zero inside the transaction.
+- Transfer locks follow a deterministic order and concurrency tests cover
+  same-origin, adjustment/transfer, crossed transfers, and missing destination.
+- Transfer idempotency is scoped by actor. Only a SHA-256 of the key and a
+  canonical request hash are persisted; the original key is never stored.
+  Same key/payload replays without effects; another payload returns 409.
+- Transfers do not create, copy, or modify `ProductWarehouseValuation`.
+
+See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
+[transaction-design.md](../architecture/transaction-design.md), and
+[phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
+
+## Operations
+
+- Development, staging, and future production are separate environments.
+  Credentials and sessions are not copied between them.
+- Real staging writes require a specific human-approved gate, positive target
+  verification, and the operational checkpoint required by that gate.
+- Schema migrations, bootstrap/RBAC changes, and persistent imports are never
+  hidden inside application startup or unrelated tasks.
+- Operational recovery uses verified full checkpoints/restores where approved;
+  never compensate a failed import by manually deleting ledger or imported
+  rows.
+- Private sources, reports, environment files, and backups remain outside Git.

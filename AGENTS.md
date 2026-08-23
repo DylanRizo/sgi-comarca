@@ -1,4 +1,43 @@
-# AGENTS.md — SGI La Comarca
+# SGI La Comarca — Agent Instructions
+
+## Source of truth
+
+Use this authority order when continuing the project:
+
+1. versioned code, migrations, and tests;
+2. `docs/handoff/CURRENT_STATE.md`;
+3. `docs/handoff/APPROVED_DECISIONS.md`;
+4. `docs/architecture/**`;
+5. `docs/handoff/NEXT_PHASE.md`.
+
+Historical plans and reviews remain useful evidence, but they do not override a
+later approved decision or the tested implementation. If two authoritative
+sources contradict one another, stop and verify the discrepancy before changing
+code, schema, data, permissions, or operational state.
+
+## Required startup procedure
+
+Before modifying anything, every new agent must run:
+
+```bash
+git status
+git branch --show-current
+git rev-parse HEAD
+git log -5 --oneline
+git remote -v
+```
+
+Then read, in order:
+
+1. `AGENTS.md`;
+2. `CLAUDE.md` when using Claude Code;
+3. `docs/handoff/CURRENT_STATE.md`;
+4. `docs/handoff/APPROVED_DECISIONS.md`;
+5. `docs/handoff/NEXT_PHASE.md`.
+
+Confirm that Git and the implemented schema/tests agree with the handoff before
+acting. Do not treat a staging snapshot as live truth without revalidating it
+read-only against the intended environment.
 
 ## Misión del proyecto
 
@@ -139,9 +178,13 @@ Los controladores deben ser delgados. Las reglas del negocio deben vivir en serv
 - Limitar intentos de inicio de sesión.
 - Proteger operaciones sensibles contra doble envío.
 - No registrar contraseñas, secretos, cookies ni cadenas de conexión.
-- No incluir credenciales, IDs privados o datos empresariales en commits públicos.
-- El repositorio debe permanecer privado.
-- `legacy/private/`, `.env*`, reportes con datos reales y respaldos deben estar en `.gitignore`.
+- Tratar el repositorio como público: no incluir credenciales, IDs privados ni
+  datos empresariales en ningún commit.
+- Nunca versionar `.env` reales, passwords, tokens, invitaciones/activaciones,
+  claves de idempotencia reales, `PGPASS`, credenciales de base de datos,
+  backups, XLS/XLSX/CSV privados, clientes, ventas ni otros datos privados.
+- `legacy/private/**`, `reports/private/**`, `.env*`, respaldos, dumps y exports
+  reales deben permanecer ignorados. No imprimir secretos durante diagnósticos.
 
 Roles iniciales:
 
@@ -254,6 +297,18 @@ Durante la implementación:
 - actualizar documentación;
 - no hacer commits salvo solicitud explícita.
 
+Additional gate discipline:
+
+- work phase by phase and do not bypass a failed or pending gate;
+- never introduce a migration, RBAC grant, business rule, or persistent staging
+  write silently;
+- keep bug fixes and features in separate, auditable commits;
+- run the relevant tests before every requested commit;
+- do not push automatically unless the user explicitly requests it;
+- require an explicit gate for every real staging mutation and an operational
+  checkpoint when the approved procedure calls for one;
+- never edit or delete historical ledger rows manually.
+
 Al terminar, informar:
 
 1. cambios realizados;
@@ -277,3 +332,44 @@ Una tarea solo está terminada cuando:
 - el diff no contiene cambios no relacionados;
 - se produjo evidencia verificable;
 - la revisión de Codex no presenta hallazgos críticos o altos sin resolver.
+
+## Environments
+
+Keep development, staging, and future production separate. Use explicit
+per-process configuration for the intended target, positively verify the target
+before a mutation, and never copy credentials or sessions between environments.
+Operational databases, private evidence, and backups are not repository
+artifacts and must not be assumed to exist after a clone.
+
+## New machine bootstrap
+
+After cloning the repository:
+
+```bash
+git clone https://github.com/DylanRizo/sgi-comarca.git
+cd sgi-comarca
+git status
+git branch --show-current
+```
+
+Then:
+
+1. read this file and `docs/handoff/*`;
+2. install the versions declared by `.nvmrc`, `package.json`, and the pnpm
+   lockfile;
+3. run `pnpm install --frozen-lockfile`;
+4. create local environment configuration from `.env.example` without copying
+   real secrets into Git;
+5. prepare Docker/PostgreSQL using the versioned documentation;
+6. do not expect the real staging database, operational backups, private XLSX,
+   or private reports to be present;
+7. run migrations and bootstrap only against the explicitly intended
+   environment;
+8. run the relevant test baseline before developing.
+
+## Recommended new-agent prompt
+
+> Read `AGENTS.md` and `docs/handoff/*` first. Run the required Git preflight.
+> Do not modify anything until you confirm that the repository state matches
+> `docs/handoff/CURRENT_STATE.md`; revalidate any external environment before
+> relying on its recorded snapshot.
