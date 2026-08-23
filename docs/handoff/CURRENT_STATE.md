@@ -5,13 +5,37 @@ Updated: 2026-08-23.
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Repository
+## Git state
+
+The current repository HEAD is always determined dynamically. This document
+never records an authoritative "current" HEAD of its own, because any commit
+that updates the handoff would immediately invalidate such a field.
 
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
-- HEAD at this handoff: `070545dc206d67836d7668c9396b3a595377bffb`.
-- `origin/main` at this handoff: `070545dc206d67836d7668c9396b3a595377bffb`.
-- Working tree at handoff start: clean.
+- Expected working tree before starting work: clean.
+- Functional baseline at FASE 6B completion:
+  `070545dc206d67836d7668c9396b3a595377bffb`.
+- Initial cross-agent handoff commit:
+  `e47b6ba87492fe991ce7cf63e17f0420e68a50a5`.
+
+A newer documentation-only commit does not invalidate the functional baseline.
+A newer commit touching code, schema, migrations, tests, or configuration does
+require verification before acting.
+
+Always resolve the real state with:
+
+```bash
+git status
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/main
+git log -5 --oneline
+```
+
+Then confirm that every commit added after the functional baseline is either
+documentation-only or an understood functional change already reflected in this
+file.
 
 ## Phase history
 

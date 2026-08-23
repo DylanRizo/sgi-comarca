@@ -23,6 +23,7 @@ Before modifying anything, every new agent must run:
 git status
 git branch --show-current
 git rev-parse HEAD
+git rev-parse origin/main
 git log -5 --oneline
 git remote -v
 ```
@@ -35,9 +36,14 @@ Then read, in order:
 4. `docs/handoff/APPROVED_DECISIONS.md`;
 5. `docs/handoff/NEXT_PHASE.md`.
 
-Confirm that Git and the implemented schema/tests agree with the handoff before
-acting. Do not treat a staging snapshot as live truth without revalidating it
-read-only against the intended environment.
+Confirm that the branch, the working tree, and the implemented schema/tests
+agree with the handoff before acting. Never require `git rev-parse HEAD` to
+equal a SHA embedded in `docs/handoff/CURRENT_STATE.md`: a documentation-only
+commit legitimately moves HEAD past the recorded functional baseline. Instead,
+inspect the commits added after that baseline and confirm each one is either
+documentation-only or an understood functional change. Do not treat a staging
+snapshot as live truth without revalidating it read-only against the intended
+environment.
 
 ## Misión del proyecto
 
@@ -370,6 +376,8 @@ Then:
 ## Recommended new-agent prompt
 
 > Read `AGENTS.md` and `docs/handoff/*` first. Run the required Git preflight.
-> Do not modify anything until you confirm that the repository state matches
-> `docs/handoff/CURRENT_STATE.md`; revalidate any external environment before
-> relying on its recorded snapshot.
+> Do not modify anything until you confirm that the repository state is coherent
+> with `docs/handoff/CURRENT_STATE.md` — correct branch, clean working tree, and
+> understood commits after the recorded functional baseline — rather than
+> requiring HEAD to equal an embedded SHA; revalidate any external environment
+> before relying on its recorded snapshot.
