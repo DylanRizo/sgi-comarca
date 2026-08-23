@@ -3,6 +3,7 @@ import type {
   ApiSuccess,
   AuthPublicErrorCode,
   InventoryAdjustmentPublicErrorCode,
+  InventoryTransferPublicErrorCode,
 } from '@sgi/contracts';
 
 import { publicApiUrl } from '@/lib/environment';
@@ -10,6 +11,7 @@ import { publicApiUrl } from '@/lib/environment';
 export type ApiRequestOptions = {
   body?: unknown;
   csrfToken?: string;
+  idempotencyKey?: string;
   method?: 'GET' | 'POST';
   signal?: AbortSignal;
 };
@@ -18,7 +20,10 @@ export class ApiHttpError extends Error {
   constructor(
     readonly status: number,
     readonly code:
-      AuthPublicErrorCode | InventoryAdjustmentPublicErrorCode | 'HTTP_ERROR',
+      | AuthPublicErrorCode
+      | InventoryAdjustmentPublicErrorCode
+      | InventoryTransferPublicErrorCode
+      | 'HTTP_ERROR',
     message: string,
     readonly requestId?: string,
   ) {
@@ -78,6 +83,8 @@ export async function apiRequest<T>(
   if (options.body !== undefined)
     headers.set('Content-Type', 'application/json');
   if (options.csrfToken) headers.set('X-CSRF-Token', options.csrfToken);
+  if (options.idempotencyKey)
+    headers.set('Idempotency-Key', options.idempotencyKey);
 
   const response = await fetch(`${publicApiUrl()}${path}`, {
     ...(options.body === undefined
@@ -102,7 +109,9 @@ export async function apiRequest<T>(
       throw new ApiHttpError(
         response.status,
         parsed.error.code as
-          AuthPublicErrorCode | InventoryAdjustmentPublicErrorCode,
+          | AuthPublicErrorCode
+          | InventoryAdjustmentPublicErrorCode
+          | InventoryTransferPublicErrorCode,
         parsed.error.message,
         parsed.error.requestId,
       );

@@ -11,6 +11,7 @@ import { useAuth } from '@/providers/auth-provider';
 const inventoryNavigation = [
   { href: '/products', label: 'Productos' },
   { href: '/inventory', label: 'Inventario' },
+  { href: '/inventory/movements', label: 'Movimientos' },
 ] as const;
 
 export function AuthenticatedShell({
@@ -43,7 +44,8 @@ export function AuthenticatedShell({
             ? inventoryNavigation.map(({ href, label }) => (
                 <Link
                   aria-current={
-                    pathname === href || pathname.startsWith(`${href}/`)
+                    pathname === href ||
+                    (href !== '/inventory' && pathname.startsWith(`${href}/`))
                       ? 'page'
                       : undefined
                   }

@@ -6,11 +6,15 @@ import type {
   PaginatedData,
   ProductDetail,
   ProductInventoryView,
+  InventoryTransferResult,
   WarehouseSummary,
 } from '@sgi/contracts';
 import { type FormEvent, useEffect, useState } from 'react';
+import type { Route } from 'next';
+import Link from 'next/link';
 
 import { InventorySummaryTable } from '@/components/inventory/inventory-summary-table';
+import { InventoryTransferDialog } from '@/components/inventory/inventory-transfer-dialog';
 import {
   InventoryAdjustmentDialog,
   type InventoryAdjustmentSelection,
@@ -42,6 +46,9 @@ export function InventoryView() {
   const [success, setSuccess] = useState<InventoryAdjustmentResult | null>(
     null,
   );
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferSuccess, setTransferSuccess] =
+    useState<InventoryTransferResult | null>(null);
   const [warehouseId, setWarehouseId] = useState('');
 
   useEffect(() => {
@@ -98,6 +105,9 @@ export function InventoryView() {
   const canAdjust =
     authState.kind === 'authenticated' &&
     authState.session.permissions.includes('inventory.adjust');
+  const canTransfer =
+    authState.kind === 'authenticated' &&
+    authState.session.permissions.includes('transfers.create');
 
   function openAdjustment(
     product: ProductDetail,
@@ -113,6 +123,13 @@ export function InventoryView() {
     beginRequest(() => setReload((value) => value + 1));
   }
 
+  function transferred(result: InventoryTransferResult) {
+    setTransferOpen(false);
+    setSuccess(null);
+    setTransferSuccess(result);
+    beginRequest(() => setReload((value) => value + 1));
+  }
+
   return (
     <>
       <main className="content-page" id="main-content">
@@ -125,11 +142,31 @@ export function InventoryView() {
               desde el saldo operacional.
             </p>
           </div>
-          {state ? (
-            <span className="result-count">
-              {state.inventory.pagination.totalItems} productos con saldo
-            </span>
-          ) : null}
+          <div className="page-actions">
+            <Link
+              className="secondary-link"
+              href={'/inventory/movements' as Route}
+            >
+              Ver movimientos
+            </Link>
+            {canTransfer ? (
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setTransferSuccess(null);
+                  setTransferOpen(true);
+                }}
+                type="button"
+              >
+                Transferir inventario
+              </button>
+            ) : null}
+            {state ? (
+              <span className="result-count">
+                {state.inventory.pagination.totalItems} productos con saldo
+              </span>
+            ) : null}
+          </div>
         </header>
 
         {success ? (
@@ -137,6 +174,19 @@ export function InventoryView() {
             <strong>Ajuste registrado.</strong> {success.product.code} en{' '}
             {success.warehouse.code}: {formatQuantity(success.balanceBefore)}{' '}
             {success.quantityDelta} = {formatQuantity(success.balanceAfter)}.
+          </section>
+        ) : null}
+
+        {transferSuccess ? (
+          <section className="operation-success" role="status">
+            <strong>Transferencia registrada.</strong>{' '}
+            {transferSuccess.product.code}: {transferSuccess.fromWarehouse.code}{' '}
+            {formatQuantity(transferSuccess.originBalanceBefore)} →{' '}
+            {formatQuantity(transferSuccess.originBalanceAfter)};{' '}
+            {transferSuccess.toWarehouse.code}{' '}
+            {formatQuantity(transferSuccess.destinationBalanceBefore)} →{' '}
+            {formatQuantity(transferSuccess.destinationBalanceAfter)}. Stock
+            total {formatQuantity(transferSuccess.stockTotal)}.
           </section>
         ) : null}
 
@@ -232,6 +282,12 @@ export function InventoryView() {
           onCancel={() => setAdjustment(null)}
           onSuccess={adjusted}
           selection={adjustment}
+        />
+      ) : null}
+      {transferOpen ? (
+        <InventoryTransferDialog
+          onCancel={() => setTransferOpen(false)}
+          onSuccess={transferred}
         />
       ) : null}
     </>

@@ -174,6 +174,35 @@ export class AuthenticationDatabase {
     });
   }
 
+  async denyTransfersCreate(): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({
+        where: { code: 'transfers.create' },
+      }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
+  }
+
+  async inventoryTransferCounts(): Promise<{
+    items: number;
+    movements: number;
+    transfers: number;
+  }> {
+    const [transfers, items, movements] = await Promise.all([
+      this.client.inventoryTransfer.count(),
+      this.client.inventoryTransferItem.count(),
+      this.client.inventoryMovement.count({
+        where: { type: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } },
+      }),
+    ]);
+    return { items, movements, transfers };
+  }
+
   async createInvitation(): Promise<string> {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = createHash('sha256').update(token).digest('hex');

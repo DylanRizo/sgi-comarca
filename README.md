@@ -12,6 +12,7 @@ PostgreSQL.
   verificadas en staging; Waves 3+ no han iniciado.
 - FASE 5A/5B: read model, API y UI de productos e inventario — completas.
 - FASE 5C: ajustes manuales de inventario transaccionales y auditados.
+- FASE 6A/6B: fundamento, API e interfaz de transferencias e historial de movimientos.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -108,12 +109,14 @@ Vistas operativas disponibles para sesiones con `inventory.read`:
 - `/products`
 - `/products/:id`
 - `/inventory`
+- `/inventory/movements`
 
 La API sigue siendo la autoridad de autorización. En `/inventory`, los usuarios
 con `inventory.adjust` pueden registrar un delta firmado y un motivo obligatorio.
-Cada ajuste crea un movimiento append-only, actualiza un único balance y crea su
-auditoría dentro de una transacción. Transferencias y otras mutaciones continúan
-fuera de alcance.
+Quienes poseen `transfers.create` pueden transferir stock con preview e
+idempotencia persistente. Ajustes y transferencias actualizan balances, ledger y
+auditoría dentro de una transacción. Los 1069 movimientos legacy, incluidas sus
+25 transferencias clasificadas, todavía no han sido importados.
 
 Swagger y `/api/docs` no están montados. `SWAGGER_ENABLED` permanece reservado
 e inerte hasta que se apruebe una puerta autenticada.

@@ -146,7 +146,7 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     ).toBeVisible();
   });
 
-  test('adjusts inventory safely and enforces inventory.adjust', async ({
+  test('adjusts and transfers inventory with immutable movement history', async ({
     page,
     request,
   }) => {
@@ -225,5 +225,129 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       },
     );
     expect(forbidden.status()).toBe(403);
+
+    await page.getByRole('link', { exact: true, name: 'Movimientos' }).click();
+    await expect(page).toHaveURL('/inventory/movements');
+    await expect(
+      page
+        .locator('td[data-label="Tipo"]')
+        .getByText('Ajuste', { exact: true })
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByText('Conteo E2E positivo')).toHaveCount(0);
+
+    await page.getByRole('link', { name: 'Inventario' }).click();
+    await page.getByRole('button', { name: 'Transferir inventario' }).click();
+    const firstTransferDialog = page.getByRole('dialog', {
+      name: 'Transferir inventario',
+    });
+    await expect(
+      firstTransferDialog.getByRole('heading', {
+        name: 'Transferir inventario',
+      }),
+    ).toBeVisible();
+    await firstTransferDialog
+      .getByLabel('Producto')
+      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+    await firstTransferDialog
+      .getByLabel('Almacén origen')
+      .selectOption({ label: 'Casa Dylan · 4.5' });
+    await firstTransferDialog
+      .getByLabel('Almacén destino')
+      .selectOption({ label: 'Casa Luden (CASA_LUDEN)' });
+    await firstTransferDialog.getByLabel('Cantidad').fill('1');
+    await firstTransferDialog
+      .getByLabel('Motivo obligatorio')
+      .fill('Transferencia E2E controlada');
+    await expect(
+      firstTransferDialog.getByText('TRANSFERENCIA', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      firstTransferDialog.getByText(/4[.,]5 → 3[.,]5/u),
+    ).toBeVisible();
+    await expect(firstTransferDialog.getByText(/0 → 1/u)).toBeVisible();
+    await expect(firstTransferDialog.getByText(/8 → 8/u)).toBeVisible();
+    const submit = firstTransferDialog.getByRole('button', {
+      name: 'Confirmar transferencia',
+    });
+    await submit.click();
+    await expect(page.getByText('Transferencia registrada.')).toBeVisible();
+    expect(await database.inventoryTransferCounts()).toEqual({
+      items: 1,
+      movements: 2,
+      transfers: 1,
+    });
+
+    await page.getByRole('link', { exact: true, name: 'Movimientos' }).click();
+    const movementTable = page.getByRole('table');
+    await expect(
+      movementTable.getByText('Transferencia · salida', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      movementTable.getByText('Transferencia · entrada', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('CASA_DYLAN → CASA_LUDEN')).toHaveCount(2);
+
+    await page.getByRole('link', { name: 'Inventario' }).click();
+    await page.getByRole('button', { name: 'Transferir inventario' }).click();
+    const secondTransferDialog = page.getByRole('dialog', {
+      name: 'Transferir inventario',
+    });
+    await secondTransferDialog
+      .getByLabel('Producto')
+      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+    await secondTransferDialog
+      .getByLabel('Almacén origen')
+      .selectOption({ label: 'Casa Dylan · 3.5' });
+    await secondTransferDialog
+      .getByLabel('Almacén destino')
+      .selectOption({ label: 'Casa Jean (CASA_JEAN)' });
+    await secondTransferDialog.getByLabel('Cantidad').fill('99');
+    await secondTransferDialog
+      .getByLabel('Motivo obligatorio')
+      .fill('Debe bloquear stock insuficiente');
+    await expect(
+      secondTransferDialog.getByText(
+        'La cantidad supera el stock disponible en origen.',
+      ),
+    ).toBeVisible();
+    await expect(
+      secondTransferDialog.getByRole('button', {
+        name: 'Confirmar transferencia',
+      }),
+    ).toBeDisabled();
+    await secondTransferDialog
+      .getByRole('button', { name: 'Cancelar' })
+      .click();
+
+    await database.denyTransfersCreate();
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Transferir inventario' }),
+    ).toHaveCount(0);
+    const transferForbidden = await request.post(
+      `${apiUrl}/api/v1/inventory/transfers`,
+      {
+        data: {
+          fromWarehouseId: '00000000-0000-4000-8000-000000000001',
+          productId: '00000000-0000-4000-8000-000000000002',
+          quantity: '1',
+          reason: 'Debe ser rechazado por DENY',
+          toWarehouseId: '00000000-0000-4000-8000-000000000003',
+        },
+        headers: {
+          Cookie: cookieHeader,
+          'Idempotency-Key': crypto.randomUUID(),
+          Origin: webUrl,
+          'X-CSRF-Token': csrfBody.data.csrfToken,
+        },
+      },
+    );
+    expect(transferForbidden.status()).toBe(403);
+    expect(await database.inventoryTransferCounts()).toEqual({
+      items: 1,
+      movements: 2,
+      transfers: 1,
+    });
   });
 });
