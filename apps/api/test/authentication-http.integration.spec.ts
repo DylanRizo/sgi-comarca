@@ -863,4 +863,46 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
     });
     expect(invalidDto.text).not.toContain('unexpected');
   });
+
+  it('renews one shared session monotonically under concurrent requests', async () => {
+    const authentication = await activateDylan(0xb1);
+    const frozenCookie = String(authentication.cookie);
+    const sessionsBefore = await client.session.count({
+      where: { userId: dylanId },
+    });
+
+    for (let round = 0; round < 5; round += 1) {
+      const concurrent = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          request(app.getHttpServer())
+            .get('/api/v1/auth/session')
+            .set('Host', host)
+            .set('Origin', origin)
+            .set('Cookie', frozenCookie),
+        ),
+      );
+      expect(concurrent.map(({ status }) => status)).toEqual([
+        200, 200, 200, 200,
+      ]);
+      for (const response of concurrent) {
+        expect(response.body.data.userId).toBe(dylanId);
+        expect(response.body.data.permissions).toContain('transfers.create');
+      }
+    }
+
+    expect(await client.session.count({ where: { userId: dylanId } })).toBe(
+      sessionsBefore,
+    );
+    const persisted = await client.session.findFirstOrThrow({
+      orderBy: { createdAt: 'desc' },
+      where: { revokedAt: null, userId: dylanId },
+    });
+    expect(persisted.revokedAt).toBeNull();
+    expect(persisted.lastSeenAt.getTime()).toBeGreaterThanOrEqual(
+      persisted.createdAt.getTime(),
+    );
+    expect(persisted.idleExpiresAt.getTime()).toBeLessThanOrEqual(
+      persisted.absoluteExpiresAt.getTime(),
+    );
+  });
 });

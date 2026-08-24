@@ -103,8 +103,11 @@ export class SessionService {
     const rows = await this.client.$queryRaw<SessionRow[]>`
       UPDATE sessions AS session
       SET
-        last_seen_at = ${now},
-        idle_expires_at = LEAST(${proposedIdleExpiry}, session.absolute_expires_at)
+        last_seen_at = GREATEST(session.last_seen_at, ${now}),
+        idle_expires_at = LEAST(
+          GREATEST(session.idle_expires_at, ${proposedIdleExpiry}),
+          session.absolute_expires_at
+        )
       FROM users AS account
       WHERE
         session.token_hash = ${tokenHash}
