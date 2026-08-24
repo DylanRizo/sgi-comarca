@@ -14,8 +14,8 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
-- Functional baseline at FASE 6B completion:
-  `070545dc206d67836d7668c9396b3a595377bffb`.
+- Functional baseline at FASE 6 completion:
+  `07c00472e28a55b9706cff4514c96000a1799a85`.
 - Initial cross-agent handoff commit:
   `e47b6ba87492fe991ce7cf63e17f0420e68a50a5`.
 
@@ -53,21 +53,24 @@ file.
 | 5C | Audited transactional inventory adjustments complete; the first controlled staging adjustment passed. |
 | 6A | Transfer RBAC and persistent transfer/ledger foundation complete. |
 | 6B | Movement history API/UI and transfer API/UI complete. |
-| 6 gate | The first controlled staging transfer was authorized, executed exactly once from the UI, and verified on 2026-08-23. FASE 6 is a completion candidate pending independent review. |
+| 6 gate | The first controlled staging transfer was authorized, executed exactly once from the UI, and verified on 2026-08-23. `FIRST_STAGING_TRANSFER_PASS`. |
+| 6 regression | Concurrent shared-session renewal defect fixed and validated. `PHASE_6_CONCURRENCY_FIX_PASS`. |
+| 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 
 ## Current milestone
 
-- `PHASE_6B_COMPLETE`
+- `PHASE_6_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
-- `PHASE_6_COMPLETE_CANDIDATE`
+- `PHASE_6_CONCURRENCY_FIX_PASS`
 - `WAVES_3_PLUS_NOT_STARTED`
 
 The first staging transfer gate is closed and passed. That authorization covered
 exactly one transfer; it is not general authorization to use transfers in
-staging, and FASE 7 is not authorized. The next planning target is described in
-[NEXT_PHASE.md](NEXT_PHASE.md); it is not authorization to execute anything.
+staging. Further staging writes remain gate-controlled and require explicit
+authorization. FASE 7 has not started and is not authorized. Its planning gate
+is described in [NEXT_PHASE.md](NEXT_PHASE.md); planning is not execution.
 
 ## Current capabilities
 
@@ -129,25 +132,22 @@ row was created, and no valuation was created, copied, or modified.
 
 ## First staging transfer evidence
 
-The FASE 6 gate executed exactly one transfer of quantity 1 from `CASA_DYLAN`
-to `CASA_LUDEN`, performed from the UI by Dylan through `INVENTORY_MANAGER`,
-and verified read-only against PostgreSQL:
+The FASE 6 gate executed exactly one operational transfer of quantity 1 between
+two approved warehouses from the UI and verified it read-only against
+PostgreSQL:
 
-- one `InventoryTransfer` `dfb517ff-ed78-43d6-acba-47485fba1adc` and one
-  `InventoryTransferItem` `963fbb9f-9250-4c13-a789-578c674c8ca1`;
-- one `TRANSFER_OUT` `8a83131c-5fb0-46db-bf24-f35202a9cdba` with delta -1 and
-  one `TRANSFER_IN` `0318b076-5924-4136-85dc-5a1372f92a68` with delta +1, both
+- one `InventoryTransfer` and one `InventoryTransferItem` were created;
+- one `TRANSFER_OUT` with delta -1 and one `TRANSFER_IN` with delta +1 were
   linked to the same transfer item;
-- exactly two balances changed, origin -1 and destination +1, both moving from
-  `version` 1 to 2; consolidated product stock unchanged; zero negative
-  balances;
-- exactly one `inventory.transferred` audit event with sanitized metadata
-  referencing the transfer, item, product, warehouses, quantity, and both
-  movement ids;
-- only the SHA-256 of the idempotency key and the canonical request hash are
-  persisted; the original key exists nowhere in the database;
-- the FASE 5C `ADJUSTMENT` row was untouched, and product, balance, valuation,
-  reconciliation, import, sales, and legacy counts were unchanged.
+- exactly two balances changed: origin decreased by 1 and destination increased
+  by 1; consolidated product stock remained unchanged and no balance was
+  negative;
+- the ledger contained three rows after the gate: the existing FASE 5C
+  `ADJUSTMENT`, one `TRANSFER_OUT`, and one `TRANSFER_IN`;
+- exactly one `inventory.transferred` audit event contained sanitized metadata;
+- no valuation was created, copied, or modified;
+- the original idempotency key was not persisted, no second transfer was
+  executed, and legacy data was unchanged.
 
 Idempotency was reverified read-only through the persisted hashes and the
 active unique, check, and immutability constraints. No replay request was
@@ -223,15 +223,28 @@ from Git.
   implementation.
 - Waves 3+ have not started.
 
+## Resolved issue after the first transfer gate
+
+Concurrent HTTP requests sharing one session could renew `last_seen_at` out of
+order, violate PostgreSQL check constraint `23514`, and intermittently return
+HTTP 500. Commit `07c00472e28a55b9706cff4514c96000a1799a85`
+(`fix(auth): renew a shared session monotonically`) resolved the race by using
+`GREATEST` for monotonic renewal while `LEAST` continues to bound the idle
+expiry by the absolute expiry. Revocation, RBAC, and absolute-expiry behavior
+were not relaxed.
+
+Fresh regression evidence: 20/20 focused repetitions, 400 concurrent HTTP
+responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
+`PHASE_6_CONCURRENCY_FIX_PASS`.
+
 ## Last green baseline
 
-Revalidated on 2026-08-23 before the FASE 6 gate, on the current commit: 125
-unit tests, 148 integration/concurrency tests, and 17 Chromium E2E tests
-passed; format, lint, typecheck, Prisma validation, and build also passed, with
-lint, typecheck, and build additionally re-executed with the Turborepo cache
-bypassed. Integration and E2E used only temporary local databases created and
-dropped per run; staging was never used as a test target. A new agent must
-rerun the relevant baseline rather than assuming this result is still current.
+Revalidated on 2026-08-23 after the concurrency fix: 125 unit tests, 149
+integration/concurrency tests, and 17 Chromium E2E tests passed. Format, lint,
+typecheck, Prisma validation, and build also passed. Integration and E2E used
+only temporary local databases created and dropped per run; staging was not
+used as a test target. A new agent must rerun the relevant baseline rather than
+assuming this result is still current.
 
 ## Historical-document caveats
 
@@ -243,8 +256,9 @@ Some versioned documents intentionally preserve earlier snapshots:
   first persistent staging import;
 - portions of module-boundary/system-context documentation still describe the
   transfer application as future or GitHub as private;
-- documents written before 2026-08-23 may still describe the first staging
-  transfer as pending, unauthorized, or never executed.
+- documents written before the FASE 6 closeout may still describe the first
+  staging transfer as pending, unauthorized, or never executed, or FASE 6 as
+  merely a completion candidate.
 
 Do not rewrite those historical decisions as if later state always existed. For
 current RBAC, transfer implementation, repository exposure, and operational

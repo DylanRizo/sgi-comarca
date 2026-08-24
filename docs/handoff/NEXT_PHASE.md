@@ -1,81 +1,85 @@
-# Next Gate — Independent Review of the First Staging Transfer
+# Next Gate — FASE 7 Planning
 
-The first staging inventory transfer gate is closed and passed. FASE 6B is
-complete and FASE 6 is a completion candidate.
+FASE 6 is complete. Its transfer foundation, movement-history and transfer
+API/UI, first controlled staging transfer, and post-gate concurrency fix all
+passed their approved gates.
 
-Current state: **`FIRST_STAGING_TRANSFER_PASS`** and
-**`PHASE_6_COMPLETE_CANDIDATE`**.
+Current state:
 
-FASE 7 is not authorized by this document, and neither is any further staging
-write.
+- **`PHASE_6_COMPLETE`**
+- **`FIRST_STAGING_TRANSFER_PASS`**
+- **`PHASE_6_CONCURRENCY_FIX_PASS`**
+- **`PHASE_7_NOT_STARTED`**
+- **`PHASE_7_NOT_AUTHORIZED`**
+- **`NEXT_GATE = PHASE_7_PLANNING`**
 
-## What the closed gate covered
+This document authorizes no implementation and no staging write.
 
-On 2026-08-23 exactly one authorized transfer of quantity 1 was executed from
-the UI by Dylan and verified read-only. The complete path was validated:
+## Why FASE 7 is the defined next phase
 
-```text
-UI
-  → API
-  → transfers.create
-  → Idempotency-Key
-  → atomic transaction
-  → InventoryTransfer + InventoryTransferItem
-  → TRANSFER_OUT + TRANSFER_IN
-  → InventoryBalance updates
-  → exactly one AuditLog
-  → UI refresh
-```
+The versioned roadmap, migration runbook, architecture boundaries, and
+traceability matrix consistently define FASE 7 as the sales phase. Its target
+domain includes sales and sale items, multi-warehouse stock consumption,
+completed and in-transit states, confirmation, cancellation, idempotency, and
+auditability.
 
-Evidence, identifiers, and the resulting operational snapshot are recorded in
-[CURRENT_STATE.md](CURRENT_STATE.md). Pre-transfer and post-transfer
-checkpoints exist outside Git with recorded size, SHA-256, and a passing
-`pg_restore --list`.
+The phase identity is therefore unambiguous. Its exact implementation and
+legacy-import scope still require a planning gate before work begins.
 
-That authorization was consumed by that single transfer. It does not permit a
-second transfer, a compensating reverse transfer, or general transfer use in
-staging.
+## Objective of the planning gate
 
-## Objective of the next gate
+Reconcile the authoritative implementation, schema, approved business rules,
+legacy evidence, and open decisions into an auditable FASE 7 plan. At minimum,
+planning must distinguish:
 
-Independent review of the executed transfer, so the owner can decide whether to
-declare `PHASE_6_COMPLETE`. The review is read-only and changes no data.
+- operational `Sale`/`SaleItem` creation from any legacy Sales import;
+- stock consumption at creation from in-transit confirmation, which must not
+  deduct stock again;
+- eligible full cancellation and exactly-once stock restoration;
+- multi-item and multi-warehouse locking and transaction boundaries;
+- actor, permission, idempotency, immutable movement, and audit requirements;
+- historical sales grouping, duplicates, orphans, state/payment ambiguity, and
+  unresolved mappings;
+- dependencies on deferred legacy Movimientos and later finance/closing phases.
 
-The reviewer should reconfirm, against staging and the repository:
+Planning must produce explicit gates for any schema, RBAC, legacy mapping, or
+persistent staging mutation. It must not silently combine operational sales
+implementation with Waves 3+ import work.
 
-- exactly one `InventoryTransfer` and one `InventoryTransferItem` exist;
-- exactly one coherent `TRANSFER_OUT`/`TRANSFER_IN` pair shares the transfer
-  item, with correct product, warehouses, actor, magnitude, and before/after
-  balances;
-- exactly two balances changed, consolidated product stock is unchanged, and no
-  balance is negative;
-- exactly one `inventory.transferred` audit event exists, with sanitized
-  metadata and no original idempotency key anywhere in the database;
-- product, valuation, reconciliation, import, sales, and legacy counts are
-  unchanged;
-- the FASE 5C `ADJUSTMENT` row is untouched;
-- the versioned test baseline still passes on the reviewed commit.
+## Evidence to review before planning
+
+Follow the authority order in `AGENTS.md`, then review at least:
+
+- [CURRENT_STATE.md](CURRENT_STATE.md);
+- [APPROVED_DECISIONS.md](APPROVED_DECISIONS.md);
+- [phased-roadmap.md](../migration/phased-roadmap.md);
+- [runbook.md](../migration/runbook.md), especially FASE 7;
+- [traceability-matrix.md](../migration/traceability-matrix.md);
+- [transaction-design.md](../architecture/transaction-design.md);
+- [module-boundaries.md](../architecture/module-boundaries.md);
+- [open-decisions.md](../legacy/open-decisions.md);
+- the current Prisma schema, sales-related tests, and legacy evidence.
+
+Do not treat historical documents as overriding later approved decisions or
+tested code.
+
+## State that must remain unchanged during planning
+
+- The single approved staging transfer remains a consumed, non-repeatable gate.
+- Further staging writes require separate explicit authorization.
+- All 1,069 legacy `Movimientos` rows remain unimported.
+- The 25 legacy rows classified as transfers remain unimported.
+- Legacy sales and later finance/closing materialization remain pending.
+- `WAVES_3_PLUS_NOT_STARTED` remains true.
+- No manual edit or deletion of historical ledger rows is permitted.
 
 ## Stop conditions
 
-Stop and report before any remediation if a count, ledger pair, balance, audit,
-authorization, idempotency, valuation, or privacy invariant differs from
-[CURRENT_STATE.md](CURRENT_STATE.md). Do not repair historical rows manually,
-do not execute a compensating transfer, and do not restore a checkpoint without
-a new approved recovery procedure.
+Stop and request a separate decision before implementation if planning finds an
+unresolved requirement involving schema, migration, RBAC, sales grouping,
+duplicate resolution, historical state/payment interpretation, cancellation,
+in-transit behavior, idempotency persistence, or a real staging write.
 
-## Afterwards
-
-If the review is clean, the owner may declare `PHASE_6_COMPLETE` and then plan
-the following phase. Planning is not execution.
-
-Until separate approval is granted for each item, preserve:
-
-- `FIRST_STAGING_TRANSFER_PASS` as a single, non-repeated operation;
-- `FIRST_STAGING_IMPORT_COMMITTED`;
-- `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`;
-- `PHASE_6B_COMPLETE`;
-- `WAVES_3_PLUS_NOT_STARTED`.
-
-No further staging transfer, no legacy `Movimientos` import, no sales module
-work, and no FASE 7 activity is authorized by this document.
+Completion of `PHASE_7_PLANNING` may recommend an implementation sequence. It
+does not itself authorize FASE 7 implementation, legacy import, or staging
+mutation.

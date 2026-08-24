@@ -56,6 +56,10 @@ See [authorization-matrix.md](../architecture/authorization-matrix.md) and
 - Sessions use opaque random tokens with hash-only persistence, 30-minute idle
   expiry and 8-hour absolute expiry in an `HttpOnly`, `SameSite=Lax` cookie
   (`Secure` in production). Authentication uses neither JWT nor Web Storage.
+- Session renewal under concurrent requests is monotonic: `last_seen_at` and
+  idle expiry cannot move backwards, while idle expiry remains bounded by the
+  absolute expiry. Concurrency must not weaken revocation, active-user checks,
+  or effective-permission evaluation.
 - Routes are private by default. The only public routes are health, readiness,
   activation, and login as enumerated in `AGENTS.md`.
 - Authenticated mutations use session-derived CSRF protection. Host, Origin,

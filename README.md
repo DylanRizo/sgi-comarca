@@ -12,7 +12,11 @@ PostgreSQL.
   verificadas en staging; Waves 3+ no han iniciado.
 - FASE 5A/5B: read model, API y UI de productos e inventario — completas.
 - FASE 5C: ajustes manuales de inventario transaccionales y auditados.
-- FASE 6A/6B: fundamento, API e interfaz de transferencias e historial de movimientos.
+- FASE 6: fundamento, API e interfaz de movimientos y transferencias — completa;
+  la primera transferencia controlada en staging pasó y la regresión de sesión
+  concurrente posterior quedó corregida y validada.
+- FASE 7: ventas — siguiente fase definida, todavía no iniciada ni autorizada;
+  su siguiente puerta es exclusivamente de planificación.
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -28,6 +32,10 @@ El alcance de FASE 4A se documenta en la
 [ADR-008](docs/decisions/ADR-008-legacy-import-boundaries.md), el
 [informe de readiness del commit](docs/reviews/phase-4-commit-readiness.md) y el
 [informe sanitizado del dry-run](docs/reviews/phase-4-dry-run-report.md).
+
+El estado operativo y el próximo gate se mantienen en
+[CURRENT_STATE](docs/handoff/CURRENT_STATE.md) y
+[NEXT_PHASE](docs/handoff/NEXT_PHASE.md).
 
 ## Requisitos para Windows
 
@@ -143,6 +151,10 @@ pnpm build
 El cierre de FASE 3B registra 47 pruebas unitarias, 85 de integración y 11 E2E
 en Chromium. Integración y E2E requieren PostgreSQL activo y crean únicamente
 bases temporales descartables.
+
+El baseline de cierre de FASE 6, posterior al fix de concurrencia, registra 125
+pruebas unitarias, 149 de integración/concurrencia y 17 E2E Chromium; format,
+lint, typecheck, Prisma validate y build pasaron.
 
 Para formatear de manera intencional use `pnpm format`. No instale herramientas
 globalmente ni cambie el lockfile fuera de una actualización aprobada.
