@@ -3,16 +3,17 @@
 Estado: `PHASE_7_PLANNING`. Este documento no autoriza implementación, cambios
 de esquema, importación legacy ni escritura en staging.
 
-Revisión de decisiones: R-03, R-04 y R-15 están aprobadas y registradas. R-12
-permanece `REQUIRES_HUMAN_DECISION` y bloquea FASE 7A. La clasificación inicial
-de una venta operacional permanece abierta como R-16 y bloquea FASE 7B, no 7A.
+Revisión de decisiones: R-03, R-04, R-12, R-15 y R-16 están aprobadas y
+registradas. El diseño estructural/RBAC reducido de 7A queda congelado en este
+documento, pero ninguna implementación, migración, ejecución de bootstrap ni
+escritura en staging está autorizada.
 
-Elaborado sobre `cb7b652f301090f80b27d37820dfc63fad6128a5` con árbol limpio y
-`origin/main` en el mismo commit. La evidencia procede del esquema versionado,
-las migraciones aplicadas, `docs/architecture/transaction-design.md`,
-`docs/architecture/authorization-matrix.md`, `docs/legacy/**`,
-`docs/migration/**` y una lectura estrictamente de solo lectura del snapshot de
-staging.
+El plan original se elaboró sobre el cierre funcional de FASE 6 y este diseño
+final se revalidó contra el esquema y las migraciones versionadas, el manifest
+RBAC, `docs/architecture/transaction-design.md`,
+`docs/architecture/authorization-matrix.md`, `docs/legacy/**` y
+`docs/migration/**`. El snapshot de staging citado es evidencia histórica de
+solo lectura y deberá revalidarse antes de cualquier gate futuro.
 
 ## 1. Esquema de ventas ya existente
 
@@ -52,11 +53,12 @@ segunda confirmación.
 
 - `SaleStatus`: `LEGACY_UNKNOWN`, `IN_TRANSIT`, `COMPLETED`, `CANCELLED`.
 - `PaymentStatus`: `UNKNOWN`, `PENDING`, `PAID`.
+- R-12 añade `SaleOrigin`: `OPERATIONAL`, `LEGACY_IMPORT`.
 - `InventoryMovementType` ya contiene `SALE` y `SALE_CANCELLATION`.
 
 `InventoryMovement` ya tiene `saleItemId` con FK, el CHECK
 `balance_before + quantity_delta = balance_after` y el trigger de
-inmutabilidad. **No hace falta ningún enum nuevo.**
+inmutabilidad. No se añade ningún valor a los enums existentes.
 
 ### Qué está listo y qué falta
 
@@ -138,6 +140,13 @@ entre el repositorio y las reglas históricas esperadas.
   no cambia `paymentStatus`, no marca `PAID` y no toca inventario.
 - R-15 aprobada para implementación posterior: `sales.read` será un permiso
   nuevo concedido solo por `SALES`; no existe bypass `ADMIN` y `DENY` prevalece.
+- R-12 aprobada: cada venta elige explícitamente `OPERATIONAL` o
+  `LEGACY_IMPORT` mediante `Sale.origin`, sin default ni inferencia desde
+  `LegacyRecord`; `LEGACY_UNKNOWN` queda reservado a `LEGACY_IMPORT`.
+- R-16 aprobada: el cliente expresa `IN_TRANSIT` o `COMPLETED` como intención
+  inicial acotada; el servidor valida ese conjunto y fija siempre
+  `paymentStatus = PENDING`. El cliente no envía `paymentStatus` ni puede crear
+  una venta `PAID`.
 
 Estado documental: DEC-020 (confirmación) y DEC-021 (cancelación) están
 `APPROVED_BY_PROJECT_CONSTRAINT` en su regla base; sus detalles operativos
@@ -173,10 +182,9 @@ Adicionalmente, sin ID de decisión asignado:
   ID+item+almacén. La regla exacta de agrupación no está aprobada.
 - **Lugar de Entrega**: dato potencialmente sensible; falta política de
   retención y de exposición por rol.
-- **Clasificación inicial operacional (R-16)**: están admitidos conceptualmente
-  `IN_TRANSIT` y `COMPLETED`, pero no está decidido si el cliente selecciona una
-  intención acotada o si el servidor la deriva, ni qué `paymentStatus` inicial
-  corresponde a cada caso. No se debe inferir esta regla.
+- **Precio/costo operacional vigente**: 7A congela la forma de los snapshots,
+  pero la fuente operacional exacta que 7B debe consultar y validar antes de
+  crear la venta todavía requiere una decisión separada.
 
 ## 5. Ciclo de vida propuesto
 
@@ -202,12 +210,12 @@ vive en `paymentStatus`. Por R-04, confirmar tránsito marca `COMPLETED` y deja
 `paymentStatus` exactamente sin cambios: nunca marca `PAID`, aunque la función
 legacy se llamara `confirmarPagoVenta`.
 
-La creación admite únicamente el conjunto operacional `IN_TRANSIT` o
-`COMPLETED`; `CANCELLED` nunca es estado inicial y `LEGACY_UNKNOWN` nunca es
-operacional. R-16 permanece `REQUIRES_HUMAN_DECISION`: todavía no se ha
-aprobado quién selecciona o deriva el estado inicial ni la regla de pago
-inicial. El descuento de inventario ocurre una sola vez al crear en cualquiera
-de los dos estados admitidos y no depende de resolver R-16.
+Por R-16, el cliente expresa una intención inicial que solo puede ser
+`IN_TRANSIT` o `COMPLETED`; el servidor rechaza `CANCELLED`, `LEGACY_UNKNOWN` y
+cualquier otro valor. El servidor fija `paymentStatus = PENDING` y el cliente
+no puede enviar ese campo ni crear una venta `PAID`. Son válidos
+`IN_TRANSIT + PENDING` y `COMPLETED + PENDING`. Un flujo financiero futuro,
+con su propio permiso y gate, decidirá la transición `PENDING → PAID`.
 
 ## 6. Efecto sobre inventario
 
@@ -251,27 +259,34 @@ literalmente el patrón de transferencias, ya validado en staging:
 - `Idempotency-Key` obligatoria en la cabecera.
 - Persistir solo el SHA-256 de la clave y un hash canónico del payload. La clave
   original nunca se almacena.
-- Ámbito por actor: único `(actorUserId, idempotencyKeyHash)`.
+- Ámbito por actor: único `(actor, idempotencyKeyHash)` dentro de cada
+  operación.
 - Mismo actor + misma clave + mismo payload: replay del resultado ya
   comprometido, sin segundo efecto ni segundo evento de auditoría.
 - Misma clave + payload distinto: `409 IDEMPOTENCY_KEY_REUSED`.
 
-Cada operación necesita su propio ámbito de idempotencia, porque son documentos
-distintos: creación sobre `Sale`, confirmación sobre `InTransitConfirmation` y
-cancelación sobre `SaleCancellation`. Las unicidades de `saleId` que ya existen
-en esas dos tablas aportan una segunda barrera estructural independiente de la
-clave.
+Se usa una sola representación, alojada en el documento que materializa cada
+resultado: `Sale.createdByUserId + idempotencyKeyHash + requestHash` para crear,
+`InTransitConfirmation.confirmedByUserId + los dos hashes` para confirmar y
+`SaleCancellation.cancelledByUserId + los dos hashes` para cancelar. No se
+duplica un `actorUserId`. Las unicidades de `saleId` que ya existen en las dos
+tablas terminales aportan una segunda barrera estructural independiente de la
+clave. Un reintento con una clave nueva sobre un estado ya terminal sigue la
+regla de lifecycle; no crea otra confirmación, cancelación, movimiento ni audit.
 
 ## 9. Diseño de `SaleItem`
 
 - Una venta admite varias líneas; el almacén es por línea, no por venta.
 - `quantity > 0` ya está garantizado por CHECK.
-- `unitPriceSnapshot` y `unitCostSnapshot` se congelan en la creación.
+- Una línea `OPERATIONAL` exige `unitPriceSnapshot` y `unitCostSnapshot`
+  presentes y no negativos; ambos se congelan en la creación. Una línea
+  `LEGACY_IMPORT` puede preservarlos nulos, pero un valor presente tampoco puede
+  ser negativo.
 - `lineSubtotal` se recalcula en el servidor; **el cliente nunca decide el
   total**.
-- El envío se cobra una vez en el encabezado (`shippingAmount`). Si se usa
-  `shippingAllocation` por línea, la suma de asignaciones debe cuadrar
-  exactamente con el encabezado.
+- El envío se cobra una vez en el encabezado (`shippingAmount`). La coherencia
+  y suma de `shippingAllocation` se difiere: 7A no agrega un trigger complejo
+  para una funcionalidad que 7B no necesita.
 - Moneda en el encabezado, por defecto `NIO`.
 - Precisión: cantidades `Decimal(18,4)`, dinero `Decimal(18,2)`.
 - **Descuentos: no existe campo y no hay evidencia legacy de descuentos.** No se
@@ -331,70 +346,202 @@ Siguiendo la convención ya usada (`inventory.adjusted`,
 
 | Evento | Actor | Entidad | Metadata mínima |
 | --- | --- | --- | --- |
-| `sales.created` | vendedor | `Sale` | saleId, status, número de líneas, ids de línea, ids de movimiento, total |
+| `sales.created` | creador autenticado | `Sale` | saleId, status, número de líneas, ids de línea, ids de movimiento, total |
 | `sales.in_transit_confirmed` | confirmador | `Sale` | saleId, confirmationId, estado anterior y nuevo |
-| `sales.cancelled` | Dylan | `Sale` | saleId, cancellationId, motivo, ids de línea, ids de movimiento de reposición |
+| `sales.cancelled` | cancelador autorizado | `Sale` | saleId, cancellationId, motivo, ids de línea, ids de movimiento de reposición |
 
 Prohibido en la metadata: la `Idempotency-Key` original, cookies, tokens, el
 Lugar de Entrega mientras no exista política de datos personales, y cualquier
 dato de cliente. La relación con el ledger se expresa por ids de movimiento,
 igual que en transferencias.
 
-## 14. Auditoría de los ocho cambios de Prisma propuestos
+## 14. Diseño final reducido de FASE 7A
 
-Los ocho puntos originales se conservan y se clasifican sin añadir cambios de
-esquema. Ningún enum nuevo está justificado.
+Este es el inventario ejecutable para una futura implementación de 7A. Congela
+decisiones y nombres conceptuales; no crea ahora el enum, columnas, secuencia,
+constraints, triggers, permisos ni migración.
 
-| # | Modelo afectado | Estado actual | Cambio propuesto | Motivo | ¿Depende de ventas operacionales? | ¿Depende solo del legacy? | ¿Migración? | SQL/índice necesario | Riesgo | Clasificación |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `Sale`, `InTransitConfirmation`, `SaleCancellation` | Sin persistencia de idempotencia | Hash de clave y request; unicidad por actor/operación; validación hex | Replay seguro y carrera concurrente | Sí | No | Sí | Columnas, UNIQUE e invariantes de formato | Medio | `REQUIRED_FOR_OPERATIONAL_SALES` |
-| 2 | `SaleItem`, `SaleCancellation`, `InTransitConfirmation` | Mutables; solo ledger/audit son append-only | Triggers de inmutabilidad | Proteger documentos históricos | Sí | No | Sí | Triggers SQL con patrón aprobado | Bajo | `REQUIRED_FOR_OPERATIONAL_SALES` |
-| 3 | `Sale`, `SaleItem` | Una venta puede quedar sin líneas | Invariante diferida de al menos una línea | Atomicidad del documento | Sí | No | Sí | Constraint trigger diferible | Medio | `REQUIRED_FOR_OPERATIONAL_SALES` |
-| 4 | `SaleItem`, `InventoryMovement` | No se exige ledger completo por línea | Exactamente un `SALE` por línea y, al cancelar, un `SALE_CANCELLATION` | Integridad stock–ledger | Sí | No | Sí | Índices parciales/uniques y constraint triggers diferibles | Alto | `REQUIRED_FOR_OPERATIONAL_SALES` |
-| 5 | `Sale`, `SaleItem` | No hay coherencia monetaria completa | No negativos y coherencia de asignación de envío | Evitar documentos monetarios incoherentes | Sí, salvo la asignación si no se usa | No | Sí para lo requerido | CHECK para campos; la suma entre filas requiere trigger, no CHECK | Medio | `REQUIRED_FOR_OPERATIONAL_SALES` para no negativos; `OPTIONAL` para reparto hasta fijar que se use |
-| 6 | `Sale`, `User` | `sellerUserId` no representa necesariamente al actor | `createdByUserId` con FK | Auditoría inequívoca | Sí | No | Sí | Columna, FK e índice | Bajo | `REQUIRED_FOR_OPERATIONAL_SALES` |
-| 7 | `Sale`, confirmación/cancelación | Estado y documentos pueden divergir; no hay discriminador escalar operacional/legacy | Coherencia estado–documento | Integridad del lifecycle sin romper legacy | Sí | También afecta legacy | Sí, después de decidir R-12/R-16 | Constraint trigger diferible; un CHECK simple no puede validar tablas relacionadas | Alto | `BLOCKED_BY_R12_AND_R16`; concepto requerido, forma exacta no justificada aún |
-| 8 | `Sale` y tablas idempotentes | Ya existe índice `status,businessDate`; los UNIQUE del punto 1 indexan replay | Índices de idempotencia y listado | Rendimiento | Solo si una consulta real lo demuestra | No | No adicional hoy | Evitar duplicar UNIQUE e índice existente | Bajo | `NOT_JUSTIFIED_AS_WRITTEN` |
+### 14.1 Decisiones R-12 y R-16
 
-R-03 añade un requisito que no estaba enumerado entre esos ocho: secuencia
-PostgreSQL dedicada, default generado por DB y representación Prisma compatible
-para `saleNumber`. El UNIQUE y el CHECK mayúsculas/trim ya existen. Esta adición
-es `REQUIRED_FOR_OPERATIONAL_SALES`, requiere migración y debe validar que la
-forma `VTA-000000001` satisface las restricciones existentes. R-15, en cambio,
-es bootstrap/RBAC y no requiere migración Prisma.
+**R-12 — APPROVED.** Se añade `SaleOrigin`, con exactamente `OPERATIONAL` y
+`LEGACY_IMPORT`, y el campo obligatorio `Sale.origin`. No tiene default de
+Prisma ni de PostgreSQL, no se infiere desde `LegacyRecord` y es inmutable. La
+API de 7B fijará siempre `OPERATIONAL`; el importador futuro deberá enviar
+`LEGACY_IMPORT`. `LEGACY_UNKNOWN` solo es válido para `LEGACY_IMPORT`.
 
-Compatibilidad con staging: las cuatro tablas están **vacías**, así que la
-migración no reescribe datos históricos y no toca la transferencia ni el ajuste
-ya validados. Aun así exige su propio gate de despliegue con checkpoint, igual
-que FASE 6A.
+Prisma y PostgreSQL no obligan ni recomiendan un default para este caso. Como
+`sales` está vacía, una columna `NOT NULL` sin default es la opción más segura:
+obliga a cada escritor a declarar su intención y evita que un import accidental
+se clasifique como operacional.
 
-### R-12 — `LEGACY_UNKNOWN` contra coherencia de estado/documento
+**R-16 — APPROVED.** El request operacional expresa exactamente
+`IN_TRANSIT` o `COMPLETED`; el servidor rechaza `CANCELLED` y
+`LEGACY_UNKNOWN`. El servidor, no el cliente, fija siempre
+`paymentStatus = PENDING`. `sales.create` no concede capacidad de pago. Ambos
+estados iniciales descuentan stock una vez; confirmar `IN_TRANSIT` cambia solo
+el fulfillment a `COMPLETED`; cancelar exige `IN_TRANSIT + PENDING`.
 
-Definición exacta: el enum permite `LEGACY_UNKNOWN`, reservado para evidencia
-legacy ambigua, mientras el punto 7 pretende exigir documentos compatibles con
-el estado. Un control estricto podría rechazar la importación posterior, y
-`Sale` no tiene hoy un discriminador escalar inequívoco entre fila operacional
-y legacy.
+### 14.2 Clasificación final de los ocho cambios
 
-Evidencia: 401 líneas legacy carecen de estado explícito; el plan reserva
-`LEGACY_UNKNOWN`; el esquema solo aporta relaciones a `LegacyRecord`, no un
-origen escalar sobre el cual basar de forma simple y segura la restricción.
+| # | Cambio final | Clasificación | Decisión 7A |
+| --- | --- | --- | --- |
+| 1 | Hashes de idempotencia persistentes en los tres documentos | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED` |
+| 2 | Inmutabilidad de líneas, cancelaciones y confirmaciones; campos estables del encabezado protegidos | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED` |
+| 3 | Al menos una `SaleItem` por `Sale` operacional | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED` |
+| 4 | Un `SALE` exacto por línea operacional y un `SALE_CANCELLATION` exacto cuando exista cancelación | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED` |
+| 5 | No negativos y snapshots operacionales válidos; reparto de `shippingAllocation` fuera de 7A | `REQUIRED_FOR_OPERATIONAL_SALES`; reparto `DEFERRED` | `APPROVED` |
+| 6 | `createdByUserId` separado de `sellerUserId` | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED` |
+| 7 | Lifecycle y coherencia estado–documento condicionados por `origin` | `REQUIRED_FOR_OPERATIONAL_SALES` | `APPROVED`; desbloqueado por R-12/R-16 |
+| 8 | Índices adicionales de listado/rendimiento | `NOT_JUSTIFIED` | Excluidos; solo se crean UNIQUE que materializan invariantes |
 
-Impacto:
+R-03 agrega la secuencia operacional como requisito estructural fuera de los
+ocho puntos originales. R-15 agrega un cambio de bootstrap/RBAC, no de Prisma.
 
-- esquema: puede requerir un discriminador explícito o un predicado de DB
-  igualmente fiable;
-- transacciones: toda venta operacional tendría que fijar ese origen dentro de
-  la misma transacción;
-- API/UI: solo podrían crear ventas operacionales y nunca `LEGACY_UNKNOWN`;
-- import legacy: debe poder conservar ambigüedad sin desactivar las garantías
-  de las ventas nuevas.
+### 14.3 Matriz `OPERATIONAL` frente a `LEGACY_IMPORT`
 
-Alternativas consideradas por el plan original: únicamente se propuso
-condicionar la coherencia al origen de la fila; no se documentó una segunda
-alternativa. Esa propuesta no puede aprobarse hasta definir cómo se representa
-el origen. Por tanto R-12 queda `REQUIRES_HUMAN_DECISION` y bloquea 7A. No se
-creará la migración mientras siga abierto.
+| Invariant | `OPERATIONAL` | `LEGACY_IMPORT` |
+| --- | --- | --- |
+| `status` | Inicial `IN_TRANSIT` o `COMPLETED`; después solo las transiciones aprobadas; nunca `LEGACY_UNKNOWN` | Puede preservar `LEGACY_UNKNOWN` o un estado mapeado por decisiones futuras; 7A no infiere ni fuerza transiciones operacionales |
+| `paymentStatus` | Inicial obligatorio `PENDING`, no enviado por cliente; confirmación no lo cambia | Puede preservar `UNKNOWN` u otro mapeo futuro; 7A no decide DEC-018 |
+| `unitPriceSnapshot` | Presente y `>= 0` | Nullable; si está presente, `>= 0` |
+| `unitCostSnapshot` | Presente y `>= 0` | Nullable; si está presente, `>= 0` |
+| Líneas | Al menos una | 7A no impone agrupación ni mínimo al import futuro |
+| Ledger `SALE` | Exactamente uno coherente por `SaleItem` | 7A no reproduce ni exige movimientos históricos |
+| Ledger de cancelación | Cero sin cancelación; exactamente uno coherente por línea con cancelación | Fuera de 7A; no se sintetiza historial |
+| `saleNumber` | Generado por PostgreSQL como `VTA-` + nueve dígitos; no input del cliente | Obligatorio y explícito desde el importador futuro; no controla ni usa deliberadamente la secuencia operacional; el identificador legacy permanece evidencia separada |
+| `createdByUserId` | Obligatorio semánticamente; actor autenticado de la creación | Nullable físicamente para no inventar un actor histórico; un gate futuro puede registrar el operador del import si se aprueba |
+| Estado/documento | Constraints operacionales completas | Sin reglas operacionales incompatibles; las reglas de import se diseñan en 7E |
+
+`SaleItem`, `SaleCancellation`, `InTransitConfirmation` y
+`InventoryMovement` permanecen históricos e inmutables cualquiera que sea el
+origen. La excepción legacy es sobre completitud/interpretación, no sobre poder
+editar historia después del commit.
+
+### 14.4 A. Cambios representables en Prisma
+
+| Prisma model/enum | Cambio exacto | Nullability/FK/UNIQUE/índice |
+| --- | --- | --- |
+| `SaleOrigin` | Enum con solo `OPERATIONAL`, `LEGACY_IMPORT`; `@@map("sale_origin")` | Tipo PostgreSQL nuevo; sin default |
+| `Sale` | `origin SaleOrigin`; `createdByUserId String?`; `idempotencyKeyHash String? @db.Char(64)`; `requestHash String? @db.Char(64)` | `origin NOT NULL`; los otros tres nullable físicamente y requeridos por SQL cuando `origin=OPERATIONAL`; FK `createdByUserId → users.id` con `RESTRICT`; UNIQUE `(createdByUserId,idempotencyKeyHash)` |
+| `User` | Relación inversa `salesCreated` separada de `SaleSeller` | Sin columna nueva en `users` |
+| `Sale.saleNumber` | Default `dbgenerated` respaldado por la secuencia/expresión SQL de 14.5 | Sigue `NOT NULL` y conserva `sales_sale_number_key`; el DTO de 7B no expone el campo |
+| `SaleCancellation` | `idempotencyKeyHash String? @db.Char(64)` y `requestHash String? @db.Char(64)` | Nullable para compatibilidad legacy; requeridos si la venta es operacional; UNIQUE `(cancelledByUserId,idempotencyKeyHash)`; `saleId` ya es UNIQUE |
+| `InTransitConfirmation` | Los mismos dos hashes | Nullable para compatibilidad legacy; requeridos si la venta es operacional; UNIQUE `(confirmedByUserId,idempotencyKeyHash)`; `saleId` ya es UNIQUE |
+
+Los tres UNIQUE de idempotencia y los dos UNIQUE parciales de ledger descritos
+abajo son índices de integridad justificados. No se agrega un índice separado
+para `createdByUserId`: el UNIQUE compuesto ya tiene ese campo como prefijo. Se
+conservan los índices existentes de fecha, estado y vendedor.
+
+### 14.5 B. SQL manual posterior al diff Prisma
+
+La futura migración se debe revisar y completar manualmente con este inventario
+exacto:
+
+1. **Secuencia y número.** Crear
+   `operational_sale_number_seq AS bigint START 1 INCREMENT 1 MINVALUE 1
+   MAXVALUE 999999999 NO CYCLE`, asociarla a `sales.sale_number` y fijar el
+   default de columna a `VTA-` concatenado con `lpad(nextval(...)::text, 9,
+   '0')`. Mantener el UNIQUE y `sales_sale_number_normalized`; agregar
+   `sales_operational_number_format`, condicionado a `origin=OPERATIONAL`, con
+   regex `^VTA-[0-9]{9}$`. Los huecos no se reutilizan. Un import futuro debe
+   enviar un `saleNumber` explícito; nunca usa `MAX()+1` ni toma el valor legacy
+   como control de la secuencia.
+2. **Hashes.** Agregar CHECK de pareja (ambos hashes nulos o ambos presentes) y
+   formato `^[0-9a-f]{64}$` a `sales`, `sale_cancellations` e
+   `in_transit_confirmations`. Para una venta/documento operacional, ambos son
+   obligatorios. La `Idempotency-Key` original nunca se persiste.
+3. **Dinero.** CHECK global `shipping_amount >= 0`, `subtotal >= 0` y
+   `total >= 0`. En `sale_items`, cada snapshot es nulo o `>= 0`; el guard de
+   origen exige que ambos sean no nulos para `OPERATIONAL`. No se agrega
+   igualdad de `shippingAllocation`, suma entre filas ni trigger de reparto en
+   7A.
+4. **Inmutabilidad.** Reutilizar `prevent_immutable_row_change()` para impedir
+   UPDATE/DELETE de `sale_items`, `sale_cancellations` e
+   `in_transit_confirmations`, e impedir DELETE de `sales`. Un trigger específico
+   de `sales` hace inmutables `origin`, `sale_number`, `created_by_user_id`, los
+   hashes de create y los datos económicos/identificadores del documento; solo
+   permite los campos de lifecycle expresamente previstos.
+5. **Venta operacional válida.** Un guard `BEFORE INSERT` exige origen
+   explícito, estado inicial permitido, `payment_status=PENDING`, creador y
+   hashes, y coherencia de `completed_at` (`NULL` para `IN_TRANSIT`, presente
+   para `COMPLETED`). Un guard de `sale_items` exige snapshots operacionales.
+6. **Al menos una línea.** Constraint trigger `DEFERRABLE INITIALLY DEFERRED`
+   sobre la inserción de `sales` comprueba al commit que una venta
+   `OPERATIONAL` tiene al menos una `sale_items`; no se aplica a
+   `LEGACY_IMPORT`.
+7. **Ledger.** Crear UNIQUE parciales
+   `inventory_movements_sale_item_sale_key` y
+   `inventory_movements_sale_item_cancellation_key` sobre `sale_item_id` para
+   `type='SALE'` y `type='SALE_CANCELLATION'`. Constraint triggers diferidos
+   comprueban para cada línea operacional un `SALE` exacto con mismo producto,
+   almacén, actor creador y delta `-quantity`; si existe cancelación, un
+   `SALE_CANCELLATION` exacto con mismo producto, almacén, actor cancelador y
+   delta `+quantity`; sin cancelación exigen cero movimientos de cancelación.
+   Se disparan desde la línea, el movimiento y la cancelación para validar
+   tanto create como cancel al estado final de la transacción. No validan replay
+   de ledger para `LEGACY_IMPORT`.
+8. **Lifecycle/documentos.** Guards inmediatos de inserción bloquean la fila de
+   venta y permiten crear confirmación o cancelación solo mientras está
+   `IN_TRANSIT + PENDING`. La transacción inserta primero el documento terminal
+   y luego cambia el estado. Un guard de UPDATE permite solo
+   `IN_TRANSIT→COMPLETED` con una confirmación ya insertada, o
+   `IN_TRANSIT→CANCELLED` con una cancelación ya insertada; `COMPLETED` y
+   `CANCELLED` son terminales. Constraint triggers diferidos verifican al
+   commit la matriz siguiente.
+
+| Estado final `OPERATIONAL` | Confirmación | Cancelación | `completedAt` | Inventario |
+| --- | ---: | ---: | --- | --- |
+| `IN_TRANSIT + PENDING` | 0 | 0 | `NULL` | Descontado una vez en create |
+| `COMPLETED + PENDING` creado directamente | 0 | 0 | Presente | Descontado una vez en create |
+| `COMPLETED + PENDING` confirmado | Exactamente 1; `confirmedAt = completedAt` | 0 | Presente | Cero writes durante confirmación |
+| `CANCELLED + PENDING` | 0 | Exactamente 1 | `NULL` | Repuesto una vez por línea |
+
+La base puede demostrar la coherencia de documentos, estados y ledger. La
+ausencia causal de cualquier escritura de balance durante confirmación también
+se exige en el servicio y en pruebas de integración: no existe una FK desde una
+confirmación que pudiera legitimar un movimiento.
+
+### 14.6 C. Bootstrap/RBAC
+
+7A agrega al manifest el permiso `sales.read` y un grant de rol
+`SALES → sales.read`. No hay migración Prisma para ese cambio. `ADMIN` conserva
+solo sus cuatro permisos administrativos, no existe bypass y un `DENY` directo
+activo sigue prevaleciendo. La implementación futura debe actualizar las
+pruebas de manifest/bootstrap y la matriz de autorización.
+
+Ejecutar el bootstrap contra staging es una mutación persistente separada de
+aplicar la migración y requiere un gate explícito. Este documento no la ejecuta.
+
+### 14.7 Idempotencia y replay
+
+La representación mínima es la misma en las tres operaciones: actor ya presente
+en el documento, SHA-256 de la clave y hash canónico del request. Mismo
+actor/operación/clave y mismo request devuelve el resultado comprometido sin
+efectos; payload distinto devuelve `409`. Los campos y su UNIQUE se congelan al
+insertar. Las tablas de confirmación y cancelación pueden y deben alojar sus
+propios hashes: son el resultado persistente único de esas operaciones y evitan
+una tabla genérica sin necesidad demostrada.
+
+### 14.8 Rollback, staging y rehearsal
+
+- La migración DDL futura debe ejecutarse en una sola transacción. Un fallo
+  revierte enum, columnas, FK, CHECK, UNIQUE, funciones y triggers.
+- Prisma no genera down migrations. Si el gate ya fue comprometido, el rollback
+  operacional es restaurar el checkpoint PRE verificado y desplegar la versión
+  anterior; nunca borrar manualmente ventas, movimientos o grants.
+- Antes del gate se revalidará en solo lectura que las cuatro tablas de ventas
+  siguen vacías y que el target es staging. Solo entonces es seguro agregar
+  `origin NOT NULL` sin default y crear la secuencia sin backfill.
+- La secuencia no debe consumirse durante el gate de esquema porque 7A no crea
+  ventas. `nextval` no es transaccional y acepta huecos, por lo que las pruebas
+  de secuencia se ejecutan en PostgreSQL local efímero, no en staging.
+- El despliegue exige checkpoint PRE, migración, verificación estructural y
+  checkpoint POST. El bootstrap/RBAC tiene verificación y autorización propias.
+- La migración no toca los tres movimientos existentes, el ajuste, la
+  transferencia, balances, valuations, las 404 filas raw de Ventas ni Waves
+  3+. El riesgo principal es una constraint diferida incompleta o un lock DDL;
+  se cubre con pruebas estructurales exhaustivas y ventana de despliegue.
 
 ## 15. Estrategia de import legacy
 
@@ -409,10 +556,10 @@ importación de Ventas legacy. Las 404 filas, 288 IDs, R-01, R-02/DEC-016, la
 discrepancia de referencias de producto y Waves 3+ no bloquean las ventas
 operacionales salvo evidencia nueva y explícita.
 
-Orden recomendado: primero la fundación y la operación nuevas, después de
-resolver R-12/R-16 donde corresponda; después, y por separado, la planificación del
-import, que no debe empezar hasta que DEC-006, DEC-007, DEC-016, DEC-017,
-DEC-018, DEC-029 y DEC-030 estén resueltas.
+Orden recomendado: primero la fundación y la operación nuevas con R-12/R-16 ya
+resueltas; después, y por separado, la planificación del import, que no debe
+empezar hasta que DEC-006, DEC-007, DEC-016, DEC-017, DEC-018, DEC-029 y
+DEC-030 estén resueltas.
 
 Ninguna venta legacy debe crear movimientos operacionales ni afectar balances
 sin una decisión explícita, porque el saldo inicial ya lo fijó Inventario en
@@ -604,37 +751,53 @@ el permiso.
 | R-09 | 4 pares duplicados y 7 ventas sin movimiento | Filas identificadas | **MEDIUM** | Resolver caso por caso, sin script | Sí (DEC-006, DEC-007) |
 | R-10 | Sin campo de descuento | No hay evidencia legacy | **MEDIUM** | No inventarlo; migración aparte si el negocio lo pide | Sí |
 | R-11 | Deadlock entre ventas, ajustes y transferencias | Tres familias sobre los mismos balances | **MEDIUM** | Orden de bloqueo único y compartido; test dedicado | No |
-| R-12 | `LEGACY_UNKNOWN` contra coherencia estado/documento | No existe discriminador escalar de origen; el control estricto puede romper legacy | **BLOCKER** para 7A | Definir representación/predicado de origen antes de migrar | Sí; `REQUIRES_HUMAN_DECISION` |
+| R-12 | `LEGACY_UNKNOWN` contra coherencia estado/documento | Aprobado `SaleOrigin` explícito, obligatorio, sin default | **RESOLVED** | Condicionar invariantes operacionales a `origin=OPERATIONAL` | Aprobada |
 | R-13 | Variantes de entregador y canal | 7 y 5 variantes | **LOW** | Preservar sin fusionar | Sí (DEC-012, DEC-013) |
 | R-14 | 8 IDs de movimiento sin venta | Diferidos a FASE 6, ya cerrada | **LOW** | Reasignar a FASE 7 o a Wave 3 explícitamente | Sí (DEC-008) |
-| R-16 | Clasificación inicial de venta operacional | Admitidos `IN_TRANSIT`/`COMPLETED`, pero sin regla sobre selección/derivación ni pago inicial | **BLOCKER** para 7B, no 7A | Aprobar intención de request y `paymentStatus` inicial | Sí; `REQUIRES_HUMAN_DECISION` |
+| R-16 | Clasificación inicial de venta operacional | Cliente expresa `IN_TRANSIT`/`COMPLETED`; servidor fija `PENDING` | **RESOLVED** | Validar conjunto cerrado y excluir `paymentStatus` del request | Aprobada |
+
+Decisiones pendientes por subfase:
+
+- **7A:** ninguna decisión humana de diseño permanece abierta. Siguen
+  pendientes la autorización para implementar, el gate de migración y el gate
+  persistente de bootstrap/RBAC; son autorizaciones operacionales, no reglas por
+  inventar.
+- **7B:** permanece abierta la fuente operacional exacta de precio y costo que
+  debe producir los snapshots no negativos. La resolución legacy de DEC-014 no
+  define por sí sola el modelo de pricing vigente para una venta nueva. R-16 ya
+  no bloquea 7B.
+- **7E/legacy:** continúan fuera de 7A las 404 filas, 288 IDs, DEC-006,
+  DEC-007, DEC-016, DEC-017, DEC-018, DEC-029, DEC-030, la discrepancia de 28
+  referencias, agrupación, Finanzas y Cierres. `WAVES_3_PLUS_NOT_STARTED`.
 
 ## 25. Subfases recomendadas
 
-La división se justifica en que 7A queda detenida únicamente por R-12 y 7B por
-R-16, mientras que el import arrastra al menos diez decisiones adicionales.
-Mezclarlos bloquearía la operación nueva detrás de arqueología de datos.
+La división mantiene la fundación estructural separada de API, UI, primera
+escritura real e import legacy. R-12 y R-16 ya no bloquean; el import continúa
+arrastrando decisiones adicionales que no deben debilitar la operación nueva.
 
 ### 7A — Fundación de esquema
 
-Alcance: una migración con secuencia de número de venta, idempotencia,
-inmutabilidad, coherencia
-venta–líneas–ledger, coherencia monetaria y actor de creación. Documentación de
-diseño.
-Excluye: API, UI, import, RBAC.
-Requisitos: R-03 ya resuelta; R-12 pendiente y bloqueante.
+Alcance: una migración con `SaleOrigin`, secuencia de número de venta,
+idempotencia, inmutabilidad, coherencia venta–líneas–ledger, lifecycle,
+coherencia monetaria y actor de creación; además, el cambio separado de
+bootstrap/RBAC `SALES → sales.read`.
+Excluye: API, UI, import y cualquier venta real.
+Requisitos de diseño: R-03, R-12 y R-15 resueltas. Implementación todavía no
+autorizada.
 Pruebas: estructurales y de esquema.
-Gate: despliegue de migración en staging con checkpoint, como en FASE 6A.
+Gate: despliegue de migración en staging con checkpoint, como en FASE 6A, y
+gate persistente separado para ejecutar bootstrap/RBAC.
 Commits: uno de esquema, uno de documentación.
-Staging: solo migración, sin datos.
+Staging: solo DDL y, si se autoriza por separado, bootstrap; ninguna venta.
 
 ### 7B — API transaccional
 
 Alcance: los cinco endpoints, servicios de dominio, idempotencia, bloqueo
 determinista y auditoría.
 Excluye: UI, import.
-Requisitos: 7A cerrada; R-04 y R-15 ya resueltas; R-16 pendiente. El alta de
-`sales.read` es un gate de RBAC separado y previo.
+Requisitos: 7A cerrada; R-04, R-15 y R-16 resueltas; fuente operacional de
+precio/costo resuelta. El alta de `sales.read` debe haber pasado su gate RBAC.
 Pruebas: unitarias, integración y concurrencia completas.
 Gate: baseline verde; sin escritura en staging.
 Commits: contratos, persistencia, API y tests, separados.
@@ -661,11 +824,12 @@ Staging: prohibido.
 
 ## 26. Estado
 
-`PHASE_7_PLAN_REVIEW_READY`.
+`PHASE_7A_DESIGN_READY`.
 
-R-03, R-04 y R-15 están resueltas. R-12 bloquea 7A y R-16 bloquea 7B, por lo que
-ninguna implementación está autorizada todavía. 7E permanece bloqueada por
-decisiones humanas y no debe iniciarse.
+R-03, R-04, R-12, R-15 y R-16 están resueltas. No queda una decisión humana de
+diseño abierta para 7A, pero ninguna implementación está autorizada todavía.
+7B conserva la decisión de pricing operacional indicada en la sección 24 y 7E
+permanece bloqueada por decisiones legacy.
 
 `NEXT_GATE` continúa siendo `PHASE_7_PLANNING` hasta aprobación humana
 explícita. Este documento no autoriza implementación, migración, importación ni

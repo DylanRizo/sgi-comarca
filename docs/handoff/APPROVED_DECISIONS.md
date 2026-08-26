@@ -27,6 +27,19 @@ ADR, architecture document, migration, and tests.
 - Fulfillment and payment are separate concerns. Confirming an in-transit sale
   changes only the fulfillment status to `COMPLETED`; it does not set
   `paymentStatus` to `PAID`, touch inventory, or append another stock movement.
+- Every `Sale` has an explicit, immutable `SaleOrigin` of `OPERATIONAL` or
+  `LEGACY_IMPORT`, with no database default. API-created sales are always
+  `OPERATIONAL`; a future importer must choose `LEGACY_IMPORT` explicitly.
+  `LEGACY_UNKNOWN` is valid only for `LEGACY_IMPORT`, and legacy support must
+  not relax constraints that protect operational sales.
+- An operational sale is created only as `IN_TRANSIT` or `COMPLETED`, according
+  to the bounded intent supplied by the client and validated by the server. It
+  always starts with `paymentStatus = PENDING`; the client cannot provide the
+  payment status or create a paid sale. Both initial states consume inventory
+  exactly once. Confirmation changes `IN_TRANSIT` to `COMPLETED` without an
+  inventory or payment write. Only `IN_TRANSIT + PENDING` is cancellable, and
+  cancellation restores inventory exactly once; `COMPLETED` is not
+  cancellable.
 
 ## RBAC
 
