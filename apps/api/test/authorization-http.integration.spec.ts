@@ -394,6 +394,7 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
     const service = app.get(EffectivePermissionsService);
     expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
     expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(true);
+    expect(await service.hasPermission(dylanId, 'sales.read')).toBe(true);
     expect(await service.hasPermission(dylanId, 'transfers.create')).toBe(true);
     expect(await service.hasPermission(dylanId, 'users.status.manage')).toBe(
       true,
@@ -412,6 +413,23 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
     });
     expect(await service.hasPermission(dylanId, 'inventory.read')).toBe(false);
     expect(await service.hasPermission(dylanId, 'inventory.adjust')).toBe(true);
+    const salesReadPermission = await client.permission.findUniqueOrThrow({
+      where: { code: 'sales.read' },
+      select: { id: true },
+    });
+    const salesReadDeny = await client.userPermission.create({
+      data: {
+        effect: 'DENY',
+        permissionId: salesReadPermission.id,
+        userId: dylanId,
+      },
+    });
+    expect(await service.hasPermission(dylanId, 'sales.read')).toBe(false);
+    await client.userPermission.update({
+      where: { id: salesReadDeny.id },
+      data: { revokedAt: new Date() },
+    });
+    expect(await service.hasPermission(dylanId, 'sales.read')).toBe(true);
     const transferPermission = await client.permission.findUniqueOrThrow({
       where: { code: 'transfers.create' },
       select: { id: true },
@@ -622,6 +640,7 @@ describe('BLOQUE 4 authorization and HTTP security', () => {
         false,
       );
       expect(await service.hasPermission(user.id, 'sales.create')).toBe(false);
+      expect(await service.hasPermission(user.id, 'sales.read')).toBe(false);
       expect(await service.hasPermission(user.id, 'transfers.create')).toBe(
         false,
       );

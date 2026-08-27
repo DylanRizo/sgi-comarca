@@ -489,6 +489,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
+        'sales.read',
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
@@ -500,6 +501,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'sales.read',
         'transfers.create',
       ],
       luden: [
@@ -507,6 +509,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'sales.read',
         'transfers.create',
       ],
       samantha: [
@@ -519,6 +522,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.read',
         'sales.confirm_in_transit',
         'sales.create',
+        'sales.read',
         'transfers.create',
       ],
     } as const;

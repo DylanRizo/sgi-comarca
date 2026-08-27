@@ -86,6 +86,10 @@ export const bootstrapPermissions = [
     description: 'Crear ventas.',
   },
   {
+    code: 'sales.read',
+    description: 'Consultar ventas autorizadas.',
+  },
+  {
     code: 'sales.confirm_in_transit',
     description: 'Confirmar ventas en tránsito.',
   },
@@ -151,6 +155,7 @@ export const bootstrapRolePermissions = [
     permissionCode: 'transfers.create',
   },
   { roleCode: 'SALES', permissionCode: 'sales.create' },
+  { roleCode: 'SALES', permissionCode: 'sales.read' },
   {
     roleCode: 'SALES',
     permissionCode: 'sales.confirm_in_transit',

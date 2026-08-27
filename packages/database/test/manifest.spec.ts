@@ -42,6 +42,7 @@ describe('FASE 3B bootstrap manifest', () => {
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
+        'sales.read',
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
@@ -98,15 +99,28 @@ describe('FASE 3B bootstrap manifest', () => {
         'INVENTORY_MANAGER:transfers.create',
         'SALES:sales.confirm_in_transit',
         'SALES:sales.create',
+        'SALES:sales.read',
       ].sort(),
     );
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(15);
+    expect(bootstrapPermissions).toHaveLength(16);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(14);
+    expect(bootstrapRolePermissions).toHaveLength(15);
     expect(bootstrapUserPermissions).toHaveLength(1);
+  });
+
+  it('grants sales.read only to SALES without an ADMIN bypass', () => {
+    const salesReadGrants = bootstrapRolePermissions
+      .filter(({ permissionCode }) => permissionCode === 'sales.read')
+      .map(({ roleCode }) => roleCode);
+
+    expect(salesReadGrants).toEqual(['SALES']);
+    expect(salesReadGrants).not.toContain('ADMIN');
+    expect(salesReadGrants).not.toContain('FINANCE');
+    expect(salesReadGrants).not.toContain('INVENTORY_MANAGER');
+    expect(salesReadGrants).not.toContain('READ_ONLY');
   });
 
   it('grants inventory.read only to INVENTORY_MANAGER', () => {

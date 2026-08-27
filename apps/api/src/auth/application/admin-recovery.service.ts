@@ -30,6 +30,7 @@ const approvedPermissionCodes = [
   'sales.cancel',
   'sales.confirm_in_transit',
   'sales.create',
+  'sales.read',
   'transfers.create',
   'users.credentials.revoke',
   'users.invitations.create',
@@ -52,6 +53,7 @@ const approvedRolePermissionKeys = [
   'INVENTORY_MANAGER:transfers.create',
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
+  'SALES:sales.read',
 ] as const;
 
 const approvedUserRoleSignatures = [
