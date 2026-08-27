@@ -53,6 +53,13 @@ enum PaymentStatus {
   @@map("payment_status")
 }
 
+enum SaleOrigin {
+  OPERATIONAL
+  LEGACY_IMPORT
+
+  @@map("sale_origin")
+}
+
 enum LegacySourceType {
   XLSX
   GOOGLE_SHEETS
@@ -131,6 +138,7 @@ model User {
   inventoryMovements          InventoryMovement[]     @relation("InventoryMovementActor")
   inventoryTransfers          InventoryTransfer[]     @relation("InventoryTransferActor")
   sales                       Sale[]                  @relation("SaleSeller")
+  salesCreated                Sale[]                  @relation("SaleCreator")
   saleCancellations           SaleCancellation[]      @relation("SaleCancellationActor")
   inTransitConfirmations      InTransitConfirmation[] @relation("InTransitConfirmationActor")
   resolvedIssues              ReconciliationIssue[]   @relation("ReconciliationIssueResolver")
@@ -495,33 +503,39 @@ model InventoryTransferItem {
 }
 
 model Sale {
-  id                String        @id @default(uuid()) @db.Uuid
-  saleNumber        String        @unique(map: "sales_sale_number_key") @map("sale_number") @db.VarChar(80)
-  businessDate      DateTime      @map("business_date") @db.Date
-  status            SaleStatus
-  paymentStatus     PaymentStatus @default(UNKNOWN) @map("payment_status")
-  departureAt       DateTime?     @map("departure_at") @db.Timestamptz(6)
-  completedAt       DateTime?     @map("completed_at") @db.Timestamptz(6)
-  sellerUserId      String?       @map("seller_user_id") @db.Uuid
-  legacySellerText  String?       @map("legacy_seller_text") @db.VarChar(200)
-  delivererText     String?       @map("deliverer_text") @db.VarChar(200)
-  salesChannelText  String?       @map("sales_channel_text") @db.VarChar(160)
-  paymentMethodText String?       @map("payment_method_text") @db.VarChar(160)
-  deliveryPlace     String?       @map("delivery_place")
-  shippingAmount    Decimal       @default(0) @map("shipping_amount") @db.Decimal(18, 2)
-  subtotal          Decimal       @db.Decimal(18, 2)
-  total             Decimal       @db.Decimal(18, 2)
-  currencyCode      String        @default("NIO") @map("currency_code") @db.VarChar(3)
-  observations      String?
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String        @id @default(uuid()) @db.Uuid
+  origin             SaleOrigin
+  saleNumber         String        @unique(map: "sales_sale_number_key") @default(dbgenerated("('VTA-'::text || lpad((nextval('operational_sale_number_seq'::regclass))::text, 9, '0'::text))")) @map("sale_number") @db.VarChar(80)
+  businessDate       DateTime      @map("business_date") @db.Date
+  status             SaleStatus
+  paymentStatus      PaymentStatus @default(UNKNOWN) @map("payment_status")
+  departureAt        DateTime?     @map("departure_at") @db.Timestamptz(6)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
+  sellerUserId       String?       @map("seller_user_id") @db.Uuid
+  createdByUserId    String?       @map("created_by_user_id") @db.Uuid
+  idempotencyKeyHash String?       @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?       @map("request_hash") @db.Char(64)
+  legacySellerText   String?       @map("legacy_seller_text") @db.VarChar(200)
+  delivererText      String?       @map("deliverer_text") @db.VarChar(200)
+  salesChannelText   String?       @map("sales_channel_text") @db.VarChar(160)
+  paymentMethodText  String?       @map("payment_method_text") @db.VarChar(160)
+  deliveryPlace      String?       @map("delivery_place")
+  shippingAmount     Decimal       @default(0) @map("shipping_amount") @db.Decimal(18, 2)
+  subtotal           Decimal       @db.Decimal(18, 2)
+  total              Decimal       @db.Decimal(18, 2)
+  currencyCode       String        @default("NIO") @map("currency_code") @db.VarChar(3)
+  observations       String?
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   seller                User?                  @relation("SaleSeller", fields: [sellerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy             User?                  @relation("SaleCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   items                 SaleItem[]
   cancellation          SaleCancellation?
   inTransitConfirmation InTransitConfirmation?
   legacyRecords         LegacyRecord[]         @relation("LegacyRecordSale")
 
+  @@unique([createdByUserId, idempotencyKeyHash], map: "sales_creator_idempotency_key")
   @@index([businessDate], map: "sales_business_date_idx")
   @@index([status, businessDate], map: "sales_status_business_date_idx")
   @@index([sellerUserId, businessDate], map: "sales_seller_business_date_idx")
@@ -554,30 +568,36 @@ model SaleItem {
 }
 
 model SaleCancellation {
-  id                String   @id @default(uuid()) @db.Uuid
-  saleId            String   @unique(map: "sale_cancellations_sale_id_key") @map("sale_id") @db.Uuid
-  reason            String   @db.VarChar(500)
-  cancelledByUserId String   @map("cancelled_by_user_id") @db.Uuid
-  cancelledAt       DateTime @map("cancelled_at") @db.Timestamptz(6)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleId             String   @unique(map: "sale_cancellations_sale_id_key") @map("sale_id") @db.Uuid
+  reason             String   @db.VarChar(500)
+  cancelledByUserId  String   @map("cancelled_by_user_id") @db.Uuid
+  cancelledAt        DateTime @map("cancelled_at") @db.Timestamptz(6)
+  idempotencyKeyHash String?  @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?  @map("request_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   sale        Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   cancelledBy User @relation("SaleCancellationActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([cancelledByUserId, idempotencyKeyHash], map: "sale_cancellations_actor_idempotency_key")
   @@index([cancelledByUserId, cancelledAt], map: "sale_cancellations_actor_time_idx")
   @@map("sale_cancellations")
 }
 
 model InTransitConfirmation {
-  id                String   @id @default(uuid()) @db.Uuid
-  saleId            String   @unique(map: "in_transit_confirmations_sale_id_key") @map("sale_id") @db.Uuid
-  confirmedByUserId String   @map("confirmed_by_user_id") @db.Uuid
-  confirmedAt       DateTime @map("confirmed_at") @db.Timestamptz(6)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleId             String   @unique(map: "in_transit_confirmations_sale_id_key") @map("sale_id") @db.Uuid
+  confirmedByUserId  String   @map("confirmed_by_user_id") @db.Uuid
+  confirmedAt        DateTime @map("confirmed_at") @db.Timestamptz(6)
+  idempotencyKeyHash String?  @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?  @map("request_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   sale        Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   confirmedBy User @relation("InTransitConfirmationActor", fields: [confirmedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([confirmedByUserId, idempotencyKeyHash], map: "in_transit_confirmations_actor_idempotency_key")
   @@index([confirmedByUserId, confirmedAt], map: "in_transit_confirmations_actor_time_idx")
   @@map("in_transit_confirmations")
 }

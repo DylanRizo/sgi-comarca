@@ -102,8 +102,8 @@ async function insertSaleFixture(
   await client.query(
     [
       'INSERT INTO sales',
-      '(id, sale_number, business_date, status, subtotal, total, updated_at)',
-      "VALUES ($1, $2, CURRENT_DATE, 'IN_TRANSIT', 10, 10, now())",
+      '(id, origin, sale_number, business_date, status, subtotal, total, updated_at)',
+      "VALUES ($1, 'LEGACY_IMPORT', $2, CURRENT_DATE, 'LEGACY_UNKNOWN', 10, 10, now())",
     ].join(' '),
     [saleId, saleNumber],
   );
@@ -118,7 +118,7 @@ async function insertSaleFixture(
   return { saleId, saleItemId };
 }
 
-describe('PostgreSQL structure through FASE 6A', () => {
+describe('PostgreSQL structure through PHASE 7A', () => {
   beforeAll(async () => {
     await pool.query('SELECT 1');
   });
@@ -147,14 +147,14 @@ describe('PostgreSQL structure through FASE 6A', () => {
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly seven non-internal triggers', async () => {
+  it('has the approved functions and exactly 22 non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_session_lifecycle', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -173,16 +173,39 @@ describe('PostgreSQL structure through FASE 6A', () => {
     );
 
     expect(functions.rows).toEqual([
+      { proname: 'check_operational_sale_item_ledger' },
       { proname: 'enforce_inventory_transfer_has_items' },
       { proname: 'enforce_inventory_transfer_item_ledger' },
+      { proname: 'enforce_operational_sale_documents' },
+      { proname: 'enforce_operational_sale_has_items' },
+      { proname: 'enforce_operational_sale_item_ledger' },
       { proname: 'enforce_session_lifecycle' },
+      { proname: 'guard_sale_action_insert' },
+      { proname: 'guard_sale_item_insert' },
+      { proname: 'guard_sale_write' },
       { proname: 'prevent_immutable_row_change' },
     ]);
     expect(triggers.rows).toEqual([
       { table_name: 'audit_logs', trigger_name: 'audit_logs_immutable' },
       {
+        table_name: 'in_transit_confirmations',
+        trigger_name: 'in_transit_confirmations_immutable',
+      },
+      {
+        table_name: 'in_transit_confirmations',
+        trigger_name: 'in_transit_confirmations_operational_documents',
+      },
+      {
+        table_name: 'in_transit_confirmations',
+        trigger_name: 'in_transit_confirmations_operational_guard',
+      },
+      {
         table_name: 'inventory_movements',
         trigger_name: 'inventory_movements_immutable',
+      },
+      {
+        table_name: 'inventory_movements',
+        trigger_name: 'inventory_movements_operational_sale_ledger',
       },
       {
         table_name: 'inventory_transfer_items',
@@ -200,6 +223,38 @@ describe('PostgreSQL structure through FASE 6A', () => {
         table_name: 'inventory_transfers',
         trigger_name: 'inventory_transfers_immutable',
       },
+      {
+        table_name: 'sale_cancellations',
+        trigger_name: 'sale_cancellations_immutable',
+      },
+      {
+        table_name: 'sale_cancellations',
+        trigger_name: 'sale_cancellations_operational_documents',
+      },
+      {
+        table_name: 'sale_cancellations',
+        trigger_name: 'sale_cancellations_operational_guard',
+      },
+      {
+        table_name: 'sale_cancellations',
+        trigger_name: 'sale_cancellations_operational_ledger',
+      },
+      {
+        table_name: 'sale_items',
+        trigger_name: 'sale_items_immutable',
+      },
+      {
+        table_name: 'sale_items',
+        trigger_name: 'sale_items_operational_guard',
+      },
+      {
+        table_name: 'sale_items',
+        trigger_name: 'sale_items_operational_ledger',
+      },
+      { table_name: 'sales', trigger_name: 'sales_immutable_delete' },
+      { table_name: 'sales', trigger_name: 'sales_operational_documents' },
+      { table_name: 'sales', trigger_name: 'sales_operational_requires_item' },
+      { table_name: 'sales', trigger_name: 'sales_write_guard' },
       {
         table_name: 'sessions',
         trigger_name: 'sessions_lifecycle_guard',
@@ -236,7 +291,9 @@ describe('PostgreSQL structure through FASE 6A', () => {
         [
           'inventory_balances_quantity_nonnegative',
           'inventory_movements_balance_equation',
+          'sale_items_snapshot_money_nonnegative',
           'sale_items_quantity_positive',
+          'sales_money_nonnegative',
         ],
       ],
     );
@@ -245,6 +302,8 @@ describe('PostgreSQL structure through FASE 6A', () => {
       'inventory_balances_quantity_nonnegative',
       'inventory_movements_balance_equation',
       'sale_items_quantity_positive',
+      'sale_items_snapshot_money_nonnegative',
+      'sales_money_nonnegative',
     ]);
   });
 
@@ -342,8 +401,8 @@ describe('PostgreSQL structure through FASE 6A', () => {
       await client.query(
         [
           'INSERT INTO sales',
-          '(id, sale_number, business_date, status, subtotal, total, updated_at)',
-          "VALUES ($1, $2, CURRENT_DATE, 'IN_TRANSIT', 0, 0, now())",
+          '(id, origin, sale_number, business_date, status, subtotal, total, updated_at)',
+          "VALUES ($1, 'LEGACY_IMPORT', $2, CURRENT_DATE, 'LEGACY_UNKNOWN', 0, 0, now())",
         ].join(' '),
         [
           saleId,
