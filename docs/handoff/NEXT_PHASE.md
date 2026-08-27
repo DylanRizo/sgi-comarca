@@ -1,85 +1,103 @@
-# Next Gate — FASE 7 Planning
+# Next Gate — FASE 7B Planning
 
-FASE 6 is complete. Its transfer foundation, movement-history and transfer
-API/UI, first controlled staging transfer, and post-gate concurrency fix all
-passed their approved gates.
+FASE 7A is complete in the versioned repository: the sales schema foundation
+and the `sales.read` bootstrap/RBAC change are implemented and tested. They have
+not been deployed to staging.
 
 Current state:
 
-- **`PHASE_6_COMPLETE`**
-- **`FIRST_STAGING_TRANSFER_PASS`**
-- **`PHASE_6_CONCURRENCY_FIX_PASS`**
-- **`PHASE_7_NOT_STARTED`**
-- **`PHASE_7_NOT_AUTHORIZED`**
-- **`NEXT_GATE = PHASE_7_PLANNING`**
+- **`PHASE_7A_SCHEMA_COMPLETE`**
+- **`PHASE_7B_NOT_STARTED`**
+- **`PHASE_7B_NOT_AUTHORIZED`**
+- **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
+- **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
+- **`WAVES_3_PLUS_NOT_STARTED`**
+- **`NEXT_GATE = PHASE_7B_PLANNING`**
 
-This document authorizes no implementation and no staging write.
-
-## Why FASE 7 is the defined next phase
-
-The versioned roadmap, migration runbook, architecture boundaries, and
-traceability matrix consistently define FASE 7 as the sales phase. Its target
-domain includes sales and sale items, multi-warehouse stock consumption,
-completed and in-transit states, confirmation, cancellation, idempotency, and
-auditability.
-
-The phase identity is therefore unambiguous. Its exact implementation and
-legacy-import scope still require a planning gate before work begins.
+This document authorizes no implementation, schema or RBAC deployment, legacy
+import, or staging write.
 
 ## Objective of the planning gate
 
-Reconcile the authoritative implementation, schema, approved business rules,
-legacy evidence, and open decisions into an auditable FASE 7 plan. At minimum,
-planning must distinguish:
+Produce an auditable implementation plan for the sales application layer and
+REST API on top of the FASE 7A structural foundation. Planning must verify the
+current migration, Prisma schema, permission manifest, transaction design, and
+tests before defining any code change.
 
-- operational `Sale`/`SaleItem` creation from any legacy Sales import;
-- stock consumption at creation from in-transit confirmation, which must not
-  deduct stock again;
-- eligible full cancellation and exactly-once stock restoration;
-- multi-item and multi-warehouse locking and transaction boundaries;
-- actor, permission, idempotency, immutable movement, and audit requirements;
-- historical sales grouping, duplicates, orphans, state/payment ambiguity, and
-  unresolved mappings;
-- dependencies on deferred legacy Movimientos and later finance/closing phases.
+The planned FASE 7B scope is:
 
-Planning must produce explicit gates for any schema, RBAC, legacy mapping, or
-persistent staging mutation. It must not silently combine operational sales
-implementation with Waves 3+ import work.
+- a transactional create-sale service requiring `sales.create`, with multiple
+  items and warehouses, deterministic balance locking, all-or-nothing stock
+  consumption, one coherent `SALE` movement per line, canonical money
+  calculations, actor-scoped idempotency, and one audit event;
+- read endpoints guarded by `sales.read`;
+- in-transit confirmation guarded by `sales.confirm_in_transit`, changing only
+  fulfillment from `IN_TRANSIT` to `COMPLETED`, without a second stock
+  deduction and without changing `paymentStatus`;
+- total cancellation guarded by `sales.cancel`, only for an eligible
+  `IN_TRANSIT + PENDING` sale, restoring each original warehouse balance
+  exactly once and appending one coherent `SALE_CANCELLATION` per line;
+- actor-scoped idempotency for creation, confirmation, and cancellation, with
+  only the key hash and canonical request hash persisted;
+- immutable ledger history, sanitized audit events, explicit RBAC checks, and
+  concurrency coverage shared with adjustments and transfers.
 
-## Evidence to review before planning
+Before implementation can be authorized, planning must resolve the still-open
+operational source of current price and cost used to create the mandatory
+non-negative item snapshots. The future DTO must not accept `saleNumber` or
+`paymentStatus`; those rules are already fixed by the approved decisions and
+the FASE 7A schema.
 
-Follow the authority order in `AGENTS.md`, then review at least:
+## Outside FASE 7B
+
+FASE 7B does not include:
+
+- sales UI;
+- legacy `Ventas` import or any Wave 3+ materialization;
+- resolution of legacy grouping, duplicates, missing movements, or historical
+  state/payment ambiguities;
+- finance or daily-closing implementation;
+- applying FASE 7A to staging, running bootstrap against staging, or creating,
+  confirming, or cancelling a real staging sale;
+- any other persistent staging write.
+
+Each excluded operational action requires its own explicit gate. In particular,
+planning or implementing FASE 7B does not authorize
+`STAGING_PHASE_7A_MIGRATION`, `FIRST_STAGING_SALE`, or a legacy import.
+
+## State that must remain unchanged
+
+- All 1,069 legacy `Movimientos` rows remain unimported.
+- The 25 legacy rows classified as transfers remain unimported.
+- Legacy sales remain deferred and unmaterialized.
+- `WAVES_3_PLUS_NOT_STARTED` remains true.
+- Historical ledger rows are never edited or deleted manually.
+- The staging snapshot recorded on 2026-08-23 remains historical evidence, not
+  live truth. Before a separate migration gate, revalidate the intended target
+  read-only, including that all four sales tables remain empty.
+
+## Required planning evidence
+
+Follow the authority order in `AGENTS.md`, then reconcile at minimum:
 
 - [CURRENT_STATE.md](CURRENT_STATE.md);
 - [APPROVED_DECISIONS.md](APPROVED_DECISIONS.md);
-- [phased-roadmap.md](../migration/phased-roadmap.md);
-- [runbook.md](../migration/runbook.md), especially FASE 7;
-- [traceability-matrix.md](../migration/traceability-matrix.md);
+- [phase-7a-sales-foundation.md](../database/phase-7a-sales-foundation.md);
 - [transaction-design.md](../architecture/transaction-design.md);
-- [module-boundaries.md](../architecture/module-boundaries.md);
-- [open-decisions.md](../legacy/open-decisions.md);
-- the current Prisma schema, sales-related tests, and legacy evidence.
+- [authorization-matrix.md](../architecture/authorization-matrix.md);
+- the current Prisma schema, migration SQL, permission manifest, and tests.
 
-Do not treat historical documents as overriding later approved decisions or
-tested code.
-
-## State that must remain unchanged during planning
-
-- The single approved staging transfer remains a consumed, non-repeatable gate.
-- Further staging writes require separate explicit authorization.
-- All 1,069 legacy `Movimientos` rows remain unimported.
-- The 25 legacy rows classified as transfers remain unimported.
-- Legacy sales and later finance/closing materialization remain pending.
-- `WAVES_3_PLUS_NOT_STARTED` remains true.
-- No manual edit or deletion of historical ledger rows is permitted.
+Historical planning and review documents remain evidence of how decisions were
+reached; they do not override the implemented FASE 7A foundation.
 
 ## Stop conditions
 
 Stop and request a separate decision before implementation if planning finds an
-unresolved requirement involving schema, migration, RBAC, sales grouping,
-duplicate resolution, historical state/payment interpretation, cancellation,
-in-transit behavior, idempotency persistence, or a real staging write.
+unresolved requirement involving schema, migration, RBAC, operational
+price/cost selection, sales grouping, duplicate resolution, historical
+state/payment interpretation, cancellation, in-transit behavior, idempotency
+persistence, or a real staging write.
 
-Completion of `PHASE_7_PLANNING` may recommend an implementation sequence. It
-does not itself authorize FASE 7 implementation, legacy import, or staging
+Completion of `PHASE_7B_PLANNING` may recommend an implementation sequence. It
+does not authorize FASE 7B implementation, sales UI, legacy import, or staging
 mutation.

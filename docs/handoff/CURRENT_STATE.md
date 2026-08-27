@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-08-23.
+Updated: 2026-08-27.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -14,7 +14,9 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
-- Functional baseline at FASE 6 completion:
+- Functional baseline at FASE 7A completion:
+  `e7eca53889a3554dea609be055fea2d38dfdd02f`.
+- Previous functional baseline at FASE 6 completion:
   `07c00472e28a55b9706cff4514c96000a1799a85`.
 - Initial cross-agent handoff commit:
   `e47b6ba87492fe991ce7cf63e17f0420e68a50a5`.
@@ -56,21 +58,28 @@ file.
 | 6 gate | The first controlled staging transfer was authorized, executed exactly once from the UI, and verified on 2026-08-23. `FIRST_STAGING_TRANSFER_PASS`. |
 | 6 regression | Concurrent shared-session renewal defect fixed and validated. `PHASE_6_CONCURRENCY_FIX_PASS`. |
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
+| 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
+- `PHASE_7A_SCHEMA_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
 - `PHASE_6_CONCURRENCY_FIX_PASS`
+- `STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`
+- `FIRST_STAGING_SALE_NOT_AUTHORIZED`
 - `WAVES_3_PLUS_NOT_STARTED`
 
 The first staging transfer gate is closed and passed. That authorization covered
 exactly one transfer; it is not general authorization to use transfers in
 staging. Further staging writes remain gate-controlled and require explicit
-authorization. FASE 7 has not started and is not authorized. Its planning gate
-is described in [NEXT_PHASE.md](NEXT_PHASE.md); planning is not execution.
+authorization. FASE 7A is complete only in the versioned repository. Its
+migration and bootstrap/RBAC change have not been applied to staging, and no
+staging sale is authorized. The next planning gate is described in
+[NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither implementation
+nor an operational write.
 
 ## Current capabilities
 
@@ -86,6 +95,16 @@ Write capabilities implemented:
 
 - audited atomic inventory adjustment;
 - atomic inventory transfer API and UI with persistent idempotency.
+
+Structural sales capabilities implemented:
+
+- persistent sales origin, operational numbering, actor-scoped idempotency,
+  lifecycle, immutability, monetary checks, and sale-item/ledger coherence;
+- `sales.read` in the bootstrap/RBAC manifest, granted only through `SALES`.
+
+No sales application service, endpoint, or UI is implemented. The structural
+foundation is not authorization to create, confirm, cancel, import, or expose a
+sale.
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -103,8 +122,9 @@ staging transfer still requires its own explicit human authorization.
 - `InventoryTransferItem` links a product and positive quantity to a transfer.
 
 The broader schema also contains authentication, audit, sales, legacy source,
-import batch, raw legacy record, and reconciliation models. Their presence does
-not mean deferred business modules are implemented or imported.
+import batch, raw legacy record, and reconciliation models. The sales schema is
+now hardened by FASE 7A, but its presence still does not mean the deferred sales
+application, UI, or legacy import is implemented.
 
 ## Last verified staging snapshot
 
@@ -129,6 +149,13 @@ The only real post-import inventory mutations are the controlled `ADJUSTMENT`
 validated in FASE 5C and the single controlled transfer validated by the FASE 6
 gate. Consolidated product stock was invariant across the transfer, no balance
 row was created, and no valuation was created, copied, or modified.
+
+This staging snapshot remains exactly the read-only snapshot verified on
+2026-08-23. FASE 7A did not mutate or revalidate staging. Before any future
+staging migration gate, positively verify the target and revalidate read-only
+that `sales`, `sale_items`, `sale_cancellations`, and
+`in_transit_confirmations` are still empty. The recorded empty state is an
+operational precondition to revalidate, not live truth.
 
 ## First staging transfer evidence
 
@@ -156,9 +183,13 @@ integration/concurrency suites.
 
 ## Current RBAC
 
+- The manifest contains 16 permissions and 15 role grants.
 - `inventory.read → INVENTORY_MANAGER`.
 - `inventory.adjust → INVENTORY_MANAGER`.
 - `transfers.create → INVENTORY_MANAGER`.
+- `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
+  `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
+- `sales.cancel` remains one direct grant only to Dylan; no role grants it.
 - `ADMIN` is not a superuser and has no permission bypass.
 - An active direct `DENY` overrides direct and role grants.
 - Authentication and active-user state remain prerequisites for every private
@@ -174,9 +205,8 @@ All versioned migrations, in order:
 1. `20260804044231_phase_3a_initial_structure`;
 2. `20260804164613_phase_3b_authentication_models`;
 3. `20260806042328_phase_3b_user_permission_effect`;
-4. `20260820170000_phase_6a_transfer_foundation`.
-
-No later migration is part of this handoff.
+4. `20260820170000_phase_6a_transfer_foundation`;
+5. `20260826232758_phase_7a_sales_foundation`.
 
 ## Current transfer architecture
 
@@ -198,6 +228,37 @@ No later migration is part of this handoff.
 
 See [transaction-design.md](../architecture/transaction-design.md) and
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
+
+## Current sales architecture
+
+- `SaleOrigin` has exactly `OPERATIONAL` and `LEGACY_IMPORT`. `origin` is
+  required and has no Prisma or PostgreSQL default, so every writer must state
+  intent explicitly.
+- Operational `saleNumber` values come from
+  `operational_sale_number_seq`, a `BIGINT` sequence from 1 through 999999999
+  with `NO CYCLE`, formatted as `VTA-000000001`. The client must never provide
+  an operational number, and no writer may derive it with `MAX + 1`. Sequence
+  gaps are accepted.
+- `createdByUserId` is physically nullable for future legacy preservation but
+  required by CHECK for `OPERATIONAL`; its user FK uses `ON DELETE RESTRICT ON
+  UPDATE RESTRICT`.
+- Creation, cancellation, and in-transit confirmation persist only a lowercase
+  SHA-256 idempotency-key hash and a canonical request hash, each scoped by its
+  actor. The original idempotency key is never persisted.
+- Constraints, partial unique indexes, functions, immediate guards, and
+  deferred constraint triggers protect immutable business fields, lifecycle,
+  terminal documents, and ledger coherence. A deferred trigger rejects an
+  operational sale without at least one `SaleItem` at commit.
+- Every operational line requires exactly one coherent `SALE` movement. A sale
+  without cancellation requires zero `SALE_CANCELLATION` movements; a cancelled
+  operational sale requires exactly one coherent `SALE_CANCELLATION` per line.
+- Header money and present item snapshots cannot be negative. Operational item
+  snapshots are mandatory; legacy snapshots may remain null but cannot be
+  negative when present.
+
+See [phase-7a-sales-foundation.md](../database/phase-7a-sales-foundation.md),
+[transaction-design.md](../architecture/transaction-design.md), and
+[APPROVED_DECISIONS.md](APPROVED_DECISIONS.md).
 
 ## Backups and external state
 
@@ -239,12 +300,13 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-23 after the concurrency fix: 125 unit tests, 149
-integration/concurrency tests, and 17 Chromium E2E tests passed. Format, lint,
-typecheck, Prisma validation, and build also passed. Integration and E2E used
-only temporary local databases created and dropped per run; staging was not
-used as a test target. A new agent must rerun the relevant baseline rather than
-assuming this result is still current.
+Revalidated on 2026-08-27 after FASE 7A: 45 files / 126 unit tests, 18 files /
+162 integration and concurrency tests, and 17/17 Chromium E2E tests passed.
+Format, lint (8/8 tasks), typecheck (7/7 tasks), Prisma validation, and build
+(7/7 tasks) also passed. Integration and E2E used only temporary local
+databases created and dropped by each run; staging was never a test target.
+This is versioned/local evidence, not evidence that the FASE 7A migration or
+RBAC change has been applied to staging.
 
 ## Historical-document caveats
 
@@ -258,10 +320,15 @@ Some versioned documents intentionally preserve earlier snapshots:
   transfer application as future or GitHub as private;
 - documents written before the FASE 6 closeout may still describe the first
   staging transfer as pending, unauthorized, or never executed, or FASE 6 as
-  merely a completion candidate.
+  merely a completion candidate;
+- the FASE 7 planning review and approval-time wording in
+  `APPROVED_DECISIONS.md` may still describe the FASE 7A implementation or
+  `sales.read` bootstrap change as future. They preserve their earlier decision
+  context; the implementation status is now established by the versioned
+  migration, Prisma schema, bootstrap manifest, tests, and this handoff.
 
 Do not rewrite those historical decisions as if later state always existed. For
-current RBAC, transfer implementation, repository exposure, and operational
-milestones, follow the authority order in `AGENTS.md` and verify code/tests plus
-this handoff. These known documentation lags are not authorization to modify
-functionality or external state.
+current RBAC, transfer and FASE 7A implementation, repository exposure, and
+operational milestones, follow the authority order in `AGENTS.md` and verify
+code/tests plus this handoff. These known documentation lags are not
+authorization to modify functionality or external state.
