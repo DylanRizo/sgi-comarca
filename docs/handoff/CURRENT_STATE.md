@@ -62,12 +62,15 @@ file.
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
+| 7C.1 | Sales read UI complete: list with server-side filters and pagination, and sale detail with lines and totals. Static checks, build and the unit suite passed locally on 2026-08-28. Versioned only; no staging deployment and no sale mutation surface. `PHASE_7C_1_COMPLETE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
 - `PHASE_7B_COMPLETE`
+- `PHASE_7C_SELECTED`
+- `PHASE_7C_1_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -125,9 +128,28 @@ Sales application capabilities implemented by FASE 7B, versioned only:
 
 This code was validated on 2026-08-28 against temporary PostgreSQL databases,
 including lifecycle, shared-stock concurrency with adjustments/transfers and
-the existing E2E regression. No sales UI is implemented. A closed phase is not
-authorization to create, confirm, cancel, import, or expose a real sale. See
+the existing E2E regression. A closed phase is not authorization to create,
+confirm, cancel, import, or expose a real sale. See
 [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
+
+Sales UI capabilities implemented by FASE 7C.1, versioned only:
+
+- `/sales`, a list with server-resolved filters for fulfillment, payment,
+  warehouse and a civil date range, server-side pagination, and the mobile
+  presentation the shared table styles already provide;
+- `/sales/[id]`, a detail view with each line's product, warehouse, quantity,
+  unit price, subtotal and shipping allocation, plus header totals;
+- a `Ventas` navigation entry rendered only with `sales.read`, which is
+  navigation and not authorization: the API still authorizes every request;
+- no cost or margin anywhere on either screen, and fulfillment and payment
+  always rendered as two independent states;
+- no mutation surface: creating, confirming, and cancelling a sale are FASE
+  7C.2 and 7C.3.
+
+The warehouse filter requests the warehouse catalog only when the session holds
+`inventory.read`, which a `SALES` account does not; otherwise it is built from
+the warehouses present in the loaded sales. A failed catalog read never hides
+readable sales.
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -341,6 +363,31 @@ fixture and added contract/mapper comments about decimal scale; it changes no
 runtime behavior, and the unit baseline it produced is 51 files / 163 tests
 with lint, typecheck and build green. The integration and E2E suites were not
 re-executed after it, because no Docker harness was available in that session.
+
+## FASE 7C.1 verification and its limits
+
+Verified on 2026-08-28 in the session that implemented FASE 7C.1: Prettier
+`--check` over the repository, Prisma validation, and lint, typecheck and build
+green for every workspace whose dependencies could be installed, plus 35 files
+/ 136 unit tests passing.
+
+That scope is narrower than the FASE 7B baseline, and the reason is
+environmental rather than a regression. `packages/legacy-profiler` declares
+`xlsx` from `https://cdn.sheetjs.com`, a host the session's network policy
+refuses, so `pnpm install` could not complete for that package or for
+`packages/legacy-importer`, which depends on it. Their lint, typecheck, build
+and unit tests were therefore not executed. Nothing in FASE 7C.1 touches either
+package.
+
+Integration and E2E were likewise not executed: no Docker harness was available.
+The pending debt to re-run `pnpm test:integration` recorded in
+[NEXT_PHASE.md](NEXT_PHASE.md) is therefore still open, and now also covers
+FASE 7C.1. FASE 7C.1 is frontend-only and adds no server behaviour, but a
+Playwright flow for the sales read surface has not been written yet.
+
+The next agent with a full network and Docker should close both gaps by running
+the complete `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`
+and `pnpm build` baselines.
 Re-running `pnpm test:integration` at the next opportunity would close that
 small evidence gap.
 
