@@ -1043,3 +1043,160 @@ a:focus-visible {
     text-transform: uppercase;
   }
 }
+
+/* Sales (FASE 7C) */
+
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.form-feedback[data-tone='success'] {
+  border-left-color: var(--accent);
+  background: #eaf6ef;
+  color: #14513a;
+}
+
+.form-feedback[data-tone='warning'] {
+  border-left-color: #b8860b;
+  background: #fff8e6;
+  color: #6b4f05;
+}
+
+.danger-button {
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--danger);
+  border-radius: 0.6rem;
+  background: var(--danger);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sale-form-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.sale-lines {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+}
+
+.sale-line {
+  display: grid;
+  gap: 0.7rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  align-items: end;
+}
+
+.sale-line:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sale-line label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.sale-line-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sale-actions {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.sale-cancel-panel {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.sale-cancel-panel label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.sale-actions-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.detail-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.totals-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.totals-total strong {
+  font-size: 1.3rem;
+}
+
+.status-badge[data-tone='transit'] {
+  background: #fff8e6;
+  color: #6b4f05;
+}
+
+.status-badge[data-tone='completed'] {
+  background: #eaf6ef;
+  color: #14513a;
+}
+
+.status-badge[data-tone='cancelled'] {
+  background: #fff0ed;
+  color: #7c2018;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

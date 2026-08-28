@@ -6,6 +6,7 @@ import type { Route } from 'next';
 import { useEffect, useState } from 'react';
 
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
+import { SaleLifecycleActions } from '@/components/sales/sale-lifecycle-actions';
 import { salesApi } from '@/lib/http/sales-api';
 import {
   formatMoney,
@@ -180,6 +181,8 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
               <strong>{formatMoney(sale.total, sale.currencyCode)}</strong>
             </div>
           </section>
+
+          <SaleLifecycleActions onUpdated={setSale} sale={sale} />
         </>
       ) : null}
     </main>
