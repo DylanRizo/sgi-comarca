@@ -22,6 +22,9 @@ export function AuthenticatedShell({
   if (state.kind !== 'authenticated') return null;
 
   const canReadInventory = state.session.permissions.includes('inventory.read');
+  // Hiding the entry is navigation, not authorization: every sales request is
+  // still authorized by the API against `sales.read`.
+  const canReadSales = state.session.permissions.includes('sales.read');
 
   return (
     <div className="application-shell">
@@ -56,6 +59,18 @@ export function AuthenticatedShell({
                 </Link>
               ))
             : null}
+          {canReadSales ? (
+            <Link
+              aria-current={
+                pathname === '/sales' || pathname.startsWith('/sales/')
+                  ? 'page'
+                  : undefined
+              }
+              href={'/sales' as Route}
+            >
+              Ventas
+            </Link>
+          ) : null}
         </nav>
         <div className="application-user">
           <span>{state.session.displayName}</span>

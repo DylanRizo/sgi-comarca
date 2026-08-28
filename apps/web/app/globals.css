@@ -576,9 +576,28 @@ a {
   font-weight: 700;
 }
 
-.status-badge[data-active='true'] {
+.status-badge[data-active='true'],
+.status-badge[data-tone='positive'] {
   background: #e7f5ec;
   color: var(--accent-strong);
+}
+
+.status-badge[data-tone='neutral'] {
+  background: #e8eef4;
+  color: #2a4a68;
+}
+
+/* Overrides the generic `[data-tone]` text rule, which sets colour only. */
+.status-badge[data-tone='warning'] {
+  background: #f5e9d8;
+  color: #7b4908;
+}
+
+.sale-state-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-self: flex-start;
 }
 
 .pagination-controls {
@@ -791,13 +810,17 @@ a {
   opacity: 0.5;
 }
 
-.product-facts {
+.product-facts,
+.sale-facts,
+.sale-totals {
   display: grid;
   gap: 0.8rem;
   margin: 0;
 }
 
-.product-facts > div {
+.product-facts > div,
+.sale-facts > div,
+.sale-totals > div {
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.8rem;
@@ -805,6 +828,8 @@ a {
 }
 
 .product-facts dt,
+.sale-facts dt,
+.sale-totals dt,
 .balance-card dt {
   color: var(--muted);
   font-size: 0.78rem;
@@ -813,6 +838,8 @@ a {
 }
 
 .product-facts dd,
+.sale-facts dd,
+.sale-totals dd,
 .balance-card dd {
   margin: 0.3rem 0 0;
   font-weight: 700;
@@ -931,7 +958,9 @@ a {
     justify-self: start;
   }
 
-  .product-facts {
+  .product-facts,
+  .sale-facts,
+  .sale-totals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -992,12 +1021,18 @@ a:focus-visible {
     grid-template-columns: minmax(16rem, 1fr) minmax(12rem, 0.65fr) auto auto;
   }
 
-  .movement-filters {
+  .movement-filters,
+  .sales-filters {
     grid-template-columns: repeat(3, minmax(10rem, 1fr));
   }
 
-  .product-facts {
+  .product-facts,
+  .sale-facts {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sale-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .balance-grid {
