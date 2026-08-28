@@ -13,6 +13,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 
 import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
+import { CreateSaleDialog } from '@/components/sales/create-sale-dialog';
 import { inventoryApi } from '@/lib/http/inventory-api';
 import { type SalesQuery, salesApi } from '@/lib/http/sales-api';
 import { formatMoney } from '@/lib/inventory/presentation';
@@ -59,7 +60,9 @@ const emptyDraft: SalesDraft = {
 };
 
 export function SalesListView() {
-  const { refreshSession } = useAuth();
+  const { refreshSession, state: authState } = useAuth();
+  const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState<SalesDraft>(emptyDraft);
   const [filters, setFilters] = useState<SalesQuery>({});
   const [error, setError] = useState<unknown>(null);
@@ -112,6 +115,10 @@ export function SalesListView() {
   }
 
   const errorPresentation = error ? presentReadError(error) : null;
+  // Hiding the control is presentation; the backend authorizes the request.
+  const canCreate =
+    authState.kind === 'authenticated' &&
+    authState.session.permissions.includes('sales.create');
 
   return (
     <main className="content-page" id="main-content">
@@ -124,12 +131,32 @@ export function SalesListView() {
             La entrega y el pago son estados independientes.
           </p>
         </div>
-        {state ? (
-          <span className="result-count">
-            {state.sales.pagination.totalItems} ventas
-          </span>
-        ) : null}
+        <div className="page-heading-actions">
+          {state ? (
+            <span className="result-count">
+              {state.sales.pagination.totalItems} ventas
+            </span>
+          ) : null}
+          {canCreate ? (
+            <button
+              className="primary-button"
+              onClick={() => {
+                setNotice(null);
+                setCreating(true);
+              }}
+              type="button"
+            >
+              Registrar venta
+            </button>
+          ) : null}
+        </div>
       </header>
+
+      {notice ? (
+        <div className="form-feedback" data-tone="success" role="status">
+          {notice}
+        </div>
+      ) : null}
 
       <form className="filter-bar movement-filters" onSubmit={submit}>
         <label className="filter-field">
@@ -299,6 +326,23 @@ export function SalesListView() {
             pagination={state.sales.pagination}
           />
         </>
+      ) : null}
+
+      {creating ? (
+        <CreateSaleDialog
+          onCancel={() => setCreating(false)}
+          onSuccess={(sale) => {
+            setCreating(false);
+            setNotice(
+              'Venta ' +
+                sale.saleNumber +
+                ' registrada. El pago queda pendiente.',
+            );
+            setLoading(true);
+            setPage(1);
+            setReload((value) => value + 1);
+          }}
+        />
       ) : null}
     </main>
   );
