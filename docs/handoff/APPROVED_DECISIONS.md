@@ -40,6 +40,34 @@ ADR, architecture document, migration, and tests.
   inventory or payment write. Only `IN_TRANSIT + PENDING` is cancellable, and
   cancellation restores inventory exactly once; `COMPLETED` is not
   cancellable.
+- The authoritative operational price/cost source for a sale line is the unique
+  `InventoryBalance` identified by product and warehouse. The service reads
+  `currentUnitPrice`, `currentUnitCost`, `priceReviewRequired`, and
+  `costReviewRequired` while the balance is locked. It does not consult or
+  write `ProductWarehouseValuation`, which remains append-only historical
+  evidence.
+- A missing product/warehouse balance rejects the complete sale with a typed
+  domain error and HTTP 422. `currentUnitCost` is always server-owned: `NULL`
+  rejects the sale, zero is valid and remains zero, and the client never sends
+  a cost.
+- `currentUnitPrice` is the reference price. The client may omit `unitPrice` or
+  supply a non-negative override. Omission uses the reference; if the reference
+  is `NULL` and no override exists, the complete sale is rejected with HTTP
+  422. A supplied value different from the reference is persisted as the price
+  snapshot and audited with both values in sanitized metadata.
+- `priceReviewRequired` and `costReviewRequired` do not block an operational
+  sale. The selected values remain usable under DEC-015, and the audit event
+  records the affected product, warehouse, and review flags without exposing
+  private data.
+- The server always recalculates `lineSubtotal`, `subtotal`, shipping
+  allocation, and `total` with Decimal values. The client never supplies a line
+  subtotal, aggregate subtotal, total, shipping allocation, or cost. Although
+  legacy Ventas had an editable unit-price column, it trusted browser
+  calculations and had no cost column; immutable price/cost snapshot semantics
+  and canonical server calculation are new FASE 7A/7B guarantees.
+
+See [ADR-009](../decisions/ADR-009-sales-pricing-cost.md) for DEC-014/DEC-015
+and the operational pricing boundary.
 
 ## RBAC
 
@@ -53,11 +81,12 @@ ADR, architecture document, migration, and tests.
   `closings.create`, and `closings.reopen`.
 - `INVENTORY_MANAGER` grants `inventory.adjust`, `inventory.read`, and
   `transfers.create`.
-- `SALES` grants `sales.create` and `sales.confirm_in_transit`.
-- `sales.read` is approved as a new permission granted only by `SALES`; its
-  bootstrap/schema implementation remains a separate future gate. Sales GET
-  endpoints must require it. `ADMIN`, `FINANCE`, and `READ_ONLY` do not receive
-  it implicitly, and a direct `DENY` continues to prevail.
+- `SALES` grants `sales.create`, `sales.confirm_in_transit`, and `sales.read`.
+- `sales.read` is implemented in the versioned bootstrap manifest and granted
+  only by `SALES`. Sales GET endpoints must require it. `ADMIN`, `FINANCE`,
+  `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it implicitly,
+  and a direct `DENY` continues to prevail. Applying the bootstrap change to
+  staging remains a separate unauthorized persistent gate.
 - `PARTNER` and `READ_ONLY` have no grants initially.
 - Dylan has `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, and `SALES`, plus direct
   `sales.cancel`. Samantha has `FINANCE`, `INVENTORY_MANAGER`, and `SALES`.

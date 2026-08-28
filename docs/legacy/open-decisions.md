@@ -1,5 +1,43 @@
 # Decisiones humanas pendientes
 
+## Actualización FASE 7B — 2026-08-27
+
+El propietario resolvió DEC-014 para ventas operacionales. La pregunta
+histórica se conserva: inicialmente se comparaban el precio global de Productos
+y 76 observaciones diferentes de Inventario, sin una fuente aprobada. La
+decisión vigente no elige ninguno de esos textos directamente ni promedia
+almacenes.
+
+`InventoryBalance` es la fuente operacional autoritativa de precio y costo para
+la pareja producto+almacén de cada línea. Su unicidad materializa un solo valor
+vigente: `currentUnitPrice` y `currentUnitCost`. Los valores se originaron en el
+último snapshot válido ya resuelto durante Waves 1–2, conforme a DEC-005 y
+DEC-015. `ProductWarehouseValuation` conserva evidencia histórica append-only,
+admite múltiples observaciones y no se consulta ni se escribe al crear una
+venta.
+
+Reglas aprobadas:
+
+- sin `InventoryBalance`, la venta se rechaza con error tipado y HTTP 422;
+- el costo siempre viene de `currentUnitCost`; `NULL` se rechaza, cero se
+  conserva como cero y el cliente nunca envía costo;
+- `currentUnitPrice` es la referencia; el cliente puede omitir `unitPrice` o
+  enviar un valor no negativo; si lo omite y la referencia es `NULL`, la venta
+  se rechaza con HTTP 422;
+- un precio enviado diferente de la referencia es un override explícito y
+  auditado; el servidor recalcula línea, subtotal y total;
+- `priceReviewRequired` o `costReviewRequired` no bloquean la venta: el evento
+  de auditoría registra producto, almacén y flags de revisión.
+
+El legacy respalda el modelo híbrido de precio: Productos prellenaba un valor
+editable y aceptaba cero, mientras el backend confiaba indebidamente en precio
+y subtotal del navegador. La hoja Ventas conserva precio unitario, pero no
+contiene costo. Los snapshots operacionales inmutables y el cálculo canónico de
+servidor son garantías nuevas de FASE 7A/7B; en particular,
+`unitCostSnapshot` no representa una columna legacy de Ventas.
+
+Decisión formal: [ADR-009](../decisions/ADR-009-sales-pricing-cost.md).
+
 ## Actualización FASE 6A — 2026-08-20
 
 El propietario aprobó `transfers.create → INVENTORY_MANAGER`. El permiso no
@@ -61,7 +99,7 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | DEC-011 | `Unidad` vs `Unidades` | 93 productos usan singular fuera del catálogo | Catálogo explícito de 14 Units; alias versionado `Unidad → Unidades` | `RESOLVED_IN_PHASE_4B` |
 | DEC-012 | Normalización de personas | Variantes ortográficas y mayúsculas | Preservar original y generar candidatos, sin fusionar | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-013 | Normalización de canales | `Facebook`, `Facebook Marketplace`, 117 vacíos | Preservar; nulos permanecen desconocidos | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-014 | Fuente de precio vigente | Productos vs 76 filas de Inventario diferentes | Productos como precio actual solo si se aprueba; conservar snapshots de ambos | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-014 | Fuente de precio vigente | Contexto histórico: Productos vs 76 filas de Inventario diferentes. Decisión posterior: `InventoryBalance` único por producto+almacén contiene los valores vigentes ya resueltos. | Leer `currentUnitPrice`/`currentUnitCost`; permitir override de precio auditado; nunca consultar `ProductWarehouseValuation` ni aceptar costo/subtotales del cliente. | `RESOLVED_FOR_PHASE_7B` |
 | DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Waves 1–2 conservan costo/precio por warehouse y cero con issue; margen/analytics posteriores siguen separados | `APPROVED_FOR_WAVES_1_2` |
 | DEC-016 | Estado de 401 líneas de venta | Q vacía; código las trata como Completado | Importar estado legacy nulo y una clasificación inferida separada | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar nulo; no derivar estado | `REQUIRES_HUMAN_APPROVAL` |
@@ -174,6 +212,17 @@ capacidades de módulos futuros, especialmente transferencias. Consulte
 - definición de margen cuando el costo no sea confiable;
 - uso analítico de inconsistencias históricas más allá de la preservación y
   reconciliación aprobadas.
+
+`APPROVED_FOR_PHASE_7B_OPERATIONAL_SALES`:
+
+- la venta lee precio/costo vigentes de la fila única de `InventoryBalance` por
+  producto+almacén;
+- costo `NULL` se rechaza, costo cero se usa sin sustitución;
+- un valor marcado para revisión sigue siendo utilizable y deja evidencia
+  saneada en auditoría;
+- FASE 7B no consulta ni escribe `ProductWarehouseValuation`; su protección
+  append-only continúa siendo requisito previo únicamente para un futuro
+  escritor operacional de valoraciones.
 
 ### DEC-025 — reapertura de cierres
 
