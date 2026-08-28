@@ -56,6 +56,29 @@ describe('mapSale', () => {
     expect(view.items[0]?.unitPriceSnapshot).toBe('10.00');
   });
 
+  it('restores the canonical money scale stripped by Prisma Decimal', () => {
+    const value = sale({
+      shippingAmount: decimal('0'),
+      subtotal: decimal('23.5'),
+      total: decimal('23.5'),
+    });
+    const [item] = value.items;
+    if (item) {
+      item.lineSubtotal = decimal('20');
+      item.shippingAllocation = decimal('0');
+      item.unitPriceSnapshot = decimal('10');
+    }
+
+    const view = mapSale(value);
+
+    expect(view.shippingAmount).toBe('0.00');
+    expect(view.subtotal).toBe('23.50');
+    expect(view.total).toBe('23.50');
+    expect(view.items[0]?.lineSubtotal).toBe('20.00');
+    expect(view.items[0]?.shippingAllocation).toBe('0.00');
+    expect(view.items[0]?.unitPriceSnapshot).toBe('10.00');
+  });
+
   it('never exposes unit cost or persisted hashes', () => {
     const view = mapSale(sale());
     const serialized = JSON.stringify(view);

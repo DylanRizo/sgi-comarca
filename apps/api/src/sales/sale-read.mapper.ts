@@ -6,6 +6,8 @@ import type {
   SaleView,
 } from '@sgi/contracts';
 
+import { centsToMoney, moneyToCents } from './sale-money.js';
+
 interface DecimalLike {
   toString(): string;
 }
@@ -53,15 +55,26 @@ function civilDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+function moneyString(value: DecimalLike): string {
+  const cents = moneyToCents(value.toString());
+  if (cents === null) {
+    throw new Error('Persisted sale money is outside Decimal(18,2).');
+  }
+  return centsToMoney(cents);
+}
+
 function saleItemView(item: SaleItemRecord): SaleItemView {
   return {
     id: item.id,
-    lineSubtotal: item.lineSubtotal.toString(),
+    lineSubtotal: moneyString(item.lineSubtotal),
     product: item.product,
     quantity: item.quantity.toString(),
-    shippingAllocation: item.shippingAllocation.toString(),
+    shippingAllocation: moneyString(item.shippingAllocation),
     // Operational snapshots are mandatory; a legacy row may hold null.
-    unitPriceSnapshot: item.unitPriceSnapshot?.toString() ?? null,
+    unitPriceSnapshot:
+      item.unitPriceSnapshot === null
+        ? null
+        : moneyString(item.unitPriceSnapshot),
     warehouse: {
       active: item.warehouse.active,
       code: item.warehouse.code,
@@ -91,9 +104,9 @@ export function mapSale(sale: SaleRecord): SaleView {
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
     sellerUserId: sale.sellerUserId,
-    shippingAmount: sale.shippingAmount.toString(),
+    shippingAmount: moneyString(sale.shippingAmount),
     status: sale.status,
-    subtotal: sale.subtotal.toString(),
-    total: sale.total.toString(),
+    subtotal: moneyString(sale.subtotal),
+    total: moneyString(sale.total),
   };
 }
