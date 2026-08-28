@@ -4,7 +4,17 @@ export interface ReadErrorPresentation {
   tone: 'error' | 'warning';
 }
 
-export function presentReadError(error: unknown): ReadErrorPresentation {
+/**
+ * Map a failed read to a safe, Spanish presentation.
+ *
+ * `requiredPermission` only names the permission the surface needs, so a 403
+ * tells the user which grant is missing instead of a generic refusal. It never
+ * changes what the caller may see: authorization is decided by the API.
+ */
+export function presentReadError(
+  error: unknown,
+  requiredPermission = 'inventory.read',
+): ReadErrorPresentation {
   const status =
     error && typeof error === 'object' && 'status' in error
       ? error.status
@@ -19,8 +29,7 @@ export function presentReadError(error: unknown): ReadErrorPresentation {
     }
     if (status === 403) {
       return {
-        message:
-          'Tu cuenta no tiene el permiso inventory.read requerido para esta consulta.',
+        message: `Tu cuenta no tiene el permiso ${requiredPermission} requerido para esta consulta.`,
         title: 'Sin permiso de lectura',
         tone: 'warning',
       };

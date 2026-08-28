@@ -13,7 +13,7 @@ import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
 import { inventoryApi } from '@/lib/http/inventory-api';
 import { formatQuantity, productRows } from '@/lib/inventory/presentation';
-import { presentReadError } from '@/lib/inventory/read-error';
+import { presentReadError } from '@/lib/http/read-error';
 import { useAuth } from '@/providers/auth-provider';
 
 type ActiveFilter = 'all' | 'false' | 'true';

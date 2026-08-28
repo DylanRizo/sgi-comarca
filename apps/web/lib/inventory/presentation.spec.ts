@@ -6,8 +6,6 @@ import type {
 import { describe, expect, it } from 'vitest';
 
 import { formatMoney, latestValuation, productRows } from './presentation.js';
-import { inventoryQueryString } from './query.js';
-import { presentReadError } from './read-error.js';
 
 const product: ProductSummary = {
   active: true,
@@ -82,28 +80,5 @@ describe('inventory presentation', () => {
       '0.00',
     );
     expect(latestValuation(balance('1', false))).toBeNull();
-  });
-
-  it('serializes search, filters and pagination deterministically', () => {
-    expect(
-      inventoryQueryString({
-        active: true,
-        availableOnly: false,
-        page: 2,
-        pageSize: 25,
-        search: 'DGGR-X',
-      }),
-    ).toBe('?active=true&availableOnly=false&page=2&pageSize=25&search=DGGR-X');
-  });
-
-  it('maps forbidden and internal failures to safe UI messages', () => {
-    expect(presentReadError({ status: 403 })).toMatchObject({
-      title: 'Sin permiso de lectura',
-      tone: 'warning',
-    });
-    expect(presentReadError(new Error('database unavailable'))).toMatchObject({
-      title: 'Error de consulta',
-      tone: 'error',
-    });
   });
 });

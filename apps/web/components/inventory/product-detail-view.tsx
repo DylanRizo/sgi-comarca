@@ -13,7 +13,7 @@ import {
   formatQuantity,
   latestValuation,
 } from '@/lib/inventory/presentation';
-import { presentReadError } from '@/lib/inventory/read-error';
+import { presentReadError } from '@/lib/http/read-error';
 import { useAuth } from '@/providers/auth-provider';
 
 export function ProductDetailView({

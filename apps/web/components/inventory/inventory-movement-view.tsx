@@ -15,7 +15,7 @@ import {
   type InventoryMovementQuery,
   inventoryApi,
 } from '@/lib/http/inventory-api';
-import { presentReadError } from '@/lib/inventory/read-error';
+import { presentReadError } from '@/lib/http/read-error';
 import { formatObservedAt, formatQuantity } from '@/lib/inventory/presentation';
 import { useAuth } from '@/providers/auth-provider';
 

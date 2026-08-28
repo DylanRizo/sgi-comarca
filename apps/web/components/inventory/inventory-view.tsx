@@ -22,7 +22,7 @@ import {
 import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
 import { inventoryApi } from '@/lib/http/inventory-api';
-import { presentReadError } from '@/lib/inventory/read-error';
+import { presentReadError } from '@/lib/http/read-error';
 import { formatQuantity } from '@/lib/inventory/presentation';
 import { useAuth } from '@/providers/auth-provider';
 

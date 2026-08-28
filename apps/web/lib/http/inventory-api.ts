@@ -12,7 +12,7 @@ import type {
 } from '@sgi/contracts';
 
 import { apiRequest } from './api-client';
-import { inventoryQueryString } from '../inventory/query';
+import { searchQueryString } from './query';
 
 export interface CatalogQuery {
   active?: boolean;
@@ -65,8 +65,8 @@ export const inventoryApi = {
     const filters = { ...query };
     delete filters.warehouseId;
     const path = query.warehouseId
-      ? `/api/v1/inventory/warehouses/${encodeURIComponent(query.warehouseId)}${inventoryQueryString(filters)}`
-      : `/api/v1/inventory${inventoryQueryString(query)}`;
+      ? `/api/v1/inventory/warehouses/${encodeURIComponent(query.warehouseId)}${searchQueryString(filters)}`
+      : `/api/v1/inventory${searchQueryString(query)}`;
     return apiRequest<PaginatedData<ProductInventoryView>>(
       path,
       signal ? { signal } : {},
@@ -75,7 +75,7 @@ export const inventoryApi = {
   allInventory,
   movements: (query: InventoryMovementQuery, signal?: AbortSignal) =>
     apiRequest<PaginatedData<InventoryMovementView>>(
-      `/api/v1/inventory/movements${inventoryQueryString(query)}`,
+      `/api/v1/inventory/movements${searchQueryString(query)}`,
       signal ? { signal } : {},
     ),
   productInventory: (productId: string, signal?: AbortSignal) =>
@@ -85,7 +85,7 @@ export const inventoryApi = {
     ),
   products: (query: CatalogQuery, signal?: AbortSignal) =>
     apiRequest<PaginatedData<ProductSummary>>(
-      `/api/v1/products${inventoryQueryString(query)}`,
+      `/api/v1/products${searchQueryString(query)}`,
       signal ? { signal } : {},
     ),
   transfer: (
