@@ -14,16 +14,27 @@ Current state:
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
 - **`PHASE_7B_PLANNING_COMPLETE`**
-- **`PHASE_7B_1_AUTHORIZED`** — contracts and pure domain only, no persistence.
-- **`PHASE_7B_2_THROUGH_5_NOT_AUTHORIZED`**
+- **`PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`** — blocks 7B.1 through 7B.4
+  are implemented and committed; the owner delegated the remaining code work.
+- **`PHASE_7B_COMPLETION_CANDIDATE_NOT_DECLARED`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_7B_2_READ`**
+- **`NEXT_GATE = PHASE_7B_INTEGRATION_VERIFICATION`**
 
-This document authorizes only FASE 7B.1 (contracts and pure domain, no
-persistence). It authorizes no further implementation block, schema or RBAC
-deployment, legacy import, or staging write.
+This document authorizes no schema or RBAC deployment, legacy import, UI, or
+staging write. FASE 7B code exists but is unverified against real PostgreSQL.
+
+## Next gate — integration verification
+
+FASE 7B cannot be closed until, in a Docker-enabled session:
+
+1. `pnpm test:integration` runs and the two new sales suites pass;
+2. the concurrency suites required by the plan are added and pass;
+3. the E2E baseline is re-run as regression.
+
+See [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md)
+for exactly what was and was not verified.
 
 ## FASE 7B.1 authorization — 2026-08-27
 

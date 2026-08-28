@@ -59,11 +59,14 @@ file.
 | 6 regression | Concurrent shared-session renewal defect fixed and validated. `PHASE_6_CONCURRENCY_FIX_PASS`. |
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
+| 7B | Sales application layer and REST API implemented in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. Lint, typecheck, build, and unit tests pass. Integration and concurrency verification against real PostgreSQL was NOT executed, so the phase is not a completion candidate. `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
+- `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`
+- `PHASE_7B_COMPLETION_CANDIDATE_NOT_DECLARED`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -102,9 +105,26 @@ Structural sales capabilities implemented:
   lifecycle, immutability, monetary checks, and sale-item/ledger coherence;
 - `sales.read` in the bootstrap/RBAC manifest, granted only through `SALES`.
 
-No sales application service, endpoint, or UI is implemented. The structural
-foundation is not authorization to create, confirm, cancel, import, or expose a
-sale.
+Sales application capabilities implemented by FASE 7B, versioned only:
+
+- `GET /api/v1/sales` and `GET /api/v1/sales/:id` guarded by `sales.read`,
+  which never select or emit `unitCostSnapshot`, hashes, delivery place, or
+  legacy free text;
+- `POST /api/v1/sales` guarded by `sales.create`: one transaction, deterministic
+  locking in `(product_id, warehouse_id)` order, ADR-009 price/cost resolution
+  from the locked balance, server-side money, one coherent `SALE` movement per
+  line, actor-scoped idempotency, and one sanitized audit event;
+- `POST /api/v1/sales/:id/confirm-in-transit` guarded by
+  `sales.confirm_in_transit`, which changes only fulfillment and never touches
+  inventory or payment;
+- `POST /api/v1/sales/:id/cancel` guarded by `sales.cancel`, total only,
+  restoring each original balance exactly once.
+
+This code has not been validated against real PostgreSQL: the integration and
+lifecycle suites were written but never executed, and the planned concurrency
+suites do not exist yet. No sales UI is implemented. Implementation is not
+authorization to create, confirm, cancel, import, or expose a real sale. See
+[phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -307,6 +327,15 @@ Format, lint (8/8 tasks), typecheck (7/7 tasks), Prisma validation, and build
 databases created and dropped by each run; staging was never a test target.
 This is versioned/local evidence, not evidence that the FASE 7A migration or
 RBAC change has been applied to staging.
+
+After FASE 7B the unit baseline is 51 files / 161 unit tests, with lint (8/8),
+typecheck (7/7), and build (7/7) passing. **The integration, concurrency, and
+E2E baselines were not re-run**: the harness requires the Docker Compose
+PostgreSQL on port 5433, unavailable in that session, and pointing the suites at
+an unverified database would have violated positive target verification. The two
+new sales integration suites have therefore never executed. Re-running
+`pnpm test:integration` in a Docker-enabled session is a precondition for
+treating FASE 7B as verified.
 
 ## Historical-document caveats
 
