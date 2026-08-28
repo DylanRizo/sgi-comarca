@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-08-27.
+Updated: 2026-08-28.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -14,6 +14,8 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 7B implementation baseline:
+  `b75adfd102fcedfa60f26c37414de7c692478d75`.
 - Functional baseline at FASE 7A completion:
   `e7eca53889a3554dea609be055fea2d38dfdd02f`.
 - Previous functional baseline at FASE 6 completion:
@@ -59,14 +61,13 @@ file.
 | 6 regression | Concurrent shared-session renewal defect fixed and validated. `PHASE_6_CONCURRENCY_FIX_PASS`. |
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
-| 7B | Sales application layer and REST API implemented in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. Lint, typecheck, build, and unit tests pass. Integration and concurrency verification against real PostgreSQL was NOT executed, so the phase is not a completion candidate. `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`. |
+| 7B | Sales application layer and REST API implemented in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build pass locally. The phase is ready for owner review but is not closed. `PHASE_7B_COMPLETION_CANDIDATE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
-- `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`
-- `PHASE_7B_COMPLETION_CANDIDATE_NOT_DECLARED`
+- `PHASE_7B_COMPLETION_CANDIDATE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -80,7 +81,8 @@ exactly one transfer; it is not general authorization to use transfers in
 staging. Further staging writes remain gate-controlled and require explicit
 authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
-staging sale is authorized. The next planning gate is described in
+staging sale is authorized. FASE 7B is a locally verified completion candidate,
+not a closed or deployed phase. The next review gate is described in
 [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither implementation
 nor an operational write.
 
@@ -120,10 +122,10 @@ Sales application capabilities implemented by FASE 7B, versioned only:
 - `POST /api/v1/sales/:id/cancel` guarded by `sales.cancel`, total only,
   restoring each original balance exactly once.
 
-This code has not been validated against real PostgreSQL: the integration and
-lifecycle suites were written but never executed, and the planned concurrency
-suites do not exist yet. No sales UI is implemented. Implementation is not
-authorization to create, confirm, cancel, import, or expose a real sale. See
+This code was validated on 2026-08-28 against temporary PostgreSQL databases,
+including lifecycle, shared-stock concurrency with adjustments/transfers and
+the existing E2E regression. No sales UI is implemented. Candidate status is
+not authorization to create, confirm, cancel, import, or expose a real sale. See
 [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
 
 The transfer write path is implemented, tested, and validated end to end in
@@ -320,22 +322,18 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-27 after FASE 7A: 45 files / 126 unit tests, 18 files /
-162 integration and concurrency tests, and 17/17 Chromium E2E tests passed.
-Format, lint (8/8 tasks), typecheck (7/7 tasks), Prisma validation, and build
-(7/7 tasks) also passed. Integration and E2E used only temporary local
-databases created and dropped by each run; staging was never a test target.
-This is versioned/local evidence, not evidence that the FASE 7A migration or
-RBAC change has been applied to staging.
+Revalidated on 2026-08-28 after the FASE 7B verification fix: 51 files / 162
+unit tests, 21 files / 195 PostgreSQL integration and concurrency tests, and
+17/17 Chromium E2E tests passed. The dedicated sales concurrency suite passed
+9/9. Format, lint (8/8 tasks), typecheck (7/7 tasks), Prisma validation and
+build (7/7 tasks) also passed. OpenAPI was generated only in memory and included
+the four sales path forms; Swagger remains unmounted.
 
-After FASE 7B the unit baseline is 51 files / 161 unit tests, with lint (8/8),
-typecheck (7/7), and build (7/7) passing. **The integration, concurrency, and
-E2E baselines were not re-run**: the harness requires the Docker Compose
-PostgreSQL on port 5433, unavailable in that session, and pointing the suites at
-an unverified database would have violated positive target verification. The two
-new sales integration suites have therefore never executed. Re-running
-`pnpm test:integration` in a Docker-enabled session is a precondition for
-treating FASE 7B as verified.
+Integration and E2E used only temporary local databases created and dropped by
+their runners against the positively verified Docker Compose PostgreSQL 18.4
+on port 5433. Staging was never a test target or revalidated. The operational
+staging snapshot remains the historical read-only snapshot from 2026-08-23;
+FASE 7A is still not migrated there and no real staging sale is authorized.
 
 ## Historical-document caveats
 

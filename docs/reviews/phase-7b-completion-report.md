@@ -1,11 +1,11 @@
 # FASE 7B — Reporte de implementación de la capa de ventas
 
-Estado: `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`.
+Estado: `PHASE_7B_COMPLETION_CANDIDATE`.
 
-Este documento registra lo implementado por los bloques 7B.1 a 7B.4 y, con la
-misma claridad, la verificación que **no** pudo ejecutarse. No declara
-`PHASE_7B_COMPLETION_CANDIDATE`, no autoriza UI, importación legacy, migración a
-staging ni ninguna venta real.
+Este documento registra lo implementado por los bloques 7B.1 a 7B.4 y la
+verificación PostgreSQL, concurrencia, E2E y estática completada el 2026-08-28.
+Declara un candidato para revisión del propietario; no declara FASE 7B cerrada
+ni autoriza UI, importación legacy, migración a staging o ninguna venta real.
 
 ## 1. Bloques implementados
 
@@ -55,54 +55,73 @@ cuatro permisos ya existían en el manifest versionado desde FASE 7A.
 
 ## 4. Verificación ejecutada
 
-En esta sesión, sobre el monorepo completo:
+El destino se verificó positivamente antes de probar: Docker Engine 29.6.2,
+contenedor Compose `sgi-comarca-postgres-1`, imagen `postgres:18.4-alpine`,
+estado saludable y publicación local `5433 -> 5432`. Todas las suites usaron
+bases efímeras; staging nunca fue target.
 
-- `pnpm lint`: 8/8 tareas.
-- `pnpm typecheck`: 7/7 tareas.
-- `pnpm build`: 7/7 tareas.
-- `pnpm test` (unitarias): 51 archivos / 161 pruebas.
-- Prettier aplicado a todos los archivos nuevos.
+Resultados finales reales:
 
-## 5. Verificación NO ejecutada — bloqueante para cerrar 7B
+- `pnpm test:integration`: 21 archivos / 195 pruebas, todas pasan en 277.41 s;
+- suite focalizada de concurrencia: 1 archivo / 9 pruebas, todas pasan en
+  34.73 s;
+- `pnpm test:e2e`: 17/17 pruebas Chromium en 2.5 min; creó
+  `sgi_e2e_7152_403e13c6`, aplicó exactamente las cinco migraciones, terminó
+  procesos, obtuvo 0 filas de `pg_terminate_backend` y ejecutó `DROP DATABASE`;
+- `pnpm lint`: 8/8 tareas;
+- `pnpm typecheck`: 7/7 tareas;
+- `pnpm test`: 51 archivos / 162 pruebas;
+- `pnpm build`: 7/7 tareas;
+- `pnpm format:check`: todos los archivos cumplen Prettier;
+- `pnpm db:validate`: esquema Prisma válido.
 
-Las siguientes pruebas fueron **escritas pero nunca ejecutadas**:
+La matriz nueva cubre dos ventas con stock para una, venta + ajuste, venta +
+transferencia, ventas multi-par con orden de entrada inverso, venta +
+cancelación de otra venta sobre los mismos pares, confirmación + cancelación de
+la misma venta, doble confirmación, doble cancelación y misma clave de creación
+concurrente. Los nueve casos pasaron sin deadlock, stock negativo ni doble
+efecto.
 
-- `apps/api/test/sales-creation.integration.spec.ts`;
-- `apps/api/test/sales-lifecycle.integration.spec.ts`.
+OpenAPI se generó sólo en memoria: 30 paths totales y los paths de ventas
+`/api/v1/sales`, `/api/v1/sales/{id}`, `/cancel` y
+`/confirm-in-transit`. Swagger permanece sin montar. La revisión de seguridad
+confirmó rutas privadas, permisos exactos, validación con whitelist, costo e
+idempotencia ausentes de la superficie read y ningún hallazgo crítico o alto.
 
-Motivo: el arnés de integración exige la base PostgreSQL de desarrollo en el
-puerto 5433 provista por Docker Compose. En esta sesión Docker no estaba
-disponible. El puerto 5432 tenía un servicio escuchando, pero apuntar las
-pruebas a una base no verificada habría violado la verificación positiva de
-destino exigida por `AGENTS.md`, así que no se intentó.
+## 5. Incidencias encontradas y resueltas
 
-Tampoco se ejecutó la regresión E2E Playwright.
+La primera corrida real de integración produjo 20 archivos / 186 pruebas, con
+183 verdes y tres fallos en creación de ventas. PostgreSQL persistía el dinero
+correctamente, pero `Prisma.Decimal.toString()` eliminaba ceros finales y el
+mapper devolvía `"20"`, `"23.5"` y `"5"` en vez de la escala monetaria
+canónica.
 
-Consecuencias, explícitas:
+Se corrigió `sale-read.mapper.ts` para convertir todos los importes persistidos
+a centavos y volver a `Decimal(18,2)` canónico. Una prueba unitaria reproduce
+la escala eliminada por Prisma y la expectativa de integración de precio se
+alineó con ADR-009. La suite focalizada de creación pasó después 13/13 y la
+integración completa final pasó 195/195.
 
-- el código de 7B **no está validado contra PostgreSQL real**;
-- los triggers y constraints de FASE 7A no fueron ejercitados por esta
-  implementación;
-- las pruebas de concurrencia previstas en el plan §14 no existen todavía;
-- por lo tanto **no se declara `PHASE_7B_COMPLETION_CANDIDATE`**.
+La corrida E2E volvió a cambiar temporalmente `apps/web/next-env.d.ts` de tipos
+build a tipos dev. Se restauró exactamente el contenido versionado antes de la
+línea base; no se modificó configuración de Next ni `.gitignore`.
 
-## 6. Trabajo pendiente antes de cerrar FASE 7B
+## 6. Trabajo pendiente para cerrar FASE 7B
 
-1. Ejecutar en una sesión con Docker: `pnpm test:integration`, corrigiendo lo
-   que las dos suites nuevas revelen.
-2. Añadir las pruebas de concurrencia del plan §14: dos ventas sobre el mismo
-   par, venta + ajuste, venta + transferencia, ventas cruzadas en orden
-   inverso, confirmación + cancelación simultáneas, doble confirmación, doble
-   cancelación y misma clave concurrente.
-3. Ejecutar la línea base E2E como regresión.
-4. Generar OpenAPI interno y revisión de seguridad.
-5. Sólo entonces evaluar `PHASE_7B_COMPLETION_CANDIDATE`.
+Los bloqueos técnicos registrados en la versión anterior quedaron resueltos.
+El estado actual es candidato, no cierre automático. Falta:
+
+1. revisión del propietario del fix, la matriz de concurrencia y esta evidencia;
+2. si se solicita commit, separar el bug de escala, las pruebas de concurrencia
+   y la documentación en commits auditables;
+3. decisión explícita del propietario para declarar `PHASE_7B_COMPLETE`.
+
+Ninguno de esos pasos autoriza staging, UI, importación legacy o Waves 3+.
 
 ## 7. Estado
 
 - `PHASE_7A_SCHEMA_COMPLETE`;
-- `PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`;
-- `PHASE_7B_COMPLETION_CANDIDATE_NOT_DECLARED`;
+- `PHASE_7B_COMPLETION_CANDIDATE`;
 - `STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`;
 - `FIRST_STAGING_SALE_NOT_AUTHORIZED`;
 - `WAVES_3_PLUS_NOT_STARTED`.

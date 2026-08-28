@@ -1,144 +1,86 @@
-# Next Gate — FASE 7B Planning
+# Next Gate — Revisión de cierre de FASE 7B
 
-FASE 7A is complete in the versioned repository: the sales schema foundation
-and the `sales.read` bootstrap/RBAC change are implemented and tested. They have
-not been deployed to staging.
+FASE 7B está implementada y verificada localmente sobre PostgreSQL real. La
+integración completa, la matriz de concurrencia del plan, la regresión E2E y la
+línea base del monorepo pasan. Este estado es un candidato para revisión del
+propietario; no declara la fase cerrada y no autoriza ningún despliegue o dato
+operacional.
 
-Planning is complete and versioned in
-[phase-7b-sales-application-plan.md](../reviews/phase-7b-sales-application-plan.md),
-with the pricing/cost decision recorded in
-[ADR-009](../decisions/ADR-009-sales-pricing-cost.md). The owner reviewed the
-plan and authorized only its first implementation block.
+Documentos de evidencia:
 
-Current state:
+- [reporte de candidato](../reviews/phase-7b-completion-report.md);
+- [plan aprobado](../reviews/phase-7b-sales-application-plan.md);
+- [ADR-009](../decisions/ADR-009-sales-pricing-cost.md).
+
+## Estado actual
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
 - **`PHASE_7B_PLANNING_COMPLETE`**
-- **`PHASE_7B_IMPLEMENTED_VERIFICATION_INCOMPLETE`** — blocks 7B.1 through 7B.4
-  are implemented and committed; the owner delegated the remaining code work.
-- **`PHASE_7B_COMPLETION_CANDIDATE_NOT_DECLARED`**
+- **`PHASE_7B_COMPLETION_CANDIDATE`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_7B_INTEGRATION_VERIFICATION`**
+- **`NEXT_GATE = PHASE_7B_COMPLETION_REVIEW`**
 
-This document authorizes no schema or RBAC deployment, legacy import, UI, or
-staging write. FASE 7B code exists but is unverified against real PostgreSQL.
+No existe todavía una declaración `PHASE_7B_COMPLETE`. Sólo el propietario
+puede aprobar el cierre después de revisar el diff y la evidencia.
 
-## Next gate — integration verification
+## Evidencia para la revisión
 
-FASE 7B cannot be closed until, in a Docker-enabled session:
+Revalidación local del 2026-08-28:
 
-1. `pnpm test:integration` runs and the two new sales suites pass;
-2. the concurrency suites required by the plan are added and pass;
-3. the E2E baseline is re-run as regression.
+- `pnpm test:integration`: 21 archivos / 195 pruebas;
+- concurrencia específica de ventas: 9/9;
+- `pnpm test:e2e`: 17/17 Chromium y eliminación confirmada de la base temporal;
+- `pnpm test`: 51 archivos / 162 pruebas;
+- lint 8/8, typecheck 7/7, build 7/7;
+- formato y esquema Prisma válidos;
+- OpenAPI generado sólo en memoria: 30 paths, incluidos los cuatro paths de
+  ventas, con Swagger sin montar;
+- revisión de seguridad sin hallazgos críticos o altos.
 
-See [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md)
-for exactly what was and was not verified.
+Las pruebas usaron únicamente bases temporales sobre el PostgreSQL 18.4 del
+Docker Compose local en el puerto 5433. Staging nunca fue target.
 
-## FASE 7B.1 authorization — 2026-08-27
+## Alcance de la revisión del propietario
 
-The owner authorized implementation of block 7B.1 only: HTTP contracts/DTOs,
-pure Decimal money and shipping-allocation helpers, request canonicalization,
-and typed domain errors, each with unit tests. No NestJS module, controller,
-service, DB access, permission check, or route is in scope; those arrive in
-7B.2+ under their own gates.
+La revisión debe decidir:
 
-Three technical decisions were confirmed by the owner and bind 7B.1:
+1. si acepta la corrección de escala monetaria en la superficie read;
+2. si la matriz de concurrencia satisface el plan §14;
+3. si autoriza commits separados y auditables para:
+   - `fix(sales): preserve canonical money scale`;
+   - `test(sales): add phase 7b concurrency coverage`;
+   - documentación de cierre/candidato;
+4. si, después de esos commits y una revisión final del diff, declara
+   `PHASE_7B_COMPLETE`.
 
-- **Minimal creation DTO.** No `deliveryPlace` or legacy free-text fields;
-  extending the DTO with personal-data fields needs a separate exposure
-  decision.
-- **Cost hidden on read.** `unitCostSnapshot` is never exposed in `sales.read`
-  responses; `sales.read` grants no financial permission.
-- **Monetary rounding.** Line subtotals round to cents with `ROUND_HALF_UP`;
-  the shipping residue is distributed one cent at a time by validated item
-  ordinal so allocations sum exactly to `shippingAmount`.
+No se hizo commit ni push durante la verificación actual.
 
-These match [ADR-009](../decisions/ADR-009-sales-pricing-cost.md) and the
-versioned plan. Blocks 7B.2 through 7B.5 remain unauthorized.
+## Fuera de este gate
 
-## Objective of the planning gate
+Ni el estado candidato ni una futura declaración de cierre autorizan:
 
-Produce an auditable implementation plan for the sales application layer and
-REST API on top of the FASE 7A structural foundation. Planning must verify the
-current migration, Prisma schema, permission manifest, transaction design, and
-tests before defining any code change.
+- aplicar la migración o bootstrap/RBAC de FASE 7A a staging;
+- crear, confirmar o cancelar una venta real en staging;
+- implementar UI de ventas;
+- importar `Ventas` legacy o comenzar Waves 3+;
+- resolver agrupación, duplicados o interpretación histórica de estado/pago;
+- implementar finanzas, pagos o cierres diarios;
+- editar o eliminar movimientos históricos del ledger.
 
-The planned FASE 7B scope is:
+Cada acción anterior requiere su propio gate explícito. Después de cerrar 7B,
+el propietario debe elegir cuál gate planificar; este documento no selecciona
+ni autoriza automáticamente UI, staging o importación.
 
-- a transactional create-sale service requiring `sales.create`, with multiple
-  items and warehouses, deterministic balance locking, all-or-nothing stock
-  consumption, one coherent `SALE` movement per line, canonical money
-  calculations, actor-scoped idempotency, and one audit event;
-- read endpoints guarded by `sales.read`;
-- in-transit confirmation guarded by `sales.confirm_in_transit`, changing only
-  fulfillment from `IN_TRANSIT` to `COMPLETED`, without a second stock
-  deduction and without changing `paymentStatus`;
-- total cancellation guarded by `sales.cancel`, only for an eligible
-  `IN_TRANSIT + PENDING` sale, restoring each original warehouse balance
-  exactly once and appending one coherent `SALE_CANCELLATION` per line;
-- actor-scoped idempotency for creation, confirmation, and cancellation, with
-  only the key hash and canonical request hash persisted;
-- immutable ledger history, sanitized audit events, explicit RBAC checks, and
-  concurrency coverage shared with adjustments and transfers.
+## Estado operacional que permanece inalterado
 
-Before implementation can be authorized, planning must resolve the still-open
-operational source of current price and cost used to create the mandatory
-non-negative item snapshots. The future DTO must not accept `saleNumber` or
-`paymentStatus`; those rules are already fixed by the approved decisions and
-the FASE 7A schema.
-
-## Outside FASE 7B
-
-FASE 7B does not include:
-
-- sales UI;
-- legacy `Ventas` import or any Wave 3+ materialization;
-- resolution of legacy grouping, duplicates, missing movements, or historical
-  state/payment ambiguities;
-- finance or daily-closing implementation;
-- applying FASE 7A to staging, running bootstrap against staging, or creating,
-  confirming, or cancelling a real staging sale;
-- any other persistent staging write.
-
-Each excluded operational action requires its own explicit gate. In particular,
-planning or implementing FASE 7B does not authorize
-`STAGING_PHASE_7A_MIGRATION`, `FIRST_STAGING_SALE`, or a legacy import.
-
-## State that must remain unchanged
-
-- All 1,069 legacy `Movimientos` rows remain unimported.
-- The 25 legacy rows classified as transfers remain unimported.
-- Legacy sales remain deferred and unmaterialized.
-- `WAVES_3_PLUS_NOT_STARTED` remains true.
-- Historical ledger rows are never edited or deleted manually.
-- The staging snapshot recorded on 2026-08-23 remains historical evidence, not
-  live truth. Before a separate migration gate, revalidate the intended target
-  read-only, including that all four sales tables remain empty.
-
-## Required planning evidence
-
-Follow the authority order in `AGENTS.md`, then reconcile at minimum:
-
-- [CURRENT_STATE.md](CURRENT_STATE.md);
-- [APPROVED_DECISIONS.md](APPROVED_DECISIONS.md);
-- [phase-7a-sales-foundation.md](../database/phase-7a-sales-foundation.md);
-- [transaction-design.md](../architecture/transaction-design.md);
-- [authorization-matrix.md](../architecture/authorization-matrix.md);
-- the current Prisma schema, migration SQL, permission manifest, and tests.
-
-Historical planning and review documents remain evidence of how decisions were
-reached; they do not override the implemented FASE 7A foundation.
-
-## Stop conditions
-
-Stop and request a separate decision before implementation if planning finds an
-unresolved requirement involving schema, migration, RBAC, operational
-price/cost selection, sales grouping, duplicate resolution, historical
-state/payment interpretation, cancellation, in-transit behavior, idempotency
-persistence, or a real staging write.
-
-Completion of `PHASE_7B_PLANNING` may recommend an implementation sequence. It
-does not authorize FASE 7B implementation, sales UI, legacy import, or staging
-mutation.
+- Las 1,069 filas legacy de `Movimientos` siguen sin importar.
+- Las 25 filas clasificadas históricamente como transferencias siguen sin
+  importar.
+- Las ventas legacy continúan diferidas y sin materializar.
+- `WAVES_3_PLUS_NOT_STARTED` continúa vigente.
+- El snapshot de staging registrado el 2026-08-23 sigue siendo evidencia
+  histórica, no verdad live.
+- Antes de cualquier gate de migración se debe revalidar el target read-only,
+  incluida la condición operativa de tablas de ventas vacías.
