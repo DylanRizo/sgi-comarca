@@ -55,6 +55,12 @@ function civilDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+/**
+ * Money carries a canonical `Decimal(18,2)` presentation, so it is routed
+ * through cents to restore the trailing zeros Prisma strips. Quantity is
+ * deliberately not canonicalized: the approved plan bounds it to at most four
+ * decimals rather than exactly four, so it is emitted as persisted.
+ */
 function moneyString(value: DecimalLike): string {
   const cents = moneyToCents(value.toString());
   if (cents === null) {

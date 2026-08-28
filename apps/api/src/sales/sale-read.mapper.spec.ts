@@ -23,7 +23,8 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
           id: '00000000-0000-4000-8000-000000000003',
           name: 'Producto A',
         },
-        quantity: decimal('2.5000'),
+        // Prisma strips trailing zeros, so a persisted 2.5000 arrives as 2.5.
+        quantity: decimal('2.5'),
         shippingAllocation: decimal('5.00'),
         unitPriceSnapshot: decimal('10.00'),
         warehouse: {
@@ -52,8 +53,19 @@ describe('mapSale', () => {
     expect(view.subtotal).toBe('25.00');
     expect(view.total).toBe('30.00');
     expect(view.shippingAmount).toBe('5.00');
-    expect(view.items[0]?.quantity).toBe('2.5000');
     expect(view.items[0]?.unitPriceSnapshot).toBe('10.00');
+  });
+
+  it('emits quantity as persisted, without imposing a canonical scale', () => {
+    // Only money carries a canonical presentation scale. Quantity is passed
+    // through exactly as PostgreSQL/Prisma yield it, so a persisted 2.5000
+    // is emitted as "2.5" and an integer quantity as "3".
+    expect(mapSale(sale()).items[0]?.quantity).toBe('2.5');
+
+    const whole = sale();
+    const [item] = whole.items;
+    if (item) item.quantity = decimal('3');
+    expect(mapSale(whole).items[0]?.quantity).toBe('3');
   });
 
   it('restores the canonical money scale stripped by Prisma Decimal', () => {

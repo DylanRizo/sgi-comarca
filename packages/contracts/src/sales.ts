@@ -49,11 +49,16 @@ export interface CreateSaleRequest {
 /**
  * Read-safe view of a sale line. `unitCostSnapshot` is intentionally absent:
  * `sales.read` grants no financial permission (ADR-009, AGENTS.md).
+ *
+ * Money fields always carry two decimals. Quantity does not: it is emitted as
+ * persisted, so an equivalent value may appear as `3`, `2.5`, or `2.5000`.
+ * Parse decimals by value, never by string equality.
  */
 export interface SaleItemView {
   id: string;
   product: { id: string; code: string; name: string };
   warehouse: WarehouseSummary;
+  /** Decimal(18,4) with at most four decimals; scale is not normalized. */
   quantity: string;
   /** Always present for operational lines; a legacy line may have none. */
   unitPriceSnapshot: string | null;
