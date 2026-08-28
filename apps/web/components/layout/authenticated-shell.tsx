@@ -14,6 +14,8 @@ const inventoryNavigation = [
   { href: '/inventory/movements', label: 'Movimientos' },
 ] as const;
 
+const salesNavigation = [{ href: '/sales', label: 'Ventas' }] as const;
+
 export function AuthenticatedShell({
   children,
 }: Readonly<{ children: ReactNode }>) {
@@ -22,6 +24,8 @@ export function AuthenticatedShell({
   if (state.kind !== 'authenticated') return null;
 
   const canReadInventory = state.session.permissions.includes('inventory.read');
+  // Hiding a link is presentation only; the backend authorizes every request.
+  const canReadSales = state.session.permissions.includes('sales.read');
 
   return (
     <div className="application-shell">
@@ -46,6 +50,21 @@ export function AuthenticatedShell({
                   aria-current={
                     pathname === href ||
                     (href !== '/inventory' && pathname.startsWith(`${href}/`))
+                      ? 'page'
+                      : undefined
+                  }
+                  href={href as Route}
+                  key={href}
+                >
+                  {label}
+                </Link>
+              ))
+            : null}
+          {canReadSales
+            ? salesNavigation.map(({ href, label }) => (
+                <Link
+                  aria-current={
+                    pathname === href || pathname.startsWith(`${href}/`)
                       ? 'page'
                       : undefined
                   }
