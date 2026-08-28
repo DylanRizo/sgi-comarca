@@ -217,6 +217,7 @@ describe('FASE 7B.3 operational sale creation', () => {
     expect(sale.status).toBe('IN_TRANSIT');
     expect(sale.paymentStatus).toBe('PENDING');
     expect(sale.origin).toBe('OPERATIONAL');
+    expect(sale.businessDate).toBe('2026-08-27');
     expect(sale.completedAt).toBeNull();
     expect(sale.subtotal).toBe('20.00');
     expect(sale.total).toBe('20.00');
@@ -229,6 +230,7 @@ describe('FASE 7B.3 operational sale creation', () => {
     });
     expect(movements).toHaveLength(1);
     expect(movements[0]?.type).toBe('SALE');
+    expect(movements[0]?.sourceType).toBe('SALE');
     expect(movements[0]?.quantityDelta.toString()).toBe('-2');
     expect(movements[0]?.actorUserId).toBe(sellerId);
 
@@ -289,7 +291,7 @@ describe('FASE 7B.3 operational sale creation', () => {
 
     const view = await reads.get(sale.id);
     expect(JSON.stringify(view)).not.toContain('unitCostSnapshot');
-    expect(view.items[0]?.unitPriceSnapshot).toBe('10');
+    expect(view.items[0]?.unitPriceSnapshot).toBe('10.00');
   });
 
   it('accepts a zero cost and records a price override in sanitized audit', async () => {
@@ -404,7 +406,16 @@ describe('FASE 7B.3 operational sale creation', () => {
   });
 
   it('aggregates repeated product/warehouse lines and keeps one movement per line', async () => {
-    const before = Number(await balanceQuantity(productAId, warehouseAId));
+    const balanceBefore = await client.inventoryBalance.findUniqueOrThrow({
+      select: { quantity: true, version: true },
+      where: {
+        productId_warehouseId: {
+          productId: productAId,
+          warehouseId: warehouseAId,
+        },
+      },
+    });
+    const before = Number(balanceBefore.quantity.toString());
     const sale = await creation.create(sellerId, randomUUID() + randomUUID(), {
       businessDate: '2026-08-27',
       items: [
@@ -419,9 +430,27 @@ describe('FASE 7B.3 operational sale creation', () => {
       orderBy: { balanceBefore: 'desc' },
       where: { sourceId: sale.id },
     });
-    expect(movements).toHaveLength(2);
-    const after = Number(await balanceQuantity(productAId, warehouseAId));
-    expect(before - after).toBe(3);
+    expect(
+      movements.map((movement) => ({
+        after: movement.balanceAfter.toString(),
+        before: movement.balanceBefore.toString(),
+        delta: movement.quantityDelta.toString(),
+      })),
+    ).toEqual([
+      { after: String(before - 1), before: String(before), delta: '-1' },
+      { after: String(before - 3), before: String(before - 1), delta: '-2' },
+    ]);
+    const balanceAfter = await client.inventoryBalance.findUniqueOrThrow({
+      select: { quantity: true, version: true },
+      where: {
+        productId_warehouseId: {
+          productId: productAId,
+          warehouseId: warehouseAId,
+        },
+      },
+    });
+    expect(Number(balanceAfter.quantity.toString())).toBe(before - 3);
+    expect(balanceAfter.version).toBe(balanceBefore.version + 1);
   });
 
   it('replays the same key and payload without a second effect', async () => {
