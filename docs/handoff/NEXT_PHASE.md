@@ -1,4 +1,4 @@
-# Next Gate — Selección del propietario
+# Next Gate — FASE 7C, UI de ventas
 
 FASE 7B está cerrada en el repositorio versionado: la capa de aplicación y la
 API REST de ventas están implementadas y verificadas localmente sobre
@@ -12,47 +12,64 @@ Evidencia: [reporte de cierre](../reviews/phase-7b-completion-report.md),
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
 - **`PHASE_7B_COMPLETE`**
+- **`PHASE_7C_AUTHORIZED`** — UI de ventas, seleccionada por el propietario el
+  2026-08-28.
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = NOT_SELECTED`**
+- **`NEXT_GATE = PHASE_7C_SALES_UI`**
 
-Cerrar FASE 7B no autorizó ninguna acción operacional. Este documento no
-selecciona ni autoriza el siguiente gate: sólo enumera los candidatos para que
-el propietario elija uno de forma explícita.
+Cerrar FASE 7B no autorizó ninguna acción operacional. El propietario eligió
+como siguiente gate la UI de ventas. Los demás candidatos siguen sin
+seleccionar y sin autorizar.
 
-## Gates candidatos
+## FASE 7C — alcance autorizado
 
-Ninguno está autorizado. Cada uno requiere su propia decisión y, cuando toca
-estado externo, su propio checkpoint operativo.
+Interfaz en español sobre la API ya implementada y cerrada en FASE 7B. No
+requiere migraciones, cambios de esquema, permisos nuevos ni escritura en
+staging.
 
-### A. Despliegue de FASE 7A/7B a staging
+Incluye:
 
-Aplicar la migración `20260826232758_phase_7a_sales_foundation` y el cambio de
-bootstrap/RBAC al entorno de staging. Requiere verificación positiva del
-destino, checkpoint previo y posterior, y revalidación read-only de que
-`sales`, `sale_items`, `sale_cancellations` e `in_transit_confirmations` siguen
-vacías. No incluye crear ninguna venta real: `FIRST_STAGING_SALE` es un gate
-separado y posterior.
+- listado paginado de ventas con filtros y presentación móvil;
+- detalle de una venta con sus líneas y su ciclo de vida;
+- creación de venta con múltiples líneas y almacenes;
+- confirmación de una venta en tránsito;
+- cancelación total con confirmación explícita;
+- estados de carga, vacío, error y éxito; prevención de doble envío.
 
-### B. UI de ventas
+Reglas que la UI debe respetar:
 
-Interfaz para crear, listar, confirmar y cancelar ventas sobre la API ya
-implementada. No requiere cambios de esquema ni permisos nuevos. Debe respetar
-que `sales.read` no concede permisos financieros y que el costo no se expone.
+- botones y vistas se ocultan por permiso, pero la autorización real es del
+  backend; ocultar no es autorizar;
+- `sales.read` no concede permisos financieros: el costo y el margen nunca se
+  muestran, porque la API tampoco los expone;
+- el cliente nunca envía `saleNumber`, `paymentStatus`, costo, subtotales ni
+  totales; son del servidor;
+- toda mutación envía `Idempotency-Key` y previene doble envío;
+- el dinero se presenta con dos decimales; la cantidad se muestra tal como la
+  entrega la API, sin imponer escala.
 
-### C. Importación legacy de `Ventas` (Waves 3+)
+Fuera de FASE 7C: staging, importación legacy, finanzas, cierres y cualquier
+venta real.
 
-Requiere resolver antes las decisiones humanas todavía abiertas en
-[open-decisions.md](../legacy/open-decisions.md): DEC-012, DEC-013, DEC-016,
-DEC-017 y las de agrupación y duplicados. No puede inferirse ninguna regla
-desde la implementación operacional de FASE 7B.
+### Secuencia propuesta
 
-### D. Finanzas y cierres diarios
+1. **7C.1** — cliente HTTP, presentación, navegación, listado y detalle con
+   `sales.read`.
+2. **7C.2** — creación de venta con múltiples líneas.
+3. **7C.3** — confirmación y cancelación.
+4. **7C.4** — E2E de flujos críticos y cierre.
 
-Módulos `finances` y `daily-closings`. Interactúa con el invariante de que los
-ingresos automáticos de ventas no deben duplicarse en Finanzas, por lo que
-necesita su propio diseño y decisiones aprobadas.
+## Gates no seleccionados
+
+Siguen disponibles y sin autorizar: despliegue de FASE 7A/7B a staging (con
+verificación positiva del destino, checkpoints y revalidación read-only de que
+las cuatro tablas de ventas siguen vacías); importación legacy de `Ventas`,
+que exige resolver antes DEC-012, DEC-013, DEC-016, DEC-017, agrupación y
+duplicados en [open-decisions.md](../legacy/open-decisions.md); y finanzas y
+cierres diarios, sujetos al invariante de no duplicar los ingresos automáticos
+de ventas.
 
 ## Deuda menor pendiente
 
