@@ -53,13 +53,30 @@ Reglas que la UI debe respetar:
 Fuera de FASE 7C: staging, importación legacy, finanzas, cierres y cualquier
 venta real.
 
-### Secuencia propuesta
+### Secuencia y estado
 
 1. **7C.1** — cliente HTTP, presentación, navegación, listado y detalle con
-   `sales.read`.
-2. **7C.2** — creación de venta con múltiples líneas.
-3. **7C.3** — confirmación y cancelación.
-4. **7C.4** — E2E de flujos críticos y cierre.
+   `sales.read`. Completado en `fbabe58`.
+2. **7C.2** — creación de venta con múltiples líneas. Completado en `05b6b4d`.
+3. **7C.3** — confirmación y cancelación. Completado en `6c64717`.
+4. **7C.4** — E2E de flujos críticos y cierre. Las pruebas están escritas pero
+   **no ejecutadas**: el arnés E2E necesita el PostgreSQL de Docker Compose, no
+   disponible en la sesión que las escribió. FASE 7C no puede cerrarse hasta
+   ejecutarlas.
+
+### Verificación pendiente de FASE 7C
+
+Ejecutar `pnpm test:e2e` en una sesión con Docker y corregir lo que revele
+`apps/web/e2e/sales.e2e.ts`. Cubre: venta multi-almacén con un movimiento
+`SALE` por línea, detalle sin costo, confirmación que no toca inventario ni
+pago, cancelación total con motivo obligatorio y reposición exacta, rechazo por
+costo ausente, bloqueo por stock insuficiente antes de enviar, y `DENY` directo
+sobre `sales.read` y `sales.create`.
+
+El `reset()` del arnés se ajustó a un invariante de FASE 7A: ventas, líneas y
+documentos son inmutables y no pueden borrarse, así que los productos de
+fixture ya vendidos se conservan como historia y cada prueba siembra productos
+con código único. La base E2E es temporal y el runner la elimina.
 
 ## Gates no seleccionados
 

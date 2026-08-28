@@ -17,6 +17,11 @@ export class AuthenticationDatabase {
 
   async reset(): Promise<void> {
     await this.client.$transaction(async (transaction) => {
+      // Sales, sale items and their documents are immutable by FASE 7A
+      // triggers: they can never be deleted. A fixture product that a sale
+      // already references is therefore preserved as history, and only the
+      // untouched fixtures are removed. The whole E2E database is temporary
+      // and dropped by the runner, so nothing accumulates across runs.
       const fixtureProducts = await transaction.product.findMany({
         select: { id: true },
         where: {
@@ -24,11 +29,12 @@ export class AuthenticationDatabase {
             { code: { startsWith: 'E2E-' } },
             { code: { in: ['DGGR-X', 'CCWH-L'] } },
           ],
+          saleItems: { none: {} },
         },
       });
       const productIds = fixtureProducts.map(({ id }) => id);
       await transaction.inventoryMovement.deleteMany({
-        where: { productId: { in: productIds } },
+        where: { productId: { in: productIds }, saleItemId: null },
       });
       await transaction.productWarehouseValuation.deleteMany({
         where: { productId: { in: productIds } },
@@ -295,5 +301,147 @@ export class AuthenticationDatabase {
       ) AS "found"
     `;
     return rows[0]?.found ?? false;
+  }
+
+  /**
+   * Seed products dedicated to one sales test. Codes are suffixed so a test
+   * that sells a product never collides with the next test, which matters
+   * because sold products cannot be deleted.
+   */
+  async seedSalesFixtures(suffix: string): Promise<{
+    multiWarehouseCode: string;
+    nullCostCode: string;
+  }> {
+    const multiWarehouseCode = `E2E-SALE-${suffix}`;
+    const nullCostCode = `E2E-SALE-NC-${suffix}`;
+    await this.client.$transaction(async (transaction) => {
+      const unit = await transaction.unit.upsert({
+        create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+        update: {},
+        where: { code: 'E2E-UNIT' },
+      });
+      const [sellable, nullCost] = await Promise.all([
+        transaction.product.create({
+          data: {
+            code: multiWarehouseCode,
+            name: `Producto vendible ${suffix}`,
+            unitId: unit.id,
+          },
+          select: { id: true },
+        }),
+        transaction.product.create({
+          data: {
+            code: nullCostCode,
+            name: `Producto sin costo ${suffix}`,
+            unitId: unit.id,
+          },
+          select: { id: true },
+        }),
+      ]);
+      const warehouses = await transaction.warehouse.findMany({
+        orderBy: { code: 'asc' },
+        select: { code: true, id: true },
+      });
+      const byCode = new Map(
+        warehouses.map((warehouse) => [warehouse.code, warehouse]),
+      );
+      const dylan = byCode.get('CASA_DYLAN');
+      const jean = byCode.get('CASA_JEAN');
+      if (!dylan || !jean) {
+        throw new Error('Synthetic sales fixture prerequisites are missing.');
+      }
+      await transaction.inventoryBalance.createMany({
+        data: [
+          {
+            // Zero cost is valid and must remain zero (ADR-009).
+            currentUnitCost: 0,
+            currentUnitPrice: 10,
+            productId: sellable.id,
+            quantity: 8,
+            warehouseId: dylan.id,
+          },
+          {
+            currentUnitCost: 3,
+            currentUnitPrice: 12,
+            productId: sellable.id,
+            quantity: 5,
+            warehouseId: jean.id,
+          },
+          {
+            // A null cost must reject the whole sale with HTTP 422.
+            costReviewRequired: true,
+            currentUnitCost: null,
+            currentUnitPrice: 9,
+            productId: nullCost.id,
+            quantity: 4,
+            warehouseId: dylan.id,
+          },
+        ],
+      });
+    });
+    return { multiWarehouseCode, nullCostCode };
+  }
+
+  async salesCounts(): Promise<{
+    cancellations: number;
+    confirmations: number;
+    items: number;
+    saleCancellationMovements: number;
+    saleMovements: number;
+    sales: number;
+  }> {
+    const [
+      sales,
+      items,
+      cancellations,
+      confirmations,
+      saleMovements,
+      saleCancellationMovements,
+    ] = await Promise.all([
+      this.client.sale.count(),
+      this.client.saleItem.count(),
+      this.client.saleCancellation.count(),
+      this.client.inTransitConfirmation.count(),
+      this.client.inventoryMovement.count({ where: { type: 'SALE' } }),
+      this.client.inventoryMovement.count({
+        where: { type: 'SALE_CANCELLATION' },
+      }),
+    ]);
+    return {
+      cancellations,
+      confirmations,
+      items,
+      saleCancellationMovements,
+      saleMovements,
+      sales,
+    };
+  }
+
+  async balanceQuantity(
+    productCode: string,
+    warehouseCode: string,
+  ): Promise<number> {
+    const balance = await this.client.inventoryBalance.findFirstOrThrow({
+      select: { quantity: true },
+      where: {
+        product: { code: productCode },
+        warehouse: { code: warehouseCode },
+      },
+    });
+    return Number(balance.quantity.toString());
+  }
+
+  async denySalesPermission(
+    code: 'sales.cancel' | 'sales.create' | 'sales.read',
+  ): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({ where: { code } }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
   }
 }
