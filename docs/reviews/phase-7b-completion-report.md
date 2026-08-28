@@ -1,11 +1,15 @@
 # FASE 7B — Reporte de implementación de la capa de ventas
 
-Estado: `PHASE_7B_COMPLETION_CANDIDATE`.
+Estado: `PHASE_7B_COMPLETE`.
 
 Este documento registra lo implementado por los bloques 7B.1 a 7B.4 y la
 verificación PostgreSQL, concurrencia, E2E y estática completada el 2026-08-28.
-Declara un candidato para revisión del propietario; no declara FASE 7B cerrada
-ni autoriza UI, importación legacy, migración a staging o ninguna venta real.
+El propietario revisó el diff y la evidencia y declaró la fase cerrada el
+2026-08-28.
+
+Cerrar FASE 7B cierra únicamente la implementación versionada. No autoriza UI de
+ventas, importación legacy, migración o bootstrap a staging, ni ninguna venta
+real. Cada una de esas acciones requiere su propio gate explícito.
 
 ## 1. Bloques implementados
 
@@ -106,22 +110,35 @@ La corrida E2E volvió a cambiar temporalmente `apps/web/next-env.d.ts` de tipos
 build a tipos dev. Se restauró exactamente el contenido versionado antes de la
 línea base; no se modificó configuración de Next ni `.gitignore`.
 
-## 6. Trabajo pendiente para cerrar FASE 7B
+## 6. Cierre
 
-Los bloqueos técnicos registrados en la versión anterior quedaron resueltos.
-El estado actual es candidato, no cierre automático. Falta:
+Los bloqueos técnicos quedaron resueltos y el trabajo se commiteó de forma
+auditable y separada:
 
-1. revisión del propietario del fix, la matriz de concurrencia y esta evidencia;
-2. si se solicita commit, separar el bug de escala, las pruebas de concurrencia
-   y la documentación en commits auditables;
-3. decisión explícita del propietario para declarar `PHASE_7B_COMPLETE`.
+| Commit | Contenido |
+| --- | --- |
+| `fc42958` | `fix(sales)`: escala monetaria canónica en la superficie read. |
+| `470cb5d` | `test(sales)`: matriz de concurrencia §14 e integración reforzada. |
+| `c592404` | `docs`: evidencia del candidato. |
+| `d982477` | `test(sales)`: escala real de cantidad y documentación de la asimetría. |
 
-Ninguno de esos pasos autoriza staging, UI, importación legacy o Waves 3+.
+Salvedad de evidencia registrada de forma deliberada: `d982477` es posterior a
+la corrida de verificación. Sólo corrigió un fixture unitario engañoso y añadió
+comentarios de contrato/mapper; no altera comportamiento en ejecución y dejó la
+línea base unitaria en 51 archivos / 163 pruebas con lint, typecheck y build en
+verde. Las suites de integración y E2E no se volvieron a ejecutar después de él
+por falta de Docker en esa sesión. Volver a correr `pnpm test:integration` en la
+próxima oportunidad cierra ese hueco menor.
+
+Sobre la escala decimal: el dinero se emite siempre con dos decimales; la
+cantidad se emite tal como persiste, porque el plan §6 la acota a un máximo de
+cuatro decimales y no a exactamente cuatro. Los clientes deben interpretar
+decimales por valor y nunca por igualdad de cadena.
 
 ## 7. Estado
 
 - `PHASE_7A_SCHEMA_COMPLETE`;
-- `PHASE_7B_COMPLETION_CANDIDATE`;
+- `PHASE_7B_COMPLETE`;
 - `STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`;
 - `FIRST_STAGING_SALE_NOT_AUTHORIZED`;
 - `WAVES_3_PLUS_NOT_STARTED`.

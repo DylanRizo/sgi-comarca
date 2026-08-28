@@ -1,77 +1,67 @@
-# Next Gate — Revisión de cierre de FASE 7B
+# Next Gate — Selección del propietario
 
-FASE 7B está implementada y verificada localmente sobre PostgreSQL real. La
-integración completa, la matriz de concurrencia del plan, la regresión E2E y la
-línea base del monorepo pasan. Este estado es un candidato para revisión del
-propietario; no declara la fase cerrada y no autoriza ningún despliegue o dato
-operacional.
+FASE 7B está cerrada en el repositorio versionado: la capa de aplicación y la
+API REST de ventas están implementadas y verificadas localmente sobre
+PostgreSQL real. El propietario declaró el cierre el 2026-08-28.
 
-Documentos de evidencia:
-
-- [reporte de candidato](../reviews/phase-7b-completion-report.md);
-- [plan aprobado](../reviews/phase-7b-sales-application-plan.md);
-- [ADR-009](../decisions/ADR-009-sales-pricing-cost.md).
+Evidencia: [reporte de cierre](../reviews/phase-7b-completion-report.md),
+[plan aprobado](../reviews/phase-7b-sales-application-plan.md) y
+[ADR-009](../decisions/ADR-009-sales-pricing-cost.md).
 
 ## Estado actual
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
-- **`PHASE_7B_PLANNING_COMPLETE`**
-- **`PHASE_7B_COMPLETION_CANDIDATE`**
+- **`PHASE_7B_COMPLETE`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_7B_COMPLETION_REVIEW`**
+- **`NEXT_GATE = NOT_SELECTED`**
 
-No existe todavía una declaración `PHASE_7B_COMPLETE`. Sólo el propietario
-puede aprobar el cierre después de revisar el diff y la evidencia.
+Cerrar FASE 7B no autorizó ninguna acción operacional. Este documento no
+selecciona ni autoriza el siguiente gate: sólo enumera los candidatos para que
+el propietario elija uno de forma explícita.
 
-## Evidencia para la revisión
+## Gates candidatos
 
-Revalidación local del 2026-08-28:
+Ninguno está autorizado. Cada uno requiere su propia decisión y, cuando toca
+estado externo, su propio checkpoint operativo.
 
-- `pnpm test:integration`: 21 archivos / 195 pruebas;
-- concurrencia específica de ventas: 9/9;
-- `pnpm test:e2e`: 17/17 Chromium y eliminación confirmada de la base temporal;
-- `pnpm test`: 51 archivos / 162 pruebas;
-- lint 8/8, typecheck 7/7, build 7/7;
-- formato y esquema Prisma válidos;
-- OpenAPI generado sólo en memoria: 30 paths, incluidos los cuatro paths de
-  ventas, con Swagger sin montar;
-- revisión de seguridad sin hallazgos críticos o altos.
+### A. Despliegue de FASE 7A/7B a staging
 
-Las pruebas usaron únicamente bases temporales sobre el PostgreSQL 18.4 del
-Docker Compose local en el puerto 5433. Staging nunca fue target.
+Aplicar la migración `20260826232758_phase_7a_sales_foundation` y el cambio de
+bootstrap/RBAC al entorno de staging. Requiere verificación positiva del
+destino, checkpoint previo y posterior, y revalidación read-only de que
+`sales`, `sale_items`, `sale_cancellations` e `in_transit_confirmations` siguen
+vacías. No incluye crear ninguna venta real: `FIRST_STAGING_SALE` es un gate
+separado y posterior.
 
-## Alcance de la revisión del propietario
+### B. UI de ventas
 
-La revisión debe decidir:
+Interfaz para crear, listar, confirmar y cancelar ventas sobre la API ya
+implementada. No requiere cambios de esquema ni permisos nuevos. Debe respetar
+que `sales.read` no concede permisos financieros y que el costo no se expone.
 
-1. si acepta la corrección de escala monetaria en la superficie read;
-2. si la matriz de concurrencia satisface el plan §14;
-3. si autoriza commits separados y auditables para:
-   - `fix(sales): preserve canonical money scale`;
-   - `test(sales): add phase 7b concurrency coverage`;
-   - documentación de cierre/candidato;
-4. si, después de esos commits y una revisión final del diff, declara
-   `PHASE_7B_COMPLETE`.
+### C. Importación legacy de `Ventas` (Waves 3+)
 
-No se hizo commit ni push durante la verificación actual.
+Requiere resolver antes las decisiones humanas todavía abiertas en
+[open-decisions.md](../legacy/open-decisions.md): DEC-012, DEC-013, DEC-016,
+DEC-017 y las de agrupación y duplicados. No puede inferirse ninguna regla
+desde la implementación operacional de FASE 7B.
 
-## Fuera de este gate
+### D. Finanzas y cierres diarios
 
-Ni el estado candidato ni una futura declaración de cierre autorizan:
+Módulos `finances` y `daily-closings`. Interactúa con el invariante de que los
+ingresos automáticos de ventas no deben duplicarse en Finanzas, por lo que
+necesita su propio diseño y decisiones aprobadas.
 
-- aplicar la migración o bootstrap/RBAC de FASE 7A a staging;
-- crear, confirmar o cancelar una venta real en staging;
-- implementar UI de ventas;
-- importar `Ventas` legacy o comenzar Waves 3+;
-- resolver agrupación, duplicados o interpretación histórica de estado/pago;
-- implementar finanzas, pagos o cierres diarios;
-- editar o eliminar movimientos históricos del ledger.
+## Deuda menor pendiente
 
-Cada acción anterior requiere su propio gate explícito. Después de cerrar 7B,
-el propietario debe elegir cuál gate planificar; este documento no selecciona
-ni autoriza automáticamente UI, staging o importación.
+No bloquea ningún gate, pero conviene resolverla en la próxima sesión con
+Docker disponible:
+
+- volver a ejecutar `pnpm test:integration` para cubrir el commit `d982477`,
+  posterior a la última corrida de integración. Ese commit no cambia
+  comportamiento en ejecución.
 
 ## Estado operacional que permanece inalterado
 
@@ -80,7 +70,6 @@ ni autoriza automáticamente UI, staging o importación.
   importar.
 - Las ventas legacy continúan diferidas y sin materializar.
 - `WAVES_3_PLUS_NOT_STARTED` continúa vigente.
-- El snapshot de staging registrado el 2026-08-23 sigue siendo evidencia
-  histórica, no verdad live.
-- Antes de cualquier gate de migración se debe revalidar el target read-only,
-  incluida la condición operativa de tablas de ventas vacías.
+- Los movimientos históricos del ledger nunca se editan ni eliminan a mano.
+- El snapshot de staging del 2026-08-23 es evidencia histórica, no verdad live.
+  Antes de cualquier gate de migración debe revalidarse el target read-only.

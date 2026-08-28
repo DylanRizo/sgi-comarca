@@ -61,13 +61,13 @@ file.
 | 6 regression | Concurrent shared-session renewal defect fixed and validated. `PHASE_6_CONCURRENCY_FIX_PASS`. |
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
-| 7B | Sales application layer and REST API implemented in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build pass locally. The phase is ready for owner review but is not closed. `PHASE_7B_COMPLETION_CANDIDATE`. |
+| 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
-- `PHASE_7B_COMPLETION_CANDIDATE`
+- `PHASE_7B_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -81,8 +81,9 @@ exactly one transfer; it is not general authorization to use transfers in
 staging. Further staging writes remain gate-controlled and require explicit
 authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
-staging sale is authorized. FASE 7B is a locally verified completion candidate,
-not a closed or deployed phase. The next review gate is described in
+staging sale is authorized. FASE 7B is closed in the versioned repository and
+verified locally; it is not deployed, has no UI, and did not touch staging.
+Closing FASE 7B authorizes no operational action. The next gate is described in
 [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither implementation
 nor an operational write.
 
@@ -124,8 +125,8 @@ Sales application capabilities implemented by FASE 7B, versioned only:
 
 This code was validated on 2026-08-28 against temporary PostgreSQL databases,
 including lifecycle, shared-stock concurrency with adjustments/transfers and
-the existing E2E regression. No sales UI is implemented. Candidate status is
-not authorization to create, confirm, cancel, import, or expose a real sale. See
+the existing E2E regression. No sales UI is implemented. A closed phase is not
+authorization to create, confirm, cancel, import, or expose a real sale. See
 [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
 
 The transfer write path is implemented, tested, and validated end to end in
@@ -334,6 +335,14 @@ their runners against the positively verified Docker Compose PostgreSQL 18.4
 on port 5433. Staging was never a test target or revalidated. The operational
 staging snapshot remains the historical read-only snapshot from 2026-08-23;
 FASE 7A is still not migrated there and no real staging sale is authorized.
+
+One commit postdates that run. `d982477` corrected a misleading unit-test
+fixture and added contract/mapper comments about decimal scale; it changes no
+runtime behavior, and the unit baseline it produced is 51 files / 163 tests
+with lint, typecheck and build green. The integration and E2E suites were not
+re-executed after it, because no Docker harness was available in that session.
+Re-running `pnpm test:integration` at the next opportunity would close that
+small evidence gap.
 
 ## Historical-document caveats
 
