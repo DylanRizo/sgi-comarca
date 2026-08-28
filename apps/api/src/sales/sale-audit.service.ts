@@ -44,6 +44,24 @@ export type SaleCreatedAuditInput = {
   total: string;
 };
 
+export type SaleConfirmedAuditInput = {
+  actorUserId: string;
+  confirmationId: string;
+  newStatus: string;
+  occurredAt: Date;
+  previousStatus: string;
+  saleId: string;
+};
+
+export type SaleCancelledAuditInput = {
+  actorUserId: string;
+  cancellationId: string;
+  lines: SaleLineAuditEntry[];
+  occurredAt: Date;
+  reason: string;
+  saleId: string;
+};
+
 /**
  * Sales audit events. Metadata is sanitized by construction: the idempotency
  * key, request hashes, cookies, tokens, delivery place, legacy raw text, and
@@ -70,6 +88,47 @@ export class SaleAuditService {
           status: input.status,
           subtotal: input.subtotal,
           total: input.total,
+        },
+        occurredAt: input.occurredAt,
+      },
+    });
+  }
+
+  async recordConfirmed(
+    transaction: TransactionClient,
+    input: SaleConfirmedAuditInput,
+  ): Promise<void> {
+    await transaction.auditLog.create({
+      data: {
+        action: 'sales.in_transit_confirmed',
+        actorUserId: input.actorUserId,
+        entityId: input.saleId,
+        entityType: 'Sale',
+        metadata: {
+          confirmationId: input.confirmationId,
+          confirmedAt: input.occurredAt.toISOString(),
+          newStatus: input.newStatus,
+          previousStatus: input.previousStatus,
+        },
+        occurredAt: input.occurredAt,
+      },
+    });
+  }
+
+  async recordCancelled(
+    transaction: TransactionClient,
+    input: SaleCancelledAuditInput,
+  ): Promise<void> {
+    await transaction.auditLog.create({
+      data: {
+        action: 'sales.cancelled',
+        actorUserId: input.actorUserId,
+        entityId: input.saleId,
+        entityType: 'Sale',
+        metadata: {
+          cancellationId: input.cancellationId,
+          lines: input.lines,
+          reason: input.reason,
         },
         occurredAt: input.occurredAt,
       },

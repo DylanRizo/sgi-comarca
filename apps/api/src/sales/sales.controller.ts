@@ -21,7 +21,11 @@ import { readSuccess } from '../common/read-http.js';
 import { CreateSaleService } from './create-sale.service.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CancelSaleDto } from './dto/cancel-sale.dto.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CreateSaleDto } from './dto/create-sale.dto.js';
+import { SaleLifecycleService } from './sale-lifecycle.service.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
@@ -39,6 +43,8 @@ export class SalesController {
     @Inject(SaleReadService) private readonly sales: SaleReadService,
     @Inject(CreateSaleService)
     private readonly creation: CreateSaleService,
+    @Inject(SaleLifecycleService)
+    private readonly lifecycle: SaleLifecycleService,
   ) {}
 
   @Post()
@@ -53,6 +59,56 @@ export class SalesController {
     try {
       return readSuccess(
         await this.creation.create(current.userId, idempotencyKey, input),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapSaleError(error);
+    }
+  }
+
+  @Post(':id/confirm-in-transit')
+  @RequirePermission('sales.confirm_in_transit')
+  async confirmInTransit(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Param() params: SaleIdParamDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    try {
+      return readSuccess(
+        await this.lifecycle.confirmInTransit(
+          current.userId,
+          params.id,
+          idempotencyKey,
+        ),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapSaleError(error);
+    }
+  }
+
+  @Post(':id/cancel')
+  @RequirePermission('sales.cancel')
+  async cancel(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Param() params: SaleIdParamDto,
+    @Body() input: CancelSaleDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    try {
+      return readSuccess(
+        await this.lifecycle.cancel(
+          current.userId,
+          params.id,
+          input.reason,
+          idempotencyKey,
+        ),
         request,
         response,
       );
