@@ -4,18 +4,48 @@ FASE 7A is complete in the versioned repository: the sales schema foundation
 and the `sales.read` bootstrap/RBAC change are implemented and tested. They have
 not been deployed to staging.
 
+Planning is complete and versioned in
+[phase-7b-sales-application-plan.md](../reviews/phase-7b-sales-application-plan.md),
+with the pricing/cost decision recorded in
+[ADR-009](../decisions/ADR-009-sales-pricing-cost.md). The owner reviewed the
+plan and authorized only its first implementation block.
+
 Current state:
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
-- **`PHASE_7B_NOT_STARTED`**
-- **`PHASE_7B_NOT_AUTHORIZED`**
+- **`PHASE_7B_PLANNING_COMPLETE`**
+- **`PHASE_7B_1_AUTHORIZED`** — contracts and pure domain only, no persistence.
+- **`PHASE_7B_2_THROUGH_5_NOT_AUTHORIZED`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_7B_PLANNING`**
+- **`NEXT_GATE = PHASE_7B_2_READ`**
 
-This document authorizes no implementation, schema or RBAC deployment, legacy
-import, or staging write.
+This document authorizes only FASE 7B.1 (contracts and pure domain, no
+persistence). It authorizes no further implementation block, schema or RBAC
+deployment, legacy import, or staging write.
+
+## FASE 7B.1 authorization — 2026-08-27
+
+The owner authorized implementation of block 7B.1 only: HTTP contracts/DTOs,
+pure Decimal money and shipping-allocation helpers, request canonicalization,
+and typed domain errors, each with unit tests. No NestJS module, controller,
+service, DB access, permission check, or route is in scope; those arrive in
+7B.2+ under their own gates.
+
+Three technical decisions were confirmed by the owner and bind 7B.1:
+
+- **Minimal creation DTO.** No `deliveryPlace` or legacy free-text fields;
+  extending the DTO with personal-data fields needs a separate exposure
+  decision.
+- **Cost hidden on read.** `unitCostSnapshot` is never exposed in `sales.read`
+  responses; `sales.read` grants no financial permission.
+- **Monetary rounding.** Line subtotals round to cents with `ROUND_HALF_UP`;
+  the shipping residue is distributed one cent at a time by validated item
+  ordinal so allocations sum exactly to `shippingAmount`.
+
+These match [ADR-009](../decisions/ADR-009-sales-pricing-cost.md) and the
+versioned plan. Blocks 7B.2 through 7B.5 remain unauthorized.
 
 ## Objective of the planning gate
 
