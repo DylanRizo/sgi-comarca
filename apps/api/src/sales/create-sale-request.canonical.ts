@@ -1,7 +1,10 @@
 import type { CreateSaleRequest } from '@sgi/contracts';
 import { createHash } from 'node:crypto';
 
-import { inventoryDecimalString, inventoryScaledInteger } from '../inventory/inventory-quantity.js';
+import {
+  inventoryDecimalString,
+  inventoryScaledInteger,
+} from '../inventory/inventory-quantity.js';
 import { centsToMoney, moneyToCents } from './sale-money.js';
 import { SaleError } from './sale.errors.js';
 
@@ -66,7 +69,10 @@ function canonicalShipping(value: string | undefined): string {
  * generated sale number, and any value read from the balance are excluded.
  */
 export function canonicalCreateSaleRequest(input: CreateSaleRequest): string {
-  if (typeof input.businessDate !== 'string' || !businessDatePattern.test(input.businessDate)) {
+  if (
+    typeof input.businessDate !== 'string' ||
+    !businessDatePattern.test(input.businessDate)
+  ) {
     throw new SaleError('SALES_REQUEST_INVALID');
   }
   if (input.status !== 'IN_TRANSIT' && input.status !== 'COMPLETED') {
@@ -87,7 +93,9 @@ export function canonicalCreateSaleRequest(input: CreateSaleRequest): string {
     businessDate: input.businessDate,
     items,
     sellerUserId:
-      input.sellerUserId === undefined ? null : canonicalUuid(input.sellerUserId),
+      input.sellerUserId === undefined
+        ? null
+        : canonicalUuid(input.sellerUserId),
     shippingAmount: canonicalShipping(input.shippingAmount),
     status: input.status,
   };

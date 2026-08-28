@@ -10,7 +10,9 @@ import { SaleError } from './sale.errors.js';
 const productId = '00000000-0000-4000-8000-000000000001';
 const warehouseId = '00000000-0000-4000-8000-000000000002';
 
-function request(overrides: Partial<CreateSaleRequest> = {}): CreateSaleRequest {
+function request(
+  overrides: Partial<CreateSaleRequest> = {},
+): CreateSaleRequest {
   return {
     businessDate: '2026-08-27',
     items: [{ productId, warehouseId, quantity: '2.5000', unitPrice: '10.00' }],
@@ -24,7 +26,12 @@ describe('canonicalCreateSaleRequest', () => {
     const canonical = canonicalCreateSaleRequest(
       request({
         items: [
-          { productId: productId.toUpperCase(), warehouseId, quantity: '2.5000', unitPrice: '10' },
+          {
+            productId: productId.toUpperCase(),
+            warehouseId,
+            quantity: '2.5000',
+            unitPrice: '10',
+          },
         ],
       }),
     );
@@ -38,10 +45,16 @@ describe('canonicalCreateSaleRequest', () => {
 
   it('is stable regardless of equivalent decimal spelling', () => {
     const a = createSaleRequestHash(
-      request({ items: [{ productId, warehouseId, quantity: '2.5', unitPrice: '10' }] }),
+      request({
+        items: [{ productId, warehouseId, quantity: '2.5', unitPrice: '10' }],
+      }),
     );
     const b = createSaleRequestHash(
-      request({ items: [{ productId, warehouseId, quantity: '2.5000', unitPrice: '10.00' }] }),
+      request({
+        items: [
+          { productId, warehouseId, quantity: '2.5000', unitPrice: '10.00' },
+        ],
+      }),
     );
     expect(a).toBe(b);
   });
@@ -52,14 +65,24 @@ describe('canonicalCreateSaleRequest', () => {
       request({
         items: [
           { productId, warehouseId, quantity: '1', unitPrice: '1.00' },
-          { productId: secondProduct, warehouseId, quantity: '1', unitPrice: '1.00' },
+          {
+            productId: secondProduct,
+            warehouseId,
+            quantity: '1',
+            unitPrice: '1.00',
+          },
         ],
       }),
     );
     const reversed = createSaleRequestHash(
       request({
         items: [
-          { productId: secondProduct, warehouseId, quantity: '1', unitPrice: '1.00' },
+          {
+            productId: secondProduct,
+            warehouseId,
+            quantity: '1',
+            unitPrice: '1.00',
+          },
           { productId, warehouseId, quantity: '1', unitPrice: '1.00' },
         ],
       }),
@@ -80,13 +103,23 @@ describe('canonicalCreateSaleRequest', () => {
   });
 
   it('rejects malformed dates, statuses, ids, and empty items', () => {
-    expect(() => canonicalCreateSaleRequest(request({ businessDate: '2026/08/27' }))).toThrow(SaleError);
-    expect(() => canonicalCreateSaleRequest(request({ items: [] }))).toThrow(SaleError);
     expect(() =>
-      canonicalCreateSaleRequest(request({ items: [{ productId: 'not-a-uuid', warehouseId, quantity: '1' }] })),
+      canonicalCreateSaleRequest(request({ businessDate: '2026/08/27' })),
+    ).toThrow(SaleError);
+    expect(() => canonicalCreateSaleRequest(request({ items: [] }))).toThrow(
+      SaleError,
+    );
+    expect(() =>
+      canonicalCreateSaleRequest(
+        request({
+          items: [{ productId: 'not-a-uuid', warehouseId, quantity: '1' }],
+        }),
+      ),
     ).toThrow(SaleError);
     expect(() =>
-      canonicalCreateSaleRequest(request({ items: [{ productId, warehouseId, quantity: '0' }] })),
+      canonicalCreateSaleRequest(
+        request({ items: [{ productId, warehouseId, quantity: '0' }] }),
+      ),
     ).toThrow(SaleError);
   });
 });

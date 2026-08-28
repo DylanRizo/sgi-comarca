@@ -71,7 +71,8 @@ export function resolveLinePricing(
   let priceOverridden = false;
   if (override !== null) {
     appliedCents = normalizeCanonicalMoney(override);
-    priceOverridden = referenceCents === null || appliedCents !== referenceCents;
+    priceOverridden =
+      referenceCents === null || appliedCents !== referenceCents;
   } else if (referenceCents !== null) {
     appliedCents = referenceCents;
   } else {

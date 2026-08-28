@@ -1,9 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
+  Headers,
   Inject,
   NotFoundException,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -11,8 +14,14 @@ import {
 import type { ApiSuccess, PaginatedData, SaleView } from '@sgi/contracts';
 import type { Request, Response } from 'express';
 
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator.js';
+import type { AuthenticatedRequestContext } from '../auth/http/auth-http-context.js';
 import { readSuccess } from '../common/read-http.js';
+import { CreateSaleService } from './create-sale.service.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateSaleDto } from './dto/create-sale.dto.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
@@ -21,13 +30,36 @@ import {
   saleQueryPipe,
 } from './dto/sale-query.dto.js';
 import { SaleNotFoundError, SaleReadService } from './sale-read.service.js';
+import { mapSaleError } from './sales-http.exception.js';
 
 @Controller({ path: 'sales', version: '1' })
 @RequirePermission('sales.read')
 export class SalesController {
   constructor(
     @Inject(SaleReadService) private readonly sales: SaleReadService,
+    @Inject(CreateSaleService)
+    private readonly creation: CreateSaleService,
   ) {}
+
+  @Post()
+  @RequirePermission('sales.create')
+  async create(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() input: CreateSaleDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    try {
+      return readSuccess(
+        await this.creation.create(current.userId, idempotencyKey, input),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapSaleError(error);
+    }
+  }
 
   @Get()
   async list(

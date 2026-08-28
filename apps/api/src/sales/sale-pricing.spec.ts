@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveLinePricing, type LockedBalancePricing } from './sale-pricing.js';
+import {
+  resolveLinePricing,
+  type LockedBalancePricing,
+} from './sale-pricing.js';
 import { SaleError } from './sale.errors.js';
 
 function balance(
@@ -54,7 +57,10 @@ describe('resolveLinePricing', () => {
   });
 
   it('always takes cost from the balance and preserves zero', () => {
-    const result = resolveLinePricing(balance({ currentUnitCost: '0.00' }), null);
+    const result = resolveLinePricing(
+      balance({ currentUnitCost: '0.00' }),
+      null,
+    );
     expect(result.unitCostSnapshot).toBe('0.00');
   });
 
