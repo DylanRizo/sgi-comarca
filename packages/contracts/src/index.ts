@@ -39,12 +39,14 @@ export {
 } from './inventory-transfer.js';
 export {
   saleCreationStatuses,
+  saleOrigins,
   salePaymentStatuses,
   saleStatuses,
   type CreateSaleItemRequest,
   type CreateSaleRequest,
   type SaleCreationStatus,
   type SaleItemView,
+  type SaleOrigin,
   type SalePaymentStatus,
   type SalesPublicErrorCode,
   type SaleStatus,

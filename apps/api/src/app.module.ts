@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { SalesModule } from './sales/sales.module.js';
 import { UnitsModule } from './units/units.module.js';
 import { WarehousesModule } from './warehouses/warehouses.module.js';
 
@@ -52,6 +53,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     UnitsModule,
     WarehousesModule,
     InventoryModule,
+    SalesModule,
   ],
 })
 export class AppModule {}

@@ -1,7 +1,16 @@
 import type { WarehouseSummary } from './inventory-read.js';
 
-export const saleStatuses = ['IN_TRANSIT', 'COMPLETED', 'CANCELLED'] as const;
+/** Mirrors the persisted `sale_status` enum; `LEGACY_UNKNOWN` is legacy-only. */
+export const saleStatuses = [
+  'LEGACY_UNKNOWN',
+  'IN_TRANSIT',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
 export type SaleStatus = (typeof saleStatuses)[number];
+
+export const saleOrigins = ['OPERATIONAL', 'LEGACY_IMPORT'] as const;
+export type SaleOrigin = (typeof saleOrigins)[number];
 
 export const salePaymentStatuses = ['PENDING', 'PAID', 'UNKNOWN'] as const;
 export type SalePaymentStatus = (typeof salePaymentStatuses)[number];
@@ -46,7 +55,8 @@ export interface SaleItemView {
   product: { id: string; code: string; name: string };
   warehouse: WarehouseSummary;
   quantity: string;
-  unitPriceSnapshot: string;
+  /** Always present for operational lines; a legacy line may have none. */
+  unitPriceSnapshot: string | null;
   lineSubtotal: string;
   shippingAllocation: string;
 }
@@ -54,7 +64,7 @@ export interface SaleItemView {
 export interface SaleView {
   id: string;
   saleNumber: string;
-  origin: 'OPERATIONAL' | 'LEGACY_IMPORT' | 'LEGACY_UNKNOWN';
+  origin: SaleOrigin;
   businessDate: string;
   status: SaleStatus;
   paymentStatus: SalePaymentStatus;
