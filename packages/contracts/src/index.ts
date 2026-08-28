@@ -37,6 +37,19 @@ export {
   type InventoryTransferRequest,
   type InventoryTransferResult,
 } from './inventory-transfer.js';
+export {
+  saleCreationStatuses,
+  salePaymentStatuses,
+  saleStatuses,
+  type CreateSaleItemRequest,
+  type CreateSaleRequest,
+  type SaleCreationStatus,
+  type SaleItemView,
+  type SalePaymentStatus,
+  type SalesPublicErrorCode,
+  type SaleStatus,
+  type SaleView,
+} from './sales.js';
 export type {
   AdminInvitationData,
   UserAdministrationPublicErrorCode,
