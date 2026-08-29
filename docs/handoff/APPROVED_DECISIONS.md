@@ -66,6 +66,25 @@ ADR, architecture document, migration, and tests.
   calculations and had no cost column; immutable price/cost snapshot semantics
   and canonical server calculation are new FASE 7A/7B guarantees.
 
+- Finanzas derives sales income when reading and never persists it. A stored
+  financial entry is always a manual one, so automatic sales income cannot be
+  duplicated by construction, and cancelling a sale corrects the aggregate on
+  its own. Only completed sales count; in-transit and cancelled never do. No
+  read ever deletes rows: the legacy automatic rows remain raw evidence and
+  stay out of the aggregate.
+- The daily closing difference keeps the legacy formula, `real cash + real
+  digital − system sales`. Expenses do not take part and are presented
+  separately, so historical and new closings stay comparable.
+- A closing is `Cuadrado` when the absolute difference is below a configurable
+  tolerance that defaults to the legacy 0.5. Each closing records the
+  tolerance actually applied.
+- Saving a closing reports the in-transit sales of that date and does not
+  touch them. A closing never cancels a sale or restores inventory as a side
+  effect; cancelling remains an explicit human action under `sales.cancel`.
+
+See [ADR-010](../decisions/ADR-010-finances-closings-rules.md) for DEC-019,
+DEC-022, DEC-023 and DEC-024.
+
 See [ADR-009](../decisions/ADR-009-sales-pricing-cost.md) for DEC-014/DEC-015
 and the operational pricing boundary.
 

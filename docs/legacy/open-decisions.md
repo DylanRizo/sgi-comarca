@@ -1,5 +1,29 @@
 # Decisiones humanas pendientes
 
+## Actualización FASE 8 — 2026-08-29
+
+El propietario resolvió DEC-019, DEC-022, DEC-023 y DEC-024 para finanzas y
+cierres diarios. La evidencia legacy se conserva sin reescribir.
+
+- **DEC-022.** Finanzas deriva los ingresos de ventas al leer y no los
+  persiste; un asiento persistido es siempre manual. La no duplicación queda
+  garantizada por construcción. A diferencia del legacy, ninguna lectura borra
+  filas: las automáticas originales se preservan como evidencia raw.
+- **DEC-023.** Se conserva la fórmula legacy
+  `diferencia = efectivo real + digital real − ventas del sistema`. Los gastos
+  no participan y se presentan por separado.
+- **DEC-024.** Se conserva el umbral `abs(diferencia) < 0.5`, pero
+  configurable en vez de incrustado, y cada cierre registra la tolerancia
+  aplicada.
+- **DEC-019.** El cierre reporta las ventas en tránsito de la fecha sin
+  tocarlas. Nunca cancela ni repone inventario como efecto secundario;
+  cancelar sigue siendo una acción humana explícita con `sales.cancel`.
+
+Decisión formal: [ADR-010](../decisions/ADR-010-finances-closings-rules.md).
+
+Siguen abiertas las partes de DEC-025 sobre límite temporal de reapertura,
+reapertura con cierres posteriores y nueva aprobación tras modificar.
+
 ## Actualización FASE 7B — 2026-08-27
 
 El propietario resolvió DEC-014 para ventas operacionales. La pregunta
@@ -104,12 +128,12 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | DEC-016 | Estado de 401 líneas de venta | Q vacía; código las trata como Completado | Importar estado legacy nulo y una clasificación inferida separada | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar nulo; no derivar estado | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-018 | Método de pago histórico | Solo 32 líneas etiquetadas; código clasifica resto Digital | Importar `UNKNOWN`; conservar inferencia legacy aparte | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-019 | Venta en tránsito al cierre | Legacy la cancela automáticamente | En ensayo, no cancelar sin acción explícita; reportar pendientes | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-019 | Venta en tránsito al cierre | Legacy la cancela automáticamente | El cierre reporta las ventas en tránsito de la fecha y no las toca; nunca cancela ni repone inventario como efecto secundario | `RESOLVED_FOR_PHASE_8` |
 | DEC-020 | Confirmación de tránsito: regla base | Legacy cambia estado sin nuevo descuento; `AGENTS.md` exige que confirmar no vuelva a descontar | Aplicar la regla obligatoria; detalles operativos abajo | `APPROVED_BY_PROJECT_CONSTRAINT` |
 | DEC-021 | Cancelación: regla base | Legacy repone por almacén pero no es atómica; `AGENTS.md` exige reposición exacta una vez e idempotencia | Aplicar la regla obligatoria; detalles operativos abajo | `APPROVED_BY_PROJECT_CONSTRAINT` |
-| DEC-022 | Ingresos automáticos en Finanzas | Tres filas legacy; código vigente las elimina y deriva ventas | Conservar como raw y excluir del agregado financiero para evitar doble conteo | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-023 | Fórmula de diferencia de cierre | No resta gastos; tolerancia 0.5 | Reproducir cálculo en reporte comparativo, no como regla final | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-024 | Tolerancia `Cuadrado` | `abs(diferencia) < 0.5` | Mantener como parámetro legacy visible | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-022 | Ingresos automáticos en Finanzas | Tres filas legacy; código vigente las elimina y deriva ventas | Finanzas deriva los ingresos de ventas al leer y no los persiste; ninguna lectura borra filas; las automáticas legacy se conservan como raw y se excluyen del agregado | `RESOLVED_FOR_PHASE_8` |
+| DEC-023 | Fórmula de diferencia de cierre | No resta gastos; tolerancia 0.5 | Se conserva `efectivo real + digital real − ventas del sistema`; los gastos no participan y se muestran aparte | `RESOLVED_FOR_PHASE_8` |
+| DEC-024 | Tolerancia `Cuadrado` | `abs(diferencia) < 0.5` | Se conserva el umbral pero configurable, no incrustado; cada cierre registra la tolerancia aplicada | `RESOLVED_FOR_PHASE_8` |
 | DEC-025 | Reapertura de cierre | No existe en legacy; objetivo propone ADMIN | Dylan/Samantha pueden reabrir con motivo, actor, timestamp, historial y audit log; plazo, cierres posteriores y nueva aprobación siguen abiertos | `PARTIALLY_RESOLVED` |
 | DEC-026 | Importación CSV legacy | No idempotente, hard-coded a tres almacenes y contrato de delimitador contradictorio (`;` documentado, `,` implementado) | No ejecutarla sobre datos reales; sustituir por importador trazable con formato declarado | `REQUIRES_HUMAN_APPROVAL` |
 

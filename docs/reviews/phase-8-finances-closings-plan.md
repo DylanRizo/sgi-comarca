@@ -1,6 +1,6 @@
 # FASE 8 — Plan de finanzas y cierres diarios
 
-Estado: `PHASE_8_PLANNING_BLOCKED_ON_OWNER_DECISIONS`.
+Estado: `PHASE_8_PLANNING_COMPLETE`.
 
 Este documento completa la planificación inicial. No autoriza implementación,
 migración, cambio de esquema, bootstrap, UI ni escritura en staging.
@@ -21,47 +21,30 @@ Consecuencia de alcance: a diferencia de FASE 7B y 7C, **FASE 8 requiere una
 migración**. `AGENTS.md` prohíbe introducir una migración en silencio, así que
 el esquema es su propio bloque con su propio gate.
 
-## 2. Decisiones de negocio que bloquean la implementación
+## 2. Decisiones de negocio resueltas
 
-Ninguna puede inferirse del legacy ni del código. Mientras sigan abiertas, no
-se implementa la regla afectada.
+El propietario las resolvió el 2026-08-29. La decisión formal es
+[ADR-010](../decisions/ADR-010-finances-closings-rules.md).
 
-### DEC-022 — ingresos automáticos de ventas en Finanzas
+- **DEC-022.** Finanzas deriva los ingresos de ventas al leer y no los
+  persiste. Un asiento persistido es siempre manual, así que la no duplicación
+  queda garantizada por construcción y cancelar una venta corrige el agregado
+  solo. Ninguna lectura borra filas.
+- **DEC-023.** Se conserva `diferencia = efectivo real + digital real − ventas
+  del sistema`. Los gastos no participan y se muestran aparte.
+- **DEC-024.** Se conserva el umbral `abs(diferencia) < 0.5`, configurable en
+  vez de incrustado, y cada cierre registra la tolerancia aplicada.
+- **DEC-019.** El cierre reporta las ventas en tránsito de la fecha sin
+  tocarlas y nunca repone inventario como efecto secundario.
 
-`REQUIRES_HUMAN_APPROVAL`. El legacy incorporaba las ventas completadas como
-ingresos dinámicos y borraba las filas automáticas antiguas en una lectura.
-`AGENTS.md` exige que los ingresos automáticos de ventas no se dupliquen en
-Finanzas. Falta decidir si Finanzas **deriva** los ingresos de ventas al leer,
-sin persistirlos, o si los **materializa** con una marca de origen.
+### Todavía abierto
 
-### DEC-023 — fórmula de diferencia del cierre
-
-`REQUIRES_HUMAN_APPROVAL`. El legacy calcula
-`diferencia = efectivo real + digital real − ventas del sistema` y **no resta
-los gastos**. La documentación marca esa intención como ambigua. Falta decidir
-si los gastos entran en la fórmula.
-
-### DEC-024 — tolerancia `Cuadrado`
-
-`REQUIRES_HUMAN_APPROVAL`. El legacy considera cuadrado un
-`abs(diferencia) < 0.5`. Falta decidir si esa tolerancia se conserva, se
-parametriza o se elimina.
-
-### DEC-019 — venta en tránsito al cerrar el día
-
-`REQUIRES_HUMAN_APPROVAL`. El legacy **cancela automáticamente** las ventas en
-tránsito de la fecha al guardar el cierre. Eso hoy sería una cancelación con
-reposición de inventario disparada por un cierre, sin acción explícita del
-operador. Falta decidir entre bloquear el cierre, reportarlas sin tocarlas, o
-cancelarlas con confirmación explícita.
-
-### DEC-025 — reapertura de cierres
-
-`PARTIALLY_RESOLVED`. Ya aprobado: Dylan y Samantha pueden crear y reabrir;
-la reapertura exige motivo, actor, fecha/hora, conservación del cierre y su
-historial, `audit_log` y ausencia de borrado físico. Siguen abiertos el límite
-temporal, la reapertura cuando existen cierres posteriores y la nueva
-aprobación tras modificar el cierre.
+**DEC-025** sigue `PARTIALLY_RESOLVED`. Ya aprobado: Dylan y Samantha pueden
+crear y reabrir; la reapertura exige motivo, actor, fecha/hora, conservación
+del cierre y su historial, `audit_log` y ausencia de borrado físico. Siguen
+abiertos el límite temporal, la reapertura cuando existen cierres posteriores
+y la nueva aprobación tras modificar. Deben resolverse antes del bloque que
+implemente la reapertura, no antes de 8A.
 
 ## 3. Reglas ya firmes
 

@@ -20,25 +20,31 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`WAVES_3_PLUS_NOT_STARTED`**
 - **`PHASE_8_SELECTED`** — finanzas y cierres, elegida por el propietario el
   2026-08-28.
-- **`PHASE_8_PLANNING_BLOCKED_ON_OWNER_DECISIONS`**
-- **`NEXT_GATE = PHASE_8_OWNER_DECISIONS`**
+- **`PHASE_8_PLANNING_COMPLETE`**
+- **`PHASE_8A_AUTHORIZED`** — fundación de esquema de finanzas y cierres.
+- **`NEXT_GATE = PHASE_8A_SCHEMA`**
 
 Cerrar FASE 7 no autorizó ninguna acción operacional. El propietario eligió
-como siguiente tramo finanzas y cierres diarios. La planificación inicial está
-en [el plan de FASE 8](../reviews/phase-8-finances-closings-plan.md) y quedó
-**bloqueada**: cinco decisiones de negocio siguen abiertas y ninguna puede
-inferirse del legacy.
+como siguiente tramo finanzas y cierres diarios, y el 2026-08-29 resolvió las
+decisiones que bloqueaban su planificación. El plan está en
+[el plan de FASE 8](../reviews/phase-8-finances-closings-plan.md) y la decisión
+formal en [ADR-010](../decisions/ADR-010-finances-closings-rules.md).
 
-Bloqueo actual, en el orden en que hay que resolverlo:
+Reglas aprobadas que fijan el módulo:
 
-- **DEC-022** — si Finanzas deriva los ingresos de ventas al leer o los
-  materializa con marca de origen, sin duplicarlos nunca;
-- **DEC-023** — si los gastos entran en la fórmula de diferencia del cierre;
-- **DEC-024** — si se conserva, parametriza o elimina la tolerancia `Cuadrado`
-  de 0.5;
-- **DEC-019** — qué hace el cierre con las ventas en tránsito de esa fecha;
-- **DEC-025** — límite temporal de reapertura, reapertura con cierres
-  posteriores y nueva aprobación tras modificar.
+- **DEC-022** — Finanzas deriva los ingresos de ventas al leer y no los
+  persiste; un asiento persistido es siempre manual y ninguna lectura borra
+  filas;
+- **DEC-023** — la diferencia del cierre conserva la fórmula legacy y los
+  gastos no participan;
+- **DEC-024** — la tolerancia `Cuadrado` se conserva pero configurable, y cada
+  cierre registra la aplicada;
+- **DEC-019** — el cierre reporta las ventas en tránsito sin tocarlas y nunca
+  repone inventario como efecto secundario.
+
+Siguen abiertas las partes de DEC-025 sobre límite temporal de reapertura,
+reapertura con cierres posteriores y nueva aprobación tras modificar. Se
+resolverán antes del bloque que implemente la reapertura.
 
 Hallazgo de alcance verificado contra el código: no existe ningún modelo Prisma
 de finanzas ni de cierres, así que FASE 8 **requiere una migración**, a
