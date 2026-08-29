@@ -1,4 +1,4 @@
-# Next Gate — Selección del propietario
+# Next Gate — FASE 8, finanzas y cierres diarios
 
 FASE 7 está cerrada de punta a punta en el repositorio versionado: 7A el
 esquema, 7B la aplicación y API, 7C la interfaz. Todo fue verificado localmente
@@ -18,11 +18,33 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = NOT_SELECTED`**
+- **`PHASE_8_SELECTED`** — finanzas y cierres, elegida por el propietario el
+  2026-08-28.
+- **`PHASE_8_PLANNING_BLOCKED_ON_OWNER_DECISIONS`**
+- **`NEXT_GATE = PHASE_8_OWNER_DECISIONS`**
 
-Cerrar FASE 7 no autorizó ninguna acción operacional. Este documento no
-selecciona ni autoriza el siguiente gate: enumera los candidatos para que el
-propietario elija uno de forma explícita.
+Cerrar FASE 7 no autorizó ninguna acción operacional. El propietario eligió
+como siguiente tramo finanzas y cierres diarios. La planificación inicial está
+en [el plan de FASE 8](../reviews/phase-8-finances-closings-plan.md) y quedó
+**bloqueada**: cinco decisiones de negocio siguen abiertas y ninguna puede
+inferirse del legacy.
+
+Bloqueo actual, en el orden en que hay que resolverlo:
+
+- **DEC-022** — si Finanzas deriva los ingresos de ventas al leer o los
+  materializa con marca de origen, sin duplicarlos nunca;
+- **DEC-023** — si los gastos entran en la fórmula de diferencia del cierre;
+- **DEC-024** — si se conserva, parametriza o elimina la tolerancia `Cuadrado`
+  de 0.5;
+- **DEC-019** — qué hace el cierre con las ventas en tránsito de esa fecha;
+- **DEC-025** — límite temporal de reapertura, reapertura con cierres
+  posteriores y nueva aprobación tras modificar.
+
+Hallazgo de alcance verificado contra el código: no existe ningún modelo Prisma
+de finanzas ni de cierres, así que FASE 8 **requiere una migración**, a
+diferencia de 7B y 7C. Los cinco permisos ya existen en el manifest.
+
+Los demás candidatos siguen sin seleccionar y sin autorizar.
 
 ## Gates candidatos
 
