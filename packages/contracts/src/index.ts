@@ -10,6 +10,25 @@ export type {
   CurrentSessionData,
   LoginRequest,
 } from './auth.js';
+export {
+  dailyClosingStatuses,
+  financeLineSources,
+  financeOrigins,
+  financialEntryTypes,
+  type CreateDailyClosingRequest,
+  type CreateFinancialEntryRequest,
+  type DailyClosingReopeningView,
+  type DailyClosingStatus,
+  type DailyClosingView,
+  type FinanceLineSource,
+  type FinanceLineView,
+  type FinanceOrigin,
+  type FinancesPublicErrorCode,
+  type FinanceTotalsView,
+  type FinancialCategoryView,
+  type FinancialEntryType,
+  type ReopenDailyClosingRequest,
+} from './finances.js';
 export type { HealthData, ReadinessData } from './health.js';
 export type {
   InventoryAdjustmentPublicErrorCode,
