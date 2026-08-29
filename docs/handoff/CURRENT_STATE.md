@@ -64,15 +64,14 @@ file.
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
-| 7C candidate | Sales UI blocks 7C.1–7C.4 are implemented: list/detail, multi-line and multi-warehouse creation, confirmation, cancellation, and critical Playwright coverage. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline. The owner must still review and declare the phase closed. `PHASE_7C_COMPLETION_CANDIDATE`. |
+| 7C | Sales UI complete in blocks 7C.1–7C.4: list and detail, multi-line and multi-warehouse creation, in-transit confirmation, total cancellation, and Playwright coverage of the critical flows. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline, and found a defect that hid the public sales error codes behind a generic response; it was fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; nothing was deployed and staging was never touched. `PHASE_7C_COMPLETE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
 - `PHASE_7B_COMPLETE`
-- `PHASE_7C_AUTHORIZED`
-- `PHASE_7C_COMPLETION_CANDIDATE`
+- `PHASE_7C_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -86,12 +85,11 @@ exactly one transfer; it is not general authorization to use transfers in
 staging. Further staging writes remain gate-controlled and require explicit
 authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
-staging sale is authorized. FASE 7B is closed in the versioned repository and
-verified locally; it is not deployed and did not touch staging. FASE 7C is a
-locally verified completion candidate, not an owner-declared closed phase.
-Neither phase authorizes an operational action. The next gate is described in
-[NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither implementation
-nor an operational write.
+staging sale is authorized. FASE 7B and FASE 7C are closed in the versioned
+repository and verified locally; neither is deployed and neither touched
+staging. No closed phase authorizes an operational action. The next gate is
+described in [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
+implementation nor an operational write.
 
 ## Current capabilities
 
@@ -135,7 +133,7 @@ the existing E2E regression. A closed phase is not authorization to create,
 confirm, cancel, import, or expose a real sale. See
 [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
 
-Sales UI capabilities implemented by the FASE 7C completion candidate:
+Sales UI capabilities completed by FASE 7C:
 
 - paginated list and detail views guarded by `sales.read`, without cost or
   margin exposure;
@@ -166,8 +164,8 @@ staging transfer still requires its own explicit human authorization.
 
 The broader schema also contains authentication, audit, sales, legacy source,
 import batch, raw legacy record, and reconciliation models. FASE 7A hardens the
-sales schema, FASE 7B provides the application/API, and FASE 7C is the verified
-UI completion candidate. None of those repository capabilities means staging
+sales schema, FASE 7B provides the application/API, and FASE 7C provides the
+UI. None of those repository capabilities means staging
 deployment or legacy sales import occurred.
 
 ## Last verified staging snapshot
@@ -344,7 +342,7 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-28 for the FASE 7C completion candidate: 53 files / 175
+Revalidated on 2026-08-28 at FASE 7C closure: 53 files / 175
 unit tests, 21 files / 195 PostgreSQL integration and concurrency tests, and
 24/24 Chromium E2E tests passed. Format, lint (8/8 tasks), typecheck (7/7 tasks)
 and build (7/7 tasks) also passed. The E2E total comprises the existing 17
