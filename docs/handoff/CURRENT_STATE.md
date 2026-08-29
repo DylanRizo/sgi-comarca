@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-08-28.
+Updated: 2026-08-29.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -14,6 +14,8 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 8B.1–8B.4 implementation baseline, including the transactional
+  closing read fix: `a0b9cf64a11bbbc885a71dd0396f6db11310ad3c`.
 - Committed FASE 7C implementation and initial E2E baseline:
   `fb21e2277b491a69fa41448246797bf4323f2be3`.
 - Committed FASE 7B implementation baseline:
@@ -66,6 +68,7 @@ file.
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
 | 7C | Sales UI complete in blocks 7C.1–7C.4: list and detail, multi-line and multi-warehouse creation, in-transit confirmation, total cancellation, and Playwright coverage of the critical flows. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline, and found a defect that hid the public sales error codes behind a generic response; it was fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; nothing was deployed and staging was never touched. `PHASE_7C_COMPLETE`. |
 | 8A | Finances and daily closings schema foundation complete: financial categories and entries, daily closings and their reopening history, with the ADR-010 rules enforced by CHECK constraints and triggers. A persisted entry is always manual, the closing formula excludes expenses, the applied tolerance is recorded per closing, and figures and history are immutable. Verified on 2026-08-29 against the local Docker Compose PostgreSQL: migration applies cleanly and 213/213 integration tests pass. Not deployed; staging was verified untouched. `PHASE_8A_SCHEMA_COMPLETE`. |
+| 8B.1–8B.4 | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented. On 2026-08-29 the previously unexecuted mutation paths were verified against temporary PostgreSQL databases: the focused 8B.3 suite passed 12/12, the new 8B.4 lifecycle suite passed 9/9, and the full integration baseline passed 243/243. This is verified repository work only; FASE 8 remains in progress because 8B.5 and 8C were explicitly left untouched. |
 
 ## Current milestone
 
@@ -74,6 +77,7 @@ file.
 - `PHASE_7B_COMPLETE`
 - `PHASE_7C_COMPLETE`
 - `PHASE_8A_SCHEMA_COMPLETE`
+- `PHASE_8_IN_PROGRESS`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -89,7 +93,9 @@ authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
 staging sale is authorized. FASE 7B and FASE 7C are closed in the versioned
 repository and verified locally; neither is deployed and neither touched
-staging. No closed phase authorizes an operational action. The next gate is
+staging. FASE 8B.1–8B.4 are implemented and locally verified, but FASE 8 is
+still in progress; this verification did not start 8B.5 or 8C. No closed phase
+authorizes an operational action. The next gate is
 described in [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
 
@@ -149,6 +155,25 @@ Sales UI capabilities completed by FASE 7C:
 This UI is versioned and locally verified only. It was not deployed to staging
 and no real sale was created, confirmed, or cancelled.
 
+Finance and closing capabilities implemented through FASE 8B.4, versioned
+only:
+
+- merged, paginated finance reads derive completed-sale income at query time;
+  persisted `FinancialEntry` rows remain manual and immutable;
+- manual income/expense creation validates the active category and responsible
+  user, persists actor-scoped SHA-256 idempotency hashes, and appends one
+  sanitized audit event in the same transaction;
+- daily closing creation freezes completed sales for the civil business date,
+  reports in-transit sales separately, applies the recorded tolerance, and
+  never changes sales or inventory;
+- reopening follows accepted DEC-025: configurable 30-day default window,
+  reason/actor/time history, later closings do not block an earlier reopening,
+  and a reopened closing is never reclosed. The reopening document is inserted
+  before the only allowed `CLOSED → REOPENED` update.
+
+These paths were verified against PostgreSQL and its unmodified FASE 8A
+constraints/triggers. FASE 8B.5 and FASE 8C are not part of this verified scope.
+
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
 staging transfer still requires its own explicit human authorization.
@@ -194,9 +219,12 @@ validated in FASE 5C and the single controlled transfer validated by the FASE 6
 gate. Consolidated product stock was invariant across the transfer, no balance
 row was created, and no valuation was created, copied, or modified.
 
-This staging snapshot remains exactly the read-only snapshot verified on
-2026-08-23. FASE 7A did not mutate or revalidate staging. Before any future
-staging migration gate, positively verify the target and revalidate read-only
+This staging snapshot remains the operational snapshot verified on 2026-08-23.
+On 2026-08-29 a read-only safeguard check reconfirmed its latest migration as
+`20260820170000_phase_6a_transfer_foundation` and the recorded counts for
+products (144), balances (357), movements (3), transfers (1), and import batches
+(1). No test targeted staging and no row was written. Before any future staging
+migration gate, positively verify the target and revalidate read-only
 that `sales`, `sale_items`, `sale_cancellations`, and
 `in_transit_confirmations` are still empty. The recorded empty state is an
 operational precondition to revalidate, not live truth.
@@ -234,6 +262,8 @@ integration/concurrency suites.
 - `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
 - `sales.cancel` remains one direct grant only to Dylan; no role grants it.
+- `FINANCE` receives exactly `finances.read`, `finances.manual.create`,
+  `closings.read`, `closings.create`, and `closings.reopen` through its role.
 - `ADMIN` is not a superuser and has no permission bypass.
 - An active direct `DENY` overrides direct and role grants.
 - Authentication and active-user state remain prerequisites for every private
@@ -345,11 +375,20 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-29 after FASE 8A: 53 files / 175 unit tests, 22 files /
-213 PostgreSQL integration tests, lint (8/8), typecheck (7/7) and build (7/7)
-passed, with formatting clean. The E2E baseline was not re-run for 8A because
-it adds no runtime surface; the last E2E evidence remains the 24/24 from
-2026-08-28.
+Revalidated on 2026-08-29 after verifying FASE 8B.3 and 8B.4: 55 files / 194
+unit tests, 25 files / 243 PostgreSQL integration and concurrency tests, and
+24/24 Chromium E2E tests passed. Lint passed 8/8 tasks, typecheck and build each
+passed 7/7 tasks, and the repository passed `format:check`. The focused mutation
+evidence was 12/12 for manual financial entries and 9/9 for the daily-closing
+lifecycle.
+
+The first full integration attempt exposed two differences and was not counted
+as green: the new 8B.3 immutability assertion expected raw SQLSTATE `55000`
+instead of Prisma's `P2010` wrapper, and one historical sales-concurrency case
+returned its typed conflict under parallel suite load. The assertion now checks
+both `P2010` and nested `originalCode = 55000`; the unchanged sales spec then
+passed 9/9 in isolation, and the complete rerun passed 243/243. No sales service
+or database integrity rule changed.
 
 Previously revalidated on 2026-08-28 at FASE 7C closure: 53 files / 175
 unit tests, 21 files / 195 PostgreSQL integration and concurrency tests, and
@@ -358,10 +397,14 @@ and build (7/7 tasks) also passed. The E2E total comprises the existing 17
 regressions plus 7 sales UI flows.
 
 Integration and E2E used only temporary local databases created and dropped by
-their runners against the positively verified Docker Compose PostgreSQL 18.4
-on port 5433. Staging was never a test target or revalidated. The operational
-staging snapshot remains the historical read-only snapshot from 2026-08-23;
-FASE 7A is still not migrated there and no real staging sale is authorized.
+their runners against the positively verified container
+`sgi-comarca-postgres-1` (`postgres:18.4-alpine`) on `localhost:5433`. The
+development target was positively identified as `sgi_comarca_dev` / `sgi_dev`.
+The E2E run ended with zero sessions to terminate and `DROP DATABASE`; a final
+catalog query found no `sgi_e2e_*`, `sgi_phase8b3_*`, or `sgi_phase8b4_*`
+database. Staging was never a test target. Its safeguard revalidation was
+read-only, FASE 7A is still not migrated there, and no real staging sale is
+authorized.
 
 The prior evidence gap after `d982477` is closed by this run. The E2E runner
 needed two retries before executing tests because cold local API startup twice
