@@ -68,7 +68,7 @@ file.
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
 | 7C | Sales UI complete in blocks 7C.1–7C.4: list and detail, multi-line and multi-warehouse creation, in-transit confirmation, total cancellation, and Playwright coverage of the critical flows. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline, and found a defect that hid the public sales error codes behind a generic response; it was fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; nothing was deployed and staging was never touched. `PHASE_7C_COMPLETE`. |
 | 8A | Finances and daily closings schema foundation complete: financial categories and entries, daily closings and their reopening history, with the ADR-010 rules enforced by CHECK constraints and triggers. A persisted entry is always manual, the closing formula excludes expenses, the applied tolerance is recorded per closing, and figures and history are immutable. Verified on 2026-08-29 against the local Docker Compose PostgreSQL: migration applies cleanly and 213/213 integration tests pass. Not deployed; staging was verified untouched. `PHASE_8A_SCHEMA_COMPLETE`. |
-| 8B.1–8B.4 | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented. On 2026-08-29 the previously unexecuted mutation paths were verified against temporary PostgreSQL databases: the focused 8B.3 suite passed 12/12, the new 8B.4 lifecycle suite passed 9/9, and the full integration baseline passed 243/243. This is verified repository work only; FASE 8 remains in progress because 8B.5 and 8C were explicitly left untouched. |
+| 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. FASE 8 remains in progress because 8C (UI) has not started. |
 
 ## Current milestone
 
@@ -77,6 +77,7 @@ file.
 - `PHASE_7B_COMPLETE`
 - `PHASE_7C_COMPLETE`
 - `PHASE_8A_SCHEMA_COMPLETE`
+- `PHASE_8B_COMPLETE`
 - `PHASE_8_IN_PROGRESS`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
@@ -93,8 +94,9 @@ authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
 staging sale is authorized. FASE 7B and FASE 7C are closed in the versioned
 repository and verified locally; neither is deployed and neither touched
-staging. FASE 8B.1–8B.4 are implemented and locally verified, but FASE 8 is
-still in progress; this verification did not start 8B.5 or 8C. No closed phase
+staging. FASE 8B (blocks 8B.1-8B.5) is closed in the versioned repository and
+verified directly against local PostgreSQL; it is not deployed. FASE 8 is
+still in progress because 8C (UI) has not started. No closed phase
 authorizes an operational action. The next gate is
 described in [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
@@ -172,7 +174,9 @@ only:
   before the only allowed `CLOSED → REOPENED` update.
 
 These paths were verified against PostgreSQL and its unmodified FASE 8A
-constraints/triggers. FASE 8B.5 and FASE 8C are not part of this verified scope.
+constraints/triggers, closed by the 8B.5 verification on 2026-08-29. See
+[phase-8b-completion-report.md](../reviews/phase-8b-completion-report.md).
+FASE 8C (UI) is not part of this verified scope.
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -375,7 +379,19 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-29 after verifying FASE 8B.3 and 8B.4: 55 files / 194
+Revalidated on 2026-08-29 at the 8B.5 closure, run directly (not by a
+sub-agent report): 55 files / 194 unit tests, 25 files / 244 PostgreSQL
+integration tests, and 24/24 Chromium E2E tests passed. Lint passed 8/8 tasks,
+typecheck and build each passed 7/7 tasks, `format:check` and `db:validate`
+passed. An in-memory OpenAPI check (SwaggerModule.createDocument, never
+`.setup`, no route mounted) found 36 total paths including the 6 finance/
+closing ones, all private. A manual security pass over the finance module
+found no critical or high issue: exact RBAC per route, raw SQL with constant
+text and user values only as positional parameters, sanitized audit metadata,
+strict DTO whitelisting. See
+[phase-8b-completion-report.md](../reviews/phase-8b-completion-report.md).
+
+Earlier the same day, after verifying FASE 8B.3 and 8B.4: 55 files / 194
 unit tests, 25 files / 243 PostgreSQL integration and concurrency tests, and
 24/24 Chromium E2E tests passed. Lint passed 8/8 tasks, typecheck and build each
 passed 7/7 tasks, and the repository passed `format:check`. The focused mutation
