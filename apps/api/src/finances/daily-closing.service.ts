@@ -7,7 +7,7 @@ import type { DatabaseClient } from '@sgi/database';
 import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 import { calculateClosing } from './daily-closing.calculation.js';
 import { FinanceAuditService } from './finance-audit.service.js';
-import { FinanceReadService } from './finance-read.service.js';
+import { closingSelect, mapClosing } from './finance-read.service.js';
 import {
   canonicalDailyClosingRequest,
   canonicalReopeningRequest,
@@ -46,7 +46,6 @@ function civilDateUtc(businessDate: string): Date {
 
 export class DailyClosingService {
   private readonly permissions: EffectivePermissionsService;
-  private readonly reads: FinanceReadService;
 
   constructor(
     private readonly client: DatabaseClient,
@@ -55,7 +54,22 @@ export class DailyClosingService {
     private readonly clock: FinanceClock = systemClock,
   ) {
     this.permissions = new EffectivePermissionsService(client);
-    this.reads = new FinanceReadService(client);
+  }
+
+  /**
+   * Load a closing through the transaction client. Reading it with the base
+   * client would not see rows written by the still-uncommitted transaction.
+   */
+  private async loadClosing(
+    transaction: TransactionClient,
+    id: string,
+  ): Promise<DailyClosingView> {
+    const row = await transaction.dailyClosing.findUnique({
+      select: closingSelect,
+      where: { id },
+    });
+    if (!row) throw new FinanceError('CLOSING_NOT_FOUND');
+    return mapClosing(row);
   }
 
   /**
@@ -203,7 +217,7 @@ export class DailyClosingService {
       if (replay.requestHash !== hashes.requestHash) {
         throw new FinanceError('FINANCE_CONCURRENCY_CONFLICT');
       }
-      return this.reads.closing(replay.id);
+      return this.loadClosing(transaction, replay.id);
     }
 
     const businessDate = civilDateUtc(request.businessDate);
@@ -269,7 +283,7 @@ export class DailyClosingService {
       toleranceApplied: calculation.toleranceApplied,
     });
 
-    return this.reads.closing(closing.id);
+    return this.loadClosing(transaction, closing.id);
   }
 
   private async reopenInTransaction(
@@ -298,7 +312,7 @@ export class DailyClosingService {
       if (claimed.requestHash !== hashes.requestHash) {
         throw new FinanceError('FINANCE_CONCURRENCY_CONFLICT');
       }
-      return this.reads.closing(claimed.closingId);
+      return this.loadClosing(transaction, claimed.closingId);
     }
 
     const rows = await transaction.$queryRawUnsafe<
@@ -352,6 +366,6 @@ export class DailyClosingService {
       reopeningId: reopening.id,
     });
 
-    return this.reads.closing(closingId);
+    return this.loadClosing(transaction, closingId);
   }
 }

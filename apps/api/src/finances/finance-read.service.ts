@@ -79,7 +79,7 @@ const financeLineFilters = `
     AND ($5::uuid IS NULL OR line.category_id::uuid = $5::uuid)
 `;
 
-const closingSelect = {
+export const closingSelect = {
   balanced: true,
   businessDate: true,
   closedAt: true,
@@ -106,7 +106,7 @@ const closingSelect = {
   toleranceApplied: true,
 } satisfies Prisma.DailyClosingSelect;
 
-type ClosingRow = Prisma.DailyClosingGetPayload<{
+export type ClosingRow = Prisma.DailyClosingGetPayload<{
   select: typeof closingSelect;
 }>;
 
@@ -131,7 +131,7 @@ function money(value: string): string {
   return centsToMoney(negative ? -cents : cents);
 }
 
-function mapClosing(row: ClosingRow): DailyClosingView {
+export function mapClosing(row: ClosingRow): DailyClosingView {
   return {
     balanced: row.balanced,
     businessDate: civilDate(row.businessDate),
