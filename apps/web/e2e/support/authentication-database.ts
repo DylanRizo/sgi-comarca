@@ -46,6 +46,13 @@ export class AuthenticationDatabase {
       await transaction.unit.deleteMany({
         where: { code: 'E2E-UNIT', products: { none: {} } },
       });
+      // Financial entries and daily closings are immutable by FASE 8A
+      // triggers and are never deleted; the E2E database is temporary and
+      // dropped by the runner. Only remove fixture categories no entry
+      // references yet.
+      await transaction.financialCategory.deleteMany({
+        where: { code: { startsWith: 'E2E-FIN-' }, entries: { none: {} } },
+      });
       await transaction.userPermission.deleteMany({
         where: { effect: 'DENY' },
       });
@@ -62,8 +69,13 @@ export class AuthenticationDatabase {
 
   async seedInventoryReadFixtures(): Promise<void> {
     await this.client.$transaction(async (transaction) => {
-      const unit = await transaction.unit.create({
-        data: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+      // A prior suite's sold or moved product can keep E2E-UNIT alive across
+      // resets (products referencing it cannot be deleted), so this reuses
+      // the existing row instead of assuming reset() removed it.
+      const unit = await transaction.unit.upsert({
+        create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+        update: {},
+        where: { code: 'E2E-UNIT' },
       });
       await transaction.product.createMany({
         data: [
@@ -434,6 +446,69 @@ export class AuthenticationDatabase {
 
   async denySalesPermission(
     code: 'sales.cancel' | 'sales.create' | 'sales.read',
+  ): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({ where: { code } }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
+  }
+
+  /**
+   * Seed one income and one expense category dedicated to one finance test.
+   * Codes are suffixed so a test that posts an entry against a category never
+   * collides with the next test, which matters because a category already
+   * referenced by an entry cannot be deleted.
+   */
+  async seedFinanceFixtures(suffix: string): Promise<{
+    expenseCategoryId: string;
+    incomeCategoryId: string;
+  }> {
+    const [expense, income] = await Promise.all([
+      this.client.financialCategory.create({
+        data: {
+          code: `E2E-FIN-EXP-${suffix}`,
+          entryType: 'EXPENSE',
+          name: `Gasto sintético ${suffix}`,
+        },
+        select: { id: true },
+      }),
+      this.client.financialCategory.create({
+        data: {
+          code: `E2E-FIN-INC-${suffix}`,
+          entryType: 'INCOME',
+          name: `Ingreso sintético ${suffix}`,
+        },
+        select: { id: true },
+      }),
+    ]);
+    return { expenseCategoryId: expense.id, incomeCategoryId: income.id };
+  }
+
+  async financeCounts(): Promise<{
+    closings: number;
+    entries: number;
+    reopenings: number;
+  }> {
+    const [entries, closings, reopenings] = await Promise.all([
+      this.client.financialEntry.count(),
+      this.client.dailyClosing.count(),
+      this.client.dailyClosingReopening.count(),
+    ]);
+    return { closings, entries, reopenings };
+  }
+
+  async denyFinancePermission(
+    code:
+      | 'closings.create'
+      | 'closings.read'
+      | 'closings.reopen'
+      | 'finances.manual.create'
+      | 'finances.read',
   ): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({ where: { code } }),

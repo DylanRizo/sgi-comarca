@@ -29,6 +29,9 @@ async function activateAndLogin(
   await expect(page).toHaveURL('/app');
 }
 
+// Runs as 02- (before 03-sales and 04-finances): its exact product-count
+// assertions need a database no other suite has yet added a permanent
+// sale-linked product to. See the ordering note in playwright.config.ts.
 test.describe('FASE 5B/5C product and inventory flows', () => {
   test.beforeEach(async () => {
     await database.reset();
@@ -112,7 +115,12 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await expect(
       page.getByRole('heading', { name: 'Sin permiso de lectura' }),
     ).toBeVisible();
-    await expect(page.getByText(/inventory\.read/u)).toBeVisible();
+    // The message is generic on purpose: this component is shared with
+    // sales and finances, and naming one specific permission would mislead
+    // there.
+    await expect(
+      page.getByText('Tu cuenta no tiene el permiso requerido'),
+    ).toBeVisible();
   });
 
   test('shows safe loading, error and not-found states', async ({
