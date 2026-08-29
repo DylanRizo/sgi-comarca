@@ -16,6 +16,11 @@ const inventoryNavigation = [
 
 const salesNavigation = [{ href: '/sales', label: 'Ventas' }] as const;
 
+const financesNavigation = [
+  { href: '/finances', label: 'Finanzas', permission: 'finances.read' },
+  { href: '/closings', label: 'Cierres', permission: 'closings.read' },
+] as const;
+
 export function AuthenticatedShell({
   children,
 }: Readonly<{ children: ReactNode }>) {
@@ -75,6 +80,23 @@ export function AuthenticatedShell({
                 </Link>
               ))
             : null}
+          {financesNavigation
+            .filter(({ permission }) =>
+              state.session.permissions.includes(permission),
+            )
+            .map(({ href, label }) => (
+              <Link
+                aria-current={
+                  pathname === href || pathname.startsWith(`${href}/`)
+                    ? 'page'
+                    : undefined
+                }
+                href={href as Route}
+                key={href}
+              >
+                {label}
+              </Link>
+            ))}
         </nav>
         <div className="application-user">
           <span>{state.session.displayName}</span>

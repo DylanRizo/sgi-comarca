@@ -19,8 +19,7 @@ export function presentReadError(error: unknown): ReadErrorPresentation {
     }
     if (status === 403) {
       return {
-        message:
-          'Tu cuenta no tiene el permiso inventory.read requerido para esta consulta.',
+        message: 'Tu cuenta no tiene el permiso requerido para esta consulta.',
         title: 'Sin permiso de lectura',
         tone: 'warning',
       };

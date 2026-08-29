@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   ApiSuccess,
   AuthPublicErrorCode,
+  FinancesPublicErrorCode,
   InventoryAdjustmentPublicErrorCode,
   InventoryTransferPublicErrorCode,
   SalesPublicErrorCode,
@@ -22,6 +23,7 @@ export class ApiHttpError extends Error {
     readonly status: number,
     readonly code:
       | AuthPublicErrorCode
+      | FinancesPublicErrorCode
       | InventoryAdjustmentPublicErrorCode
       | InventoryTransferPublicErrorCode
       | SalesPublicErrorCode
@@ -112,6 +114,7 @@ export async function apiRequest<T>(
         response.status,
         parsed.error.code as
           | AuthPublicErrorCode
+          | FinancesPublicErrorCode
           | InventoryAdjustmentPublicErrorCode
           | InventoryTransferPublicErrorCode
           | SalesPublicErrorCode,
