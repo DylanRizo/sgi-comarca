@@ -14,6 +14,9 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 8C UI and its e2e suite, closing FASE 8 end to end:
+  `1e304cf`.
+- Committed FASE 8B application/API closure: `6090001`.
 - Committed FASE 8B.1–8B.4 implementation baseline, including the transactional
   closing read fix: `a0b9cf64a11bbbc885a71dd0396f6db11310ad3c`.
 - Committed FASE 7C implementation and initial E2E baseline:
@@ -68,7 +71,8 @@ file.
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
 | 7C | Sales UI complete in blocks 7C.1–7C.4: list and detail, multi-line and multi-warehouse creation, in-transit confirmation, total cancellation, and Playwright coverage of the critical flows. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline, and found a defect that hid the public sales error codes behind a generic response; it was fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; nothing was deployed and staging was never touched. `PHASE_7C_COMPLETE`. |
 | 8A | Finances and daily closings schema foundation complete: financial categories and entries, daily closings and their reopening history, with the ADR-010 rules enforced by CHECK constraints and triggers. A persisted entry is always manual, the closing formula excludes expenses, the applied tolerance is recorded per closing, and figures and history are immutable. Verified on 2026-08-29 against the local Docker Compose PostgreSQL: migration applies cleanly and 213/213 integration tests pass. Not deployed; staging was verified untouched. `PHASE_8A_SCHEMA_COMPLETE`. |
-| 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. FASE 8 remains in progress because 8C (UI) has not started. |
+| 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. |
+| 8C | Finances and daily closings UI complete in Spanish over the closed FASE 8B API: a merged finance list (manual entries plus sale income derived at read time, never a persisted or editable entry), category/type/date filters, period totals, manual entry creation, closing list/detail with frozen figures and reopening history, closing creation, and a reopen action gated by permission and by closing status. Verified directly on 2026-08-29: 58 files / 203 unit tests, 32/32 Chromium E2E (24 regression plus 8 new), lint 8/8, typecheck 7/7, build 7/7, format clean, and a manual security review with no findings. Building it exposed and fixed a real cross-suite E2E ordering bug (an exact product count in 02-inventory.e2e.ts depended on file discovery order rather than an explicit one) and a cross-module 403-message bug naming the wrong permission. Not deployed; nothing was written to staging. `PHASE_8C_COMPLETE`. This closes FASE 8 end to end: schema, application/API, and UI. `PHASE_8_COMPLETE`. |
 
 ## Current milestone
 
@@ -78,7 +82,8 @@ file.
 - `PHASE_7C_COMPLETE`
 - `PHASE_8A_SCHEMA_COMPLETE`
 - `PHASE_8B_COMPLETE`
-- `PHASE_8_IN_PROGRESS`
+- `PHASE_8C_COMPLETE`
+- `PHASE_8_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -94,10 +99,10 @@ authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
 staging sale is authorized. FASE 7B and FASE 7C are closed in the versioned
 repository and verified locally; neither is deployed and neither touched
-staging. FASE 8B (blocks 8B.1-8B.5) is closed in the versioned repository and
-verified directly against local PostgreSQL; it is not deployed. FASE 8 is
-still in progress because 8C (UI) has not started. No closed phase
-authorizes an operational action. The next gate is
+staging. FASE 8 (schema, application/API, and UI — blocks 8A through 8C) is
+closed end to end in the versioned repository, verified directly against
+local PostgreSQL; none of it is deployed and none touched staging. No closed
+phase authorizes an operational action. The next gate is
 described in [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
 
@@ -176,7 +181,24 @@ only:
 These paths were verified against PostgreSQL and its unmodified FASE 8A
 constraints/triggers, closed by the 8B.5 verification on 2026-08-29. See
 [phase-8b-completion-report.md](../reviews/phase-8b-completion-report.md).
-FASE 8C (UI) is not part of this verified scope.
+
+Finance and closing UI capabilities completed by FASE 8C:
+
+- a merged finance list and period totals guarded by `finances.read`, with
+  category/type/date filters; a `SALE` line never renders as editable or
+  deletable, and cost is never shown, matching what the API exposes;
+- manual entry creation guarded by `finances.manual.create`, with
+  idempotency and double-submit prevention;
+- closing list and detail guarded by `closings.read`, showing frozen figures
+  and the full reopening history;
+- closing creation guarded by `closings.create`; reopening guarded by
+  `closings.reopen`, visible only while the closing is still `CLOSED`, with a
+  mandatory reason.
+
+Verified on 2026-08-29 with 32/32 Chromium E2E (24 regression plus 8 new).
+See [phase-8c-completion-report.md](../reviews/phase-8c-completion-report.md).
+This closes FASE 8 end to end. No sales UI, finance UI, or closing was
+deployed to staging, and no real entry, sale, or closing was created there.
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -379,7 +401,19 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-29 at the 8B.5 closure, run directly (not by a
+Revalidated on 2026-08-29 at the 8C closure, run directly: 58 files / 203
+unit tests, and 32/32 Chromium E2E tests (24 regression plus 8 new
+finances/closings flows) passed. Lint 8/8, typecheck 7/7, build 7/7, and
+`format:check` passed. Building 8C exposed and fixed two real bugs: an
+02-inventory.e2e.ts product-count assertion that only held because file
+discovery happened to run it before any suite left a permanent sale-linked
+product behind (fixed by numbering every spec file 01-04 and documenting the
+requirement in playwright.config.ts, instead of relying on alphabetical
+order), and a shared 403 message that named `inventory.read` even for sales
+and finances denials. See
+[phase-8c-completion-report.md](../reviews/phase-8c-completion-report.md).
+
+Earlier the same day, at the 8B.5 closure, run directly (not by a
 sub-agent report): 55 files / 194 unit tests, 25 files / 244 PostgreSQL
 integration tests, and 24/24 Chromium E2E tests passed. Lint passed 8/8 tasks,
 typecheck and build each passed 7/7 tasks, `format:check` and `db:validate`

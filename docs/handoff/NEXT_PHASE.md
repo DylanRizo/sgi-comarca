@@ -1,91 +1,82 @@
-# Next Gate — FASE 8C, UI de finanzas y cierres
+# Next Gate — Selección del propietario
 
-FASE 7 está cerrada de punta a punta. FASE 8B (bloques 8B.1–8B.5) está cerrada
-en el repositorio versionado y verificada directamente contra PostgreSQL local
-el 2026-08-29. Falta FASE 8C: la UI de finanzas y cierres.
+FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
+esquema, 8B la aplicación y API, 8C la interfaz. Todo fue verificado
+directamente el 2026-08-29 contra PostgreSQL local. Nada se desplegó y
+staging nunca fue tocado.
 
-Las fuentes vigentes son [CURRENT_STATE.md](CURRENT_STATE.md),
-[APPROVED_DECISIONS.md](APPROVED_DECISIONS.md),
-[ADR-010](../decisions/ADR-010-finances-closings-rules.md) y el
-[reporte de cierre de 8B](../reviews/phase-8b-completion-report.md).
+Con esto, FASE 7 y FASE 8 están ambas cerradas de punta a punta en el
+repositorio versionado. Ningún módulo de negocio queda pendiente de
+implementación local salvo lo que dependa de decisiones humanas todavía
+abiertas o de importación legacy.
+
+Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
+[reporte de FASE 8B](../reviews/phase-8b-completion-report.md),
+[reporte de FASE 8C](../reviews/phase-8c-completion-report.md),
+[ADR-010](../decisions/ADR-010-finances-closings-rules.md).
 
 ## Estado actual
 
-- **`PHASE_7A_SCHEMA_COMPLETE`**
-- **`PHASE_7B_COMPLETE`**
-- **`PHASE_7C_COMPLETE`**
-- **`PHASE_8A_SCHEMA_COMPLETE`**
-- **`PHASE_8B_COMPLETE`**
-- **`PHASE_8C_NOT_STARTED`**
+- **`PHASE_7A_SCHEMA_COMPLETE`**, **`PHASE_7B_COMPLETE`**,
+  **`PHASE_7C_COMPLETE`**
+- **`PHASE_8A_SCHEMA_COMPLETE`**, **`PHASE_8B_COMPLETE`**,
+  **`PHASE_8C_COMPLETE`**
+- **`PHASE_8_COMPLETE`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_8C_UI`**
+- **`NEXT_GATE = NOT_SELECTED`**
 
-Cerrar 8B no autoriza staging, importación legacy ni ninguna escritura
-operacional real.
+Cerrar FASE 8 no autorizó ninguna acción operacional. Este documento no
+selecciona ni autoriza el siguiente gate: enumera los candidatos para que el
+propietario elija uno de forma explícita.
 
-## Evidencia de cierre de 8B (2026-08-29)
+## Gates candidatos
 
-Verificación ejecutada directamente contra el destino local identificado
-positivamente: `sgi-comarca-postgres-1`, `postgres:18.4-alpine`, saludable,
-`localhost:5433`, `sgi_comarca_dev` / `sgi_dev`.
+### A. Despliegue de FASE 7 y 8 a staging
 
-- lint 8/8, typecheck 7/7, build 7/7, `format:check` y `db:validate` limpios;
-- unitarias: 55 archivos / 194 pruebas;
-- integración: 25 archivos / 244 pruebas;
-- E2E: 24/24 Chromium;
-- OpenAPI generado sólo en memoria (nunca montado): 36 paths totales, 6 de
-  finanzas/cierres, todos privados;
-- revisión de seguridad manual sin hallazgos: RBAC exacto, SQL crudo sin
-  interpolación de datos de usuario, auditoría saneada, DTOs con whitelist
-  estricta;
-- comprobación read-only de la base local de staging: sigue en la migración
-  de FASE 6A, sin tablas de FASE 8A, `sales`/`sale_items` presentes desde
-  FASE 3A con 0 filas, conteos históricos sin cambios.
+Aplicar las migraciones `20260826232758_phase_7a_sales_foundation` y
+`20260829144239_phase_8a_finances_closings_foundation`, y el cambio de
+bootstrap/RBAC, al entorno de staging. Requiere verificación positiva del
+destino, checkpoint previo y posterior con su SHA-256 verificado, y
+revalidación read-only de que `sales`, `sale_items`, `sale_cancellations`,
+`in_transit_confirmations`, `financial_entries` y `daily_closings` siguen
+vacías.
 
-Detalle completo en
-[phase-8b-completion-report.md](../reviews/phase-8b-completion-report.md).
+No incluye crear ninguna venta, asiento o cierre real: cada uno es un gate
+separado y posterior. Es el único candidato que muta estado externo.
 
-## Alcance disponible hasta 8B
+### B. Importación legacy de `Ventas` y `Finanzas` (Waves 3+)
 
-- lectura combinada de finanzas (asientos manuales + ingreso de ventas
-  derivado, nunca duplicado) y de cierres, paginada;
-- creación de asiento manual con categoría/responsable validados;
-- creación de cierre diario con fórmula y tolerancia registradas, sin tocar
-  ventas ni inventario;
-- reapertura de cierre según DEC-025: ventana configurable, cierres
-  posteriores no bloquean, sin volver a cerrar.
+Bloqueado por decisiones humanas todavía abiertas en
+[open-decisions.md](../legacy/open-decisions.md): DEC-012 (normalización de
+personas), DEC-013 (canales), DEC-016 (estado de 401 líneas de venta),
+DEC-017 (hora final vacía), agrupación y duplicados. Ninguna regla puede
+inferirse desde la implementación operacional de FASE 7 u 8.
 
-## FASE 8C — alcance propuesto
+Antes de planificar este gate, el propietario debe resolver esas decisiones.
 
-UI en español sobre la API ya cerrada de FASE 8B. Mismas reglas que FASE 7C:
+### C. Deuda técnica menor
 
-- ocultar un control es presentación, no autorización; el backend decide;
-- `finances.read`/`closings.read` no exponen nada que la API no exponga
-  primero — en particular, ningún ingreso de venta se muestra como asiento
-  editable ni borrable, y el detalle de cierre no permite alterar cifras
-  congeladas;
-- toda mutación (asiento manual, crear cierre, reabrir) envía
-  `Idempotency-Key` y previene doble envío;
-- reabrir un cierre debe pedir motivo explícito, igual que cancelar una venta
-  en FASE 7C;
-- dinero con dos decimales; nada de `float` en el cliente.
+No es una fase; son mejoras acotadas que pueden agruparse:
 
-No requiere cambios de esquema, migración ni permisos nuevos. Sujeta a su
-propia verificación E2E antes de declararse cerrada.
+- el arnés E2E ahora numera sus archivos (01-04) para fijar el orden de
+  ejecución; cualquier especificación nueva debe respetar esa numeración o
+  revisar la nota en `playwright.config.ts`;
+- divergencia entre el plan de FASE 7B §13, que preveía `productId` y
+  `warehouseId` en los `details` de los 422, y el filtro global, que siempre
+  devuelve `details` vacío para toda la API;
+- el arranque en frío del API puede exceder el timeout de salud de 60 s del
+  runner E2E; subir ese timeout es una decisión separada.
 
-## Estado operacional inalterado
+## Estado operacional que permanece inalterado
 
-- Staging no fue objetivo de pruebas ni recibió escrituras.
-- La migración de FASE 7A y el bootstrap posterior siguen sin aplicarse a
-  staging.
-- No se creó, confirmó ni canceló una venta real.
-- Las 1,069 filas legacy de `Movimientos` y las 25 clasificadas históricamente
-  como transferencias siguen sin importar.
-- Las ventas legacy y Waves 3+ continúan diferidas.
+- Las 1,069 filas legacy de `Movimientos` siguen sin importar.
+- Las 25 filas clasificadas históricamente como transferencias siguen sin
+  importar.
+- Las ventas legacy continúan diferidas y sin materializar.
+- `WAVES_3_PLUS_NOT_STARTED` continúa vigente.
 - Los movimientos históricos del ledger nunca se editan ni eliminan a mano.
-
-Cerrar cualquier bloque de FASE 8 en el repositorio no autoriza despliegue,
-importación legacy ni escritura operacional. Cada acción externa requiere su
-propio gate explícito.
+- El snapshot de staging del 2026-08-23 es evidencia histórica, no verdad
+  live. Antes de cualquier gate de migración debe revalidarse el target
+  read-only.
