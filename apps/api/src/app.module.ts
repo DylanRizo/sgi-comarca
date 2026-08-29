@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module.js';
 import { appConfig } from './config/app.config.js';
 import { DatabaseModule } from './database/database.module.js';
+import { FinancesModule } from './finances/finances.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { ProductsModule } from './products/products.module.js';
@@ -54,6 +55,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     WarehousesModule,
     InventoryModule,
     SalesModule,
+    FinancesModule,
   ],
 })
 export class AppModule {}

@@ -11,6 +11,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 import { AuthHttpException } from '../auth/http/auth-http.exception.js';
+import { FinancesHttpException } from '../finances/finances-http.exception.js';
 import { InventoryHttpException } from '../inventory/inventory-http.exception.js';
 import { SalesHttpException } from '../sales/sales-http.exception.js';
 
@@ -32,6 +33,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
     const publicError =
       exception instanceof AuthHttpException ||
+      exception instanceof FinancesHttpException ||
       exception instanceof InventoryHttpException ||
       exception instanceof SalesHttpException
         ? exception
