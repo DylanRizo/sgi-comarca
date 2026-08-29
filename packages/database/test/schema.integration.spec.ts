@@ -12,6 +12,10 @@ if (!databaseUrl) {
 
 const applicationTables = [
   'audit_logs',
+  'daily_closing_reopenings',
+  'daily_closings',
+  'financial_categories',
+  'financial_entries',
   'import_batches',
   'in_transit_confirmations',
   'inventory_balances',
@@ -127,7 +131,7 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     await pool.end();
   });
 
-  it('has exactly 27 application tables and only the Prisma technical table', async () => {
+  it('has exactly 31 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -143,18 +147,18 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(27);
+    expect(actualApplicationTables).toHaveLength(31);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly 22 non-internal triggers', async () => {
+  it('has the approved functions and exactly 27 non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -180,6 +184,8 @@ describe('PostgreSQL structure through PHASE 7A', () => {
       { proname: 'enforce_operational_sale_has_items' },
       { proname: 'enforce_operational_sale_item_ledger' },
       { proname: 'enforce_session_lifecycle' },
+      { proname: 'guard_daily_closing_write' },
+      { proname: 'guard_financial_entry_write' },
       { proname: 'guard_sale_action_insert' },
       { proname: 'guard_sale_item_insert' },
       { proname: 'guard_sale_write' },
@@ -187,6 +193,26 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     ]);
     expect(triggers.rows).toEqual([
       { table_name: 'audit_logs', trigger_name: 'audit_logs_immutable' },
+      {
+        table_name: 'daily_closing_reopenings',
+        trigger_name: 'daily_closing_reopenings_immutable',
+      },
+      {
+        table_name: 'daily_closings',
+        trigger_name: 'daily_closings_immutable_delete',
+      },
+      {
+        table_name: 'daily_closings',
+        trigger_name: 'daily_closings_write_guard',
+      },
+      {
+        table_name: 'financial_entries',
+        trigger_name: 'financial_entries_immutable',
+      },
+      {
+        table_name: 'financial_entries',
+        trigger_name: 'financial_entries_write_guard',
+      },
       {
         table_name: 'in_transit_confirmations',
         trigger_name: 'in_transit_confirmations_immutable',

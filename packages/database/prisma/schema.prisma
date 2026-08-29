@@ -60,6 +60,27 @@ enum SaleOrigin {
   @@map("sale_origin")
 }
 
+enum FinanceOrigin {
+  OPERATIONAL
+  LEGACY_IMPORT
+
+  @@map("finance_origin")
+}
+
+enum FinancialEntryType {
+  INCOME
+  EXPENSE
+
+  @@map("financial_entry_type")
+}
+
+enum DailyClosingStatus {
+  CLOSED
+  REOPENED
+
+  @@map("daily_closing_status")
+}
+
 enum LegacySourceType {
   XLSX
   GOOGLE_SHEETS
@@ -141,6 +162,10 @@ model User {
   salesCreated                Sale[]                  @relation("SaleCreator")
   saleCancellations           SaleCancellation[]      @relation("SaleCancellationActor")
   inTransitConfirmations      InTransitConfirmation[] @relation("InTransitConfirmationActor")
+  financialEntriesCreated     FinancialEntry[]        @relation("FinancialEntryCreator")
+  financialEntriesResponsible FinancialEntry[]        @relation("FinancialEntryResponsible")
+  dailyClosingsClosed         DailyClosing[]          @relation("DailyClosingActor")
+  dailyClosingReopenings      DailyClosingReopening[] @relation("DailyClosingReopeningActor")
   resolvedIssues              ReconciliationIssue[]   @relation("ReconciliationIssueResolver")
 
   @@index([status], map: "users_status_idx")
@@ -602,6 +627,101 @@ model InTransitConfirmation {
   @@map("in_transit_confirmations")
 }
 
+model FinancialCategory {
+  id          String             @id @default(uuid()) @db.Uuid
+  code        String             @unique(map: "financial_categories_code_key") @db.VarChar(64)
+  name        String             @db.VarChar(120)
+  entryType   FinancialEntryType @map("entry_type")
+  active      Boolean            @default(true)
+  description String?            @db.VarChar(300)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  entries FinancialEntry[]
+
+  @@index([entryType, active], map: "financial_categories_type_active_idx")
+  @@map("financial_categories")
+}
+
+model FinancialEntry {
+  id                 String             @id @default(uuid()) @db.Uuid
+  origin             FinanceOrigin
+  entryType          FinancialEntryType @map("entry_type")
+  businessDate       DateTime           @map("business_date") @db.Date
+  categoryId         String?            @map("category_id") @db.Uuid
+  amount             Decimal            @db.Decimal(18, 2)
+  currencyCode       String             @default("NIO") @map("currency_code") @db.VarChar(3)
+  description        String?            @db.VarChar(500)
+  responsibleUserId  String?            @map("responsible_user_id") @db.Uuid
+  createdByUserId    String?            @map("created_by_user_id") @db.Uuid
+  idempotencyKeyHash String?            @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?            @map("request_hash") @db.Char(64)
+  legacyCategoryText String?            @map("legacy_category_text") @db.VarChar(160)
+  legacyResponsibleText String?         @map("legacy_responsible_text") @db.VarChar(200)
+  legacyRecordId     String?            @map("legacy_record_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category     FinancialCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  responsible  User?              @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    User?              @relation("FinancialEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legacyRecord LegacyRecord?      @relation(fields: [legacyRecordId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([createdByUserId, idempotencyKeyHash], map: "financial_entries_creator_idempotency_key")
+  @@index([businessDate], map: "financial_entries_business_date_idx")
+  @@index([entryType, businessDate], map: "financial_entries_type_business_date_idx")
+  @@index([categoryId, businessDate], map: "financial_entries_category_business_date_idx")
+  @@index([legacyRecordId], map: "financial_entries_legacy_record_idx")
+  @@map("financial_entries")
+}
+
+model DailyClosing {
+  id                 String             @id @default(uuid()) @db.Uuid
+  origin             FinanceOrigin
+  businessDate       DateTime           @unique(map: "daily_closings_business_date_key") @map("business_date") @db.Date
+  status             DailyClosingStatus
+  realCash           Decimal            @map("real_cash") @db.Decimal(18, 2)
+  realDigital        Decimal            @map("real_digital") @db.Decimal(18, 2)
+  systemSales        Decimal            @map("system_sales") @db.Decimal(18, 2)
+  difference         Decimal            @db.Decimal(18, 2)
+  toleranceApplied   Decimal            @map("tolerance_applied") @db.Decimal(18, 2)
+  balanced           Boolean
+  inTransitSaleCount Int                @default(0) @map("in_transit_sale_count")
+  currencyCode       String             @default("NIO") @map("currency_code") @db.VarChar(3)
+  observations       String?            @db.VarChar(500)
+  closedByUserId     String?            @map("closed_by_user_id") @db.Uuid
+  closedAt           DateTime           @map("closed_at") @db.Timestamptz(6)
+  idempotencyKeyHash String?            @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?            @map("request_hash") @db.Char(64)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  closedBy   User?                   @relation("DailyClosingActor", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reopenings DailyClosingReopening[]
+
+  @@unique([closedByUserId, idempotencyKeyHash], map: "daily_closings_actor_idempotency_key")
+  @@index([status, businessDate], map: "daily_closings_status_business_date_idx")
+  @@map("daily_closings")
+}
+
+model DailyClosingReopening {
+  id                 String   @id @default(uuid()) @db.Uuid
+  closingId          String   @map("closing_id") @db.Uuid
+  reason             String   @db.VarChar(500)
+  reopenedByUserId   String   @map("reopened_by_user_id") @db.Uuid
+  reopenedAt         DateTime @map("reopened_at") @db.Timestamptz(6)
+  idempotencyKeyHash String?  @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?  @map("request_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  closing    DailyClosing @relation(fields: [closingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reopenedBy User         @relation("DailyClosingReopeningActor", fields: [reopenedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([reopenedByUserId, idempotencyKeyHash], map: "daily_closing_reopenings_actor_idempotency_key")
+  @@index([closingId, reopenedAt], map: "daily_closing_reopenings_closing_time_idx")
+  @@map("daily_closing_reopenings")
+}
+
 model LegacySource {
   id        String           @id @default(uuid()) @db.Uuid
   code      String           @unique(map: "legacy_sources_code_key") @db.VarChar(64)
@@ -667,6 +787,7 @@ model LegacyRecord {
   targetSale              Sale?                       @relation("LegacyRecordSale", fields: [targetSaleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   valuations              ProductWarehouseValuation[]
   saleItems               SaleItem[]
+  financialEntries        FinancialEntry[]
   reconciliationIssues    ReconciliationIssue[]
 
   @@index([importBatchId, sourceEntity, legacyRowNumber], map: "legacy_records_batch_entity_row_idx")
