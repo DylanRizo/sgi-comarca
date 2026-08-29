@@ -1,8 +1,8 @@
-# Next Gate — FASE 7C, UI de ventas
+# Next Gate — revisión y cierre de FASE 7C
 
-FASE 7B está cerrada en el repositorio versionado: la capa de aplicación y la
-API REST de ventas están implementadas y verificadas localmente sobre
-PostgreSQL real. El propietario declaró el cierre el 2026-08-28.
+FASE 7C está implementada y verificada localmente como candidata de cierre. El
+propietario todavía debe revisar la evidencia y declarar el cierre; este
+documento no lo declara por anticipado.
 
 Evidencia: [reporte de cierre](../reviews/phase-7b-completion-report.md),
 [plan aprobado](../reviews/phase-7b-sales-application-plan.md) y
@@ -12,18 +12,18 @@ Evidencia: [reporte de cierre](../reviews/phase-7b-completion-report.md),
 
 - **`PHASE_7A_SCHEMA_COMPLETE`**
 - **`PHASE_7B_COMPLETE`**
-- **`PHASE_7C_AUTHORIZED`** — UI de ventas, seleccionada por el propietario el
-  2026-08-28.
+- **`PHASE_7C_AUTHORIZED`**
+- **`PHASE_7C_COMPLETION_CANDIDATE`**
 - **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_7C_SALES_UI`**
+- **`NEXT_GATE = PHASE_7C_OWNER_REVIEW`**
 
-Cerrar FASE 7B no autorizó ninguna acción operacional. El propietario eligió
-como siguiente gate la UI de ventas. Los demás candidatos siguen sin
-seleccionar y sin autorizar.
+La candidatura de cierre no autoriza staging, importación legacy, finanzas,
+cierres ni ventas reales. El siguiente tramo de producto sólo puede elegirse
+después de la revisión del propietario.
 
-## FASE 7C — alcance autorizado
+## Resultado implementado de FASE 7C
 
 Interfaz en español sobre la API ya implementada y cerrada en FASE 7B. No
 requiere migraciones, cambios de esquema, permisos nuevos ni escritura en
@@ -53,30 +53,49 @@ Reglas que la UI debe respetar:
 Fuera de FASE 7C: staging, importación legacy, finanzas, cierres y cualquier
 venta real.
 
-### Secuencia y estado
+### Secuencia cerrada técnicamente
 
 1. **7C.1** — cliente HTTP, presentación, navegación, listado y detalle con
    `sales.read`. Completado en `fbabe58`.
 2. **7C.2** — creación de venta con múltiples líneas. Completado en `05b6b4d`.
 3. **7C.3** — confirmación y cancelación. Completado en `6c64717`.
-4. **7C.4** — E2E de flujos críticos y cierre. Las pruebas están escritas pero
-   **no ejecutadas**: el arnés E2E necesita el PostgreSQL de Docker Compose, no
-   disponible en la sesión que las escribió. FASE 7C no puede cerrarse hasta
-   ejecutarlas.
+4. **7C.4** — E2E de flujos críticos escritos en `fb21e22` y ejecutados el
+   2026-08-28 tras corregir los defectos revelados por PostgreSQL y Playwright.
 
-### Verificación pendiente de FASE 7C
+### Evidencia real de verificación
 
-Ejecutar `pnpm test:e2e` en una sesión con Docker y corregir lo que revele
-`apps/web/e2e/sales.e2e.ts`. Cubre: venta multi-almacén con un movimiento
-`SALE` por línea, detalle sin costo, confirmación que no toca inventario ni
-pago, cancelación total con motivo obligatorio y reposición exacta, rechazo por
-costo ausente, bloqueo por stock insuficiente antes de enviar, y `DENY` directo
-sobre `sales.read` y `sales.create`.
+- `pnpm test:e2e`: 24/24 en Chromium (3.5 min), incluidos los 7 flujos de
+  ventas.
+- `pnpm test:integration`: 21 archivos / 195 pruebas.
+- `pnpm test`: 53 archivos / 175 pruebas.
+- `pnpm lint`: 8/8 tareas.
+- `pnpm typecheck`: 7/7 tareas.
+- `pnpm build`: 7/7 tareas.
+- `pnpm format:check`: pasa.
 
-El `reset()` del arnés se ajustó a un invariante de FASE 7A: ventas, líneas y
-documentos son inmutables y no pueden borrarse, así que los productos de
-fixture ya vendidos se conservan como historia y cada prueba siembra productos
-con código único. La base E2E es temporal y el runner la elimina.
+Integración y E2E usaron exclusivamente bases temporales creadas y eliminadas
+por sus runners contra PostgreSQL 18.4 de Docker Compose en `localhost:5433`.
+Staging nunca fue target.
+
+La verificación corrigió tres clases de defecto sin relajar FASE 7A:
+
+- el `reset()` dejó de intentar borrar movimientos inmutables y conserva los
+  productos ya referenciados por ledger o ventas;
+- los locators de ventas quedaron acotados a controles, venta y estados
+  concretos para evitar falsos positivos por textos o elementos repetidos;
+- los errores públicos tipados de ventas ahora atraviesan el filtro global, de
+  modo que `SALE_COST_MISSING` conserva su código público HTTP 422 y la UI puede
+  mostrar el mensaje específico.
+
+La base E2E se elimina al final de cada corrida. Dos intentos previos no llegaron
+a Playwright porque el arranque frío del API excedió el timeout de salud; ambos
+limpiaron su base. El intento completo posterior pasó 24/24.
+
+## Decisión requerida del propietario
+
+Revisar el diff y la evidencia y decidir si declara `PHASE_7C_COMPLETE`. Si la
+declara, debe seleccionar por separado el siguiente gate. No se infiere una
+autorización operacional ni de implementación a partir del cierre.
 
 ## Gates no seleccionados
 
@@ -87,15 +106,6 @@ que exige resolver antes DEC-012, DEC-013, DEC-016, DEC-017, agrupación y
 duplicados en [open-decisions.md](../legacy/open-decisions.md); y finanzas y
 cierres diarios, sujetos al invariante de no duplicar los ingresos automáticos
 de ventas.
-
-## Deuda menor pendiente
-
-No bloquea ningún gate, pero conviene resolverla en la próxima sesión con
-Docker disponible:
-
-- volver a ejecutar `pnpm test:integration` para cubrir el commit `d982477`,
-  posterior a la última corrida de integración. Ese commit no cambia
-  comportamiento en ejecución.
 
 ## Estado operacional que permanece inalterado
 

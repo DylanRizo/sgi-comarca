@@ -14,6 +14,8 @@ that updates the handoff would immediately invalidate such a field.
 - Repository: `DylanRizo/sgi-comarca`.
 - Branch: `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 7C implementation and initial E2E baseline:
+  `fb21e2277b491a69fa41448246797bf4323f2be3`.
 - Committed FASE 7B implementation baseline:
   `b75adfd102fcedfa60f26c37414de7c692478d75`.
 - Functional baseline at FASE 7A completion:
@@ -62,12 +64,15 @@ file.
 | 6 | Transfer foundation, movement history, transfer API/UI, operational gate, and post-gate concurrency regression are complete. `PHASE_6_COMPLETE`. |
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
+| 7C candidate | Sales UI blocks 7C.1–7C.4 are implemented: list/detail, multi-line and multi-warehouse creation, confirmation, cancellation, and critical Playwright coverage. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline. The owner must still review and declare the phase closed. `PHASE_7C_COMPLETION_CANDIDATE`. |
 
 ## Current milestone
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
 - `PHASE_7B_COMPLETE`
+- `PHASE_7C_AUTHORIZED`
+- `PHASE_7C_COMPLETION_CANDIDATE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -82,8 +87,9 @@ staging. Further staging writes remain gate-controlled and require explicit
 authorization. FASE 7A is complete only in the versioned repository. Its
 migration and bootstrap/RBAC change have not been applied to staging, and no
 staging sale is authorized. FASE 7B is closed in the versioned repository and
-verified locally; it is not deployed, has no UI, and did not touch staging.
-Closing FASE 7B authorizes no operational action. The next gate is described in
+verified locally; it is not deployed and did not touch staging. FASE 7C is a
+locally verified completion candidate, not an owner-declared closed phase.
+Neither phase authorizes an operational action. The next gate is described in
 [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither implementation
 nor an operational write.
 
@@ -125,9 +131,23 @@ Sales application capabilities implemented by FASE 7B, versioned only:
 
 This code was validated on 2026-08-28 against temporary PostgreSQL databases,
 including lifecycle, shared-stock concurrency with adjustments/transfers and
-the existing E2E regression. No sales UI is implemented. A closed phase is not
-authorization to create, confirm, cancel, import, or expose a real sale. See
+the existing E2E regression. A closed phase is not authorization to create,
+confirm, cancel, import, or expose a real sale. See
 [phase-7b-completion-report.md](../reviews/phase-7b-completion-report.md).
+
+Sales UI capabilities implemented by the FASE 7C completion candidate:
+
+- paginated list and detail views guarded by `sales.read`, without cost or
+  margin exposure;
+- multi-line and multi-warehouse sale creation with canonical server totals,
+  idempotency, validation feedback, and double-submit prevention;
+- in-transit confirmation and total cancellation with explicit confirmation,
+  permission-aware controls, and lifecycle feedback;
+- critical Chromium coverage for stock deduction/restoration, lifecycle,
+  missing cost, insufficient stock, direct `DENY`, and hidden create controls.
+
+This UI is versioned and locally verified only. It was not deployed to staging
+and no real sale was created, confirmed, or cancelled.
 
 The transfer write path is implemented, tested, and validated end to end in
 staging by exactly one authorized transfer on 2026-08-23. Each further real
@@ -145,9 +165,10 @@ staging transfer still requires its own explicit human authorization.
 - `InventoryTransferItem` links a product and positive quantity to a transfer.
 
 The broader schema also contains authentication, audit, sales, legacy source,
-import batch, raw legacy record, and reconciliation models. The sales schema is
-now hardened by FASE 7A, but its presence still does not mean the deferred sales
-application, UI, or legacy import is implemented.
+import batch, raw legacy record, and reconciliation models. FASE 7A hardens the
+sales schema, FASE 7B provides the application/API, and FASE 7C is the verified
+UI completion candidate. None of those repository capabilities means staging
+deployment or legacy sales import occurred.
 
 ## Last verified staging snapshot
 
@@ -323,12 +344,11 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-28 after the FASE 7B verification fix: 51 files / 162
+Revalidated on 2026-08-28 for the FASE 7C completion candidate: 53 files / 175
 unit tests, 21 files / 195 PostgreSQL integration and concurrency tests, and
-17/17 Chromium E2E tests passed. The dedicated sales concurrency suite passed
-9/9. Format, lint (8/8 tasks), typecheck (7/7 tasks), Prisma validation and
-build (7/7 tasks) also passed. OpenAPI was generated only in memory and included
-the four sales path forms; Swagger remains unmounted.
+24/24 Chromium E2E tests passed. Format, lint (8/8 tasks), typecheck (7/7 tasks)
+and build (7/7 tasks) also passed. The E2E total comprises the existing 17
+regressions plus 7 sales UI flows.
 
 Integration and E2E used only temporary local databases created and dropped by
 their runners against the positively verified Docker Compose PostgreSQL 18.4
@@ -336,13 +356,12 @@ on port 5433. Staging was never a test target or revalidated. The operational
 staging snapshot remains the historical read-only snapshot from 2026-08-23;
 FASE 7A is still not migrated there and no real staging sale is authorized.
 
-One commit postdates that run. `d982477` corrected a misleading unit-test
-fixture and added contract/mapper comments about decimal scale; it changes no
-runtime behavior, and the unit baseline it produced is 51 files / 163 tests
-with lint, typecheck and build green. The integration and E2E suites were not
-re-executed after it, because no Docker harness was available in that session.
-Re-running `pnpm test:integration` at the next opportunity would close that
-small evidence gap.
+The prior evidence gap after `d982477` is closed by this run. The E2E runner
+needed two retries before executing tests because cold local API startup twice
+exceeded its 60-second health timeout; both aborted runs dropped their temporary
+databases. A warm diagnostic start confirmed the API health endpoint, and the
+subsequent complete run passed. This is an environmental startup-time risk, not
+a test failure or authorization to change the runner silently.
 
 ## Historical-document caveats
 
