@@ -17,11 +17,11 @@ export class AuthenticationDatabase {
 
   async reset(): Promise<void> {
     await this.client.$transaction(async (transaction) => {
-      // Sales, sale items and their documents are immutable by FASE 7A
-      // triggers: they can never be deleted. A fixture product that a sale
-      // already references is therefore preserved as history, and only the
-      // untouched fixtures are removed. The whole E2E database is temporary
-      // and dropped by the runner, so nothing accumulates across runs.
+      // Inventory movements, sales, sale items and lifecycle documents are
+      // immutable. Preserve every fixture product referenced by either ledger
+      // or sales history and remove only fixtures that were never used. The
+      // whole E2E database is temporary and dropped by the runner, so nothing
+      // accumulates across runs.
       const fixtureProducts = await transaction.product.findMany({
         select: { id: true },
         where: {
@@ -29,13 +29,11 @@ export class AuthenticationDatabase {
             { code: { startsWith: 'E2E-' } },
             { code: { in: ['DGGR-X', 'CCWH-L'] } },
           ],
+          inventoryMovements: { none: {} },
           saleItems: { none: {} },
         },
       });
       const productIds = fixtureProducts.map(({ id }) => id);
-      await transaction.inventoryMovement.deleteMany({
-        where: { productId: { in: productIds }, saleItemId: null },
-      });
       await transaction.productWarehouseValuation.deleteMany({
         where: { productId: { in: productIds } },
       });
@@ -45,7 +43,9 @@ export class AuthenticationDatabase {
       await transaction.product.deleteMany({
         where: { id: { in: productIds } },
       });
-      await transaction.unit.deleteMany({ where: { code: 'E2E-UNIT' } });
+      await transaction.unit.deleteMany({
+        where: { code: 'E2E-UNIT', products: { none: {} } },
+      });
       await transaction.userPermission.deleteMany({
         where: { effect: 'DENY' },
       });
@@ -312,8 +312,9 @@ export class AuthenticationDatabase {
     multiWarehouseCode: string;
     nullCostCode: string;
   }> {
-    const multiWarehouseCode = `E2E-SALE-${suffix}`;
-    const nullCostCode = `E2E-SALE-NC-${suffix}`;
+    const normalizedSuffix = suffix.toUpperCase();
+    const multiWarehouseCode = `E2E-SALE-${normalizedSuffix}`;
+    const nullCostCode = `E2E-SALE-NC-${normalizedSuffix}`;
     await this.client.$transaction(async (transaction) => {
       const unit = await transaction.unit.upsert({
         create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
@@ -324,7 +325,7 @@ export class AuthenticationDatabase {
         transaction.product.create({
           data: {
             code: multiWarehouseCode,
-            name: `Producto vendible ${suffix}`,
+            name: `Producto vendible ${normalizedSuffix}`,
             unitId: unit.id,
           },
           select: { id: true },
@@ -332,7 +333,7 @@ export class AuthenticationDatabase {
         transaction.product.create({
           data: {
             code: nullCostCode,
-            name: `Producto sin costo ${suffix}`,
+            name: `Producto sin costo ${normalizedSuffix}`,
             unitId: unit.id,
           },
           select: { id: true },

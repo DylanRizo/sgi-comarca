@@ -46,20 +46,42 @@ async function fillLine(
   }>,
 ): Promise<void> {
   const line = page.locator('.sale-line').nth(index);
-  const productSelect = line.getByLabel('Producto');
-  const optionValue = await productSelect
+  const productSelect = line.locator('select').nth(0);
+  const productOption = productSelect
     .locator('option', { hasText: values.productCode })
-    .first()
-    .getAttribute('value');
+    .first();
+  await expect(productOption).toHaveCount(1);
+  const optionValue = await productOption.getAttribute('value');
   if (!optionValue) {
     throw new Error(`Product ${values.productCode} is not selectable.`);
   }
   await productSelect.selectOption(optionValue);
-  await line.getByLabel('Almacén').selectOption({ label: values.warehouse });
-  await line.getByLabel('Cantidad').fill(values.quantity);
+  await line.locator('select').nth(1).selectOption({ label: values.warehouse });
+  await line.getByLabel('Cantidad', { exact: true }).fill(values.quantity);
   if (values.unitPrice !== undefined) {
-    await line.getByLabel('Precio (opcional)').fill(values.unitPrice);
+    await line
+      .getByLabel('Precio (opcional)', { exact: true })
+      .fill(values.unitPrice);
   }
+}
+
+async function registeredSaleNumber(page: Page): Promise<string> {
+  const notice = page.locator('.form-feedback[data-tone="success"]');
+  await expect(notice).toContainText(/Venta VTA-\d{9} registrada/u);
+  const saleNumber = /VTA-\d{9}/u.exec((await notice.textContent()) ?? '')?.[0];
+  if (!saleNumber) throw new Error('Registered sale number was not rendered.');
+  return saleNumber;
+}
+
+async function openCreateDialog(page: Page): Promise<void> {
+  await expect(page.locator('.result-count')).toBeVisible();
+  await page
+    .locator('.page-heading-actions')
+    .getByRole('button', { name: 'Registrar venta' })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.sale-line')).toBeVisible();
 }
 
 test.describe('FASE 7C sales UI flows', () => {
@@ -80,9 +102,9 @@ test.describe('FASE 7C sales UI flows', () => {
     const before = await database.salesCounts();
     await activateAndLogin(request, page);
 
-    await page.getByRole('link', { name: 'Ventas' }).click();
+    await page.goto('/sales');
     await expect(page).toHaveURL('/sales');
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await openCreateDialog(page);
 
     await fillLine(page, 0, {
       productCode: multiWarehouseCode,
@@ -99,7 +121,7 @@ test.describe('FASE 7C sales UI flows', () => {
 
     await page.getByRole('button', { name: 'Registrar venta' }).last().click();
 
-    await expect(page.getByText(/Venta VTA-\d{9} registrada/u)).toBeVisible();
+    await registeredSaleNumber(page);
 
     const after = await database.salesCounts();
     expect(after.sales).toBe(before.sales + 1);
@@ -125,21 +147,30 @@ test.describe('FASE 7C sales UI flows', () => {
     await activateAndLogin(request, page);
 
     await page.goto('/sales');
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await openCreateDialog(page);
     await fillLine(page, 0, {
       productCode: multiWarehouseCode,
       quantity: '1',
       warehouse: 'Casa Dylan',
     });
     await page.getByRole('button', { name: 'Registrar venta' }).last().click();
-    await expect(page.getByText(/Venta VTA-\d{9} registrada/u)).toBeVisible();
+    const saleNumber = await registeredSaleNumber(page);
 
-    await page.getByRole('link', { name: /Ver detalle de la venta/u }).click();
+    await page
+      .getByRole('link', {
+        exact: true,
+        name: `Ver detalle de la venta ${saleNumber}`,
+      })
+      .click();
     await expect(
       page.getByRole('heading', { name: /VTA-\d{9}/u }),
     ).toBeVisible();
-    await expect(page.getByText('En tránsito').first()).toBeVisible();
-    await expect(page.getByText('Pendiente').first()).toBeVisible();
+    const fulfillmentStatus = page.locator('.status-badge');
+    const paymentStatus = page
+      .getByRole('region', { name: 'Resumen de la venta' })
+      .getByText('Pendiente');
+    await expect(fulfillmentStatus).toHaveText('En tránsito');
+    await expect(paymentStatus).toBeVisible();
     // sales.read grants no financial permission: cost never reaches the page.
     await expect(page.locator('body')).not.toContainText('Costo');
     await expect(page.locator('body')).not.toContainText('Margen');
@@ -147,7 +178,7 @@ test.describe('FASE 7C sales UI flows', () => {
     const beforeConfirm = await database.salesCounts();
     await page.getByRole('button', { name: 'Confirmar entrega' }).click();
 
-    await expect(page.getByText('Completada').first()).toBeVisible();
+    await expect(fulfillmentStatus).toHaveText('Completada');
     const afterConfirm = await database.salesCounts();
     expect(afterConfirm.confirmations).toBe(beforeConfirm.confirmations + 1);
     // Confirmation touches neither inventory nor payment.
@@ -155,7 +186,7 @@ test.describe('FASE 7C sales UI flows', () => {
     expect(
       await database.balanceQuantity(multiWarehouseCode, 'CASA_DYLAN'),
     ).toBe(7);
-    await expect(page.getByText('Pendiente').first()).toBeVisible();
+    await expect(paymentStatus).toBeVisible();
   });
 
   test('cancels a sale after asking for a reason and restores stock once', async ({
@@ -167,19 +198,24 @@ test.describe('FASE 7C sales UI flows', () => {
     await activateAndLogin(request, page);
 
     await page.goto('/sales');
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await openCreateDialog(page);
     await fillLine(page, 0, {
       productCode: multiWarehouseCode,
       quantity: '3',
       warehouse: 'Casa Dylan',
     });
     await page.getByRole('button', { name: 'Registrar venta' }).last().click();
-    await expect(page.getByText(/Venta VTA-\d{9} registrada/u)).toBeVisible();
+    const saleNumber = await registeredSaleNumber(page);
     expect(
       await database.balanceQuantity(multiWarehouseCode, 'CASA_DYLAN'),
     ).toBe(5);
 
-    await page.getByRole('link', { name: /Ver detalle de la venta/u }).click();
+    await page
+      .getByRole('link', {
+        exact: true,
+        name: `Ver detalle de la venta ${saleNumber}`,
+      })
+      .click();
     await page.getByRole('button', { name: 'Cancelar venta' }).click();
     // Cancellation is destructive, so it demands an explicit reason.
     await expect(
@@ -190,7 +226,7 @@ test.describe('FASE 7C sales UI flows', () => {
     const before = await database.salesCounts();
     await page.getByRole('button', { name: 'Confirmar cancelación' }).click();
 
-    await expect(page.getByText('Cancelada').first()).toBeVisible();
+    await expect(page.locator('.status-badge')).toHaveText('Cancelada');
     const after = await database.salesCounts();
     expect(after.cancellations).toBe(before.cancellations + 1);
     expect(after.saleCancellationMovements).toBe(
@@ -218,7 +254,7 @@ test.describe('FASE 7C sales UI flows', () => {
     await activateAndLogin(request, page);
 
     await page.goto('/sales');
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await openCreateDialog(page);
     await fillLine(page, 0, {
       productCode: nullCostCode,
       quantity: '1',
@@ -243,7 +279,7 @@ test.describe('FASE 7C sales UI flows', () => {
     await activateAndLogin(request, page);
 
     await page.goto('/sales');
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await openCreateDialog(page);
     await fillLine(page, 0, {
       productCode: multiWarehouseCode,
       quantity: '99',
