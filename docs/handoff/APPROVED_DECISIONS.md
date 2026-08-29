@@ -82,8 +82,15 @@ ADR, architecture document, migration, and tests.
   touch them. A closing never cancels a sale or restores inventory as a side
   effect; cancelling remains an explicit human action under `sales.cancel`.
 
+- A closing may be reopened while the configured window, counted in days after
+  its business date, has not passed; the window lives in configuration and
+  defaults to 30 days. Later closings never block reopening an earlier one,
+  because each closing keeps its own frozen figures. A reopened closing stays
+  reopened: re-closing does not exist, and the database enforces the single
+  `CLOSED → REOPENED` transition.
+
 See [ADR-010](../decisions/ADR-010-finances-closings-rules.md) for DEC-019,
-DEC-022, DEC-023 and DEC-024.
+DEC-022, DEC-023, DEC-024 and DEC-025.
 
 See [ADR-009](../decisions/ADR-009-sales-pricing-cost.md) for DEC-014/DEC-015
 and the operational pricing boundary.

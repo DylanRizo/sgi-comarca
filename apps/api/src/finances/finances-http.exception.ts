@@ -71,6 +71,12 @@ export function mapFinanceError(error: unknown): never {
           'CLOSING_ALREADY_REOPENED',
           'The closing is not in a state that can be reopened.',
         );
+      case 'CLOSING_REOPENING_WINDOW_EXPIRED':
+        throw publicError(
+          HttpStatus.CONFLICT,
+          'CLOSING_REOPENING_WINDOW_EXPIRED',
+          'The reopening window for that closing has expired.',
+        );
       case 'FINANCE_CONCURRENCY_CONFLICT':
         throw publicError(
           HttpStatus.CONFLICT,

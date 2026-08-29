@@ -2,7 +2,7 @@
 
 - Estado: `ACCEPTED`
 - Fecha: 2026-08-29
-- Alcance: DEC-019, DEC-022, DEC-023, DEC-024 y planificación de FASE 8
+- Alcance: DEC-019, DEC-022, DEC-023, DEC-024, DEC-025 y FASE 8
 - Aprobador: propietario del proyecto
 
 ## Contexto
@@ -58,6 +58,22 @@ Un cierre nunca cancela una venta ni repone inventario como efecto secundario.
 Cancelar sigue siendo una acción humana explícita, con `sales.cancel`, su
 motivo y su idempotencia, según FASE 7B.
 
+### DEC-025 — reapertura de cierres
+
+Completa la parte que quedaba abierta, sin alterar lo ya aprobado (motivo,
+actor, fecha/hora, historial conservado, `audit_log`, sin borrado físico):
+
+1. **Plazo configurable.** Un cierre puede reabrirse mientras no pase la
+   ventana configurada en días después de su fecha de negocio. El valor vive en
+   configuración, igual que la tolerancia, y por defecto son 30 días. Fuera de
+   plazo se rechaza con un código propio, no confundible con "ya reabierto".
+2. **Cierres posteriores no bloquean.** Reabrir uno anterior es válido aunque
+   existan cierres de fechas posteriores, porque cada cierre conserva sus
+   cifras congeladas y reabrir no recalcula ninguno.
+3. **Un cierre reabierto queda reabierto.** No existe volver a cerrar. Un
+   cierre reabierto es evidencia de que ese día se revisó, y la base sólo
+   admite la transición `CLOSED → REOPENED`.
+
 ## Consecuencias
 
 Positivas:
@@ -74,6 +90,8 @@ Costos:
   adecuados sobre ventas por fecha y estado;
 - la diferencia del cierre no representa la caja real cuando hubo gastos en
   efectivo, exactamente como en el legacy;
+- corregir un cierre reabierto exige una decisión futura: hoy no hay forma de
+  registrar cifras corregidas para esa fecha;
 - un cierre puede guardarse con ventas en tránsito pendientes, así que la UI
   debe hacerlas visibles.
 

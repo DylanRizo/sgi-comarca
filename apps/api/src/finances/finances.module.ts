@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
+import { type ConfigType } from '@nestjs/config';
 
+import { appConfig } from '../config/app.config.js';
+
+import { CreateFinancialEntryService } from './create-financial-entry.service.js';
+import { DailyClosingService } from './daily-closing.service.js';
 import { DatabaseService } from '../database/database.service.js';
 import { FinanceReadService } from './finance-read.service.js';
 import {
@@ -11,6 +16,29 @@ import {
   controllers: [FinancesController, DailyClosingsController],
   providers: [
     {
+      provide: CreateFinancialEntryService,
+      inject: [DatabaseService],
+      useFactory: (database: DatabaseService) =>
+        database.instantiateProvider(
+          (client) => new CreateFinancialEntryService(client),
+        ),
+    },
+    {
+      provide: DailyClosingService,
+      inject: [DatabaseService, appConfig.KEY],
+      useFactory: (
+        database: DatabaseService,
+        configuration: ConfigType<typeof appConfig>,
+      ) =>
+        database.instantiateProvider(
+          (client) =>
+            new DailyClosingService(client, {
+              reopeningWindowDays: configuration.closingReopeningWindowDays,
+              tolerance: configuration.closingTolerance,
+            }),
+        ),
+    },
+    {
       provide: FinanceReadService,
       inject: [DatabaseService],
       useFactory: (database: DatabaseService) =>
@@ -19,6 +47,10 @@ import {
         ),
     },
   ],
-  exports: [FinanceReadService],
+  exports: [
+    CreateFinancialEntryService,
+    DailyClosingService,
+    FinanceReadService,
+  ],
 })
 export class FinancesModule {}

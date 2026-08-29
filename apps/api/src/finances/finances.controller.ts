@@ -1,8 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
+  Headers,
   Inject,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -17,7 +20,9 @@ import type {
 } from '@sgi/contracts';
 import type { Request, Response } from 'express';
 
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator.js';
+import type { AuthenticatedRequestContext } from '../auth/http/auth-http-context.js';
 import { readSuccess } from '../common/read-http.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -28,6 +33,17 @@ import {
   FinanceLineQueryDto,
   financeLineQueryPipe,
 } from './dto/finance-query.dto.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto.js';
+import { CreateFinancialEntryService } from './create-financial-entry.service.js';
+import { DailyClosingService } from './daily-closing.service.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
+  CreateDailyClosingDto,
+  ReopenDailyClosingDto,
+} from './dto/daily-closing.dto.js';
 import { FinanceReadService } from './finance-read.service.js';
 import { mapFinanceError } from './finances-http.exception.js';
 
@@ -36,7 +52,29 @@ import { mapFinanceError } from './finances-http.exception.js';
 export class FinancesController {
   constructor(
     @Inject(FinanceReadService) private readonly finances: FinanceReadService,
+    @Inject(CreateFinancialEntryService)
+    private readonly entries: CreateFinancialEntryService,
   ) {}
+
+  @Post()
+  @RequirePermission('finances.manual.create')
+  async create(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() input: CreateFinancialEntryDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<FinanceLineView>> {
+    try {
+      return readSuccess(
+        await this.entries.create(current.userId, idempotencyKey, input),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapFinanceError(error);
+    }
+  }
 
   @Get('categories')
   async categories(
@@ -70,7 +108,55 @@ export class FinancesController {
 export class DailyClosingsController {
   constructor(
     @Inject(FinanceReadService) private readonly finances: FinanceReadService,
+    @Inject(DailyClosingService)
+    private readonly closings: DailyClosingService,
   ) {}
+
+  @Post()
+  @RequirePermission('closings.create')
+  async create(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() input: CreateDailyClosingDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<DailyClosingView>> {
+    try {
+      return readSuccess(
+        await this.closings.create(current.userId, idempotencyKey, input),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapFinanceError(error);
+    }
+  }
+
+  @Post(':id/reopen')
+  @RequirePermission('closings.reopen')
+  async reopen(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Param() params: FinanceIdParamDto,
+    @Body() input: ReopenDailyClosingDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<DailyClosingView>> {
+    try {
+      return readSuccess(
+        await this.closings.reopen(
+          current.userId,
+          params.id,
+          input.reason,
+          idempotencyKey,
+        ),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapFinanceError(error);
+    }
+  }
 
   @Get()
   async list(

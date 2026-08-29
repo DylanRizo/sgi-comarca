@@ -21,8 +21,9 @@ cierres diarios. La evidencia legacy se conserva sin reescribir.
 
 Decisión formal: [ADR-010](../decisions/ADR-010-finances-closings-rules.md).
 
-Siguen abiertas las partes de DEC-025 sobre límite temporal de reapertura,
-reapertura con cierres posteriores y nueva aprobación tras modificar.
+El propietario también cerró DEC-025 el 2026-08-29: plazo de reapertura
+configurable en días tras la fecha de negocio, los cierres posteriores no
+bloquean, y un cierre reabierto queda reabierto sin volver a cerrarse.
 
 ## Actualización FASE 7B — 2026-08-27
 
@@ -134,7 +135,7 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | DEC-022 | Ingresos automáticos en Finanzas | Tres filas legacy; código vigente las elimina y deriva ventas | Finanzas deriva los ingresos de ventas al leer y no los persiste; ninguna lectura borra filas; las automáticas legacy se conservan como raw y se excluyen del agregado | `RESOLVED_FOR_PHASE_8` |
 | DEC-023 | Fórmula de diferencia de cierre | No resta gastos; tolerancia 0.5 | Se conserva `efectivo real + digital real − ventas del sistema`; los gastos no participan y se muestran aparte | `RESOLVED_FOR_PHASE_8` |
 | DEC-024 | Tolerancia `Cuadrado` | `abs(diferencia) < 0.5` | Se conserva el umbral pero configurable, no incrustado; cada cierre registra la tolerancia aplicada | `RESOLVED_FOR_PHASE_8` |
-| DEC-025 | Reapertura de cierre | No existe en legacy; objetivo propone ADMIN | Dylan/Samantha pueden reabrir con motivo, actor, timestamp, historial y audit log; plazo, cierres posteriores y nueva aprobación siguen abiertos | `PARTIALLY_RESOLVED` |
+| DEC-025 | Reapertura de cierre | No existe en legacy; objetivo propone ADMIN | Reabrir con motivo, actor, timestamp, historial y audit log; plazo configurable en días, cierres posteriores no bloquean, y un cierre reabierto no vuelve a cerrarse | `RESOLVED_FOR_PHASE_8` |
 | DEC-026 | Importación CSV legacy | No idempotente, hard-coded a tres almacenes y contrato de delimitador contradictorio (`;` documentado, `,` implementado) | No ejecutarla sobre datos reales; sustituir por importador trazable con formato declarado | `REQUIRES_HUMAN_APPROVAL` |
 
 ## DEC-020 — confirmación de venta en tránsito

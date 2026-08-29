@@ -133,6 +133,29 @@ function databaseUrl(nodeEnvironment: string): string {
   return developmentDatabaseUrl;
 }
 
+/**
+ * The daily closing tolerance (DEC-024) and the reopening window (DEC-025) are
+ * configurable rather than hard-coded, so they can be adjusted without a code
+ * change. Each closing stores the tolerance actually applied, which keeps an
+ * old result interpretable after the configuration changes.
+ */
+function parseClosingTolerance(value: string | undefined): string {
+  const candidate = value ?? '0.50';
+  if (!/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/u.test(candidate)) {
+    throw new Error('CLOSING_TOLERANCE must be a non-negative Decimal(18,2).');
+  }
+  return candidate;
+}
+
+/** Days after the business date during which a closing may still be reopened. */
+function parseReopeningWindowDays(value: string | undefined): number {
+  const candidate = value ?? '30';
+  if (!/^\d{1,4}$/u.test(candidate)) {
+    throw new Error('CLOSING_REOPENING_WINDOW_DAYS must be a whole number.');
+  }
+  return Number(candidate);
+}
+
 export const appConfig = registerAs('app', () => {
   const nodeEnvironment = process.env.NODE_ENV ?? 'development';
   const apiOrigin = parseOrigin(
@@ -166,6 +189,10 @@ export const appConfig = registerAs('app', () => {
   return {
     apiPort: parsePort(process.env.API_PORT),
     apiOrigin,
+    closingReopeningWindowDays: parseReopeningWindowDays(
+      process.env.CLOSING_REOPENING_WINDOW_DAYS,
+    ),
+    closingTolerance: parseClosingTolerance(process.env.CLOSING_TOLERANCE),
     csrfHmacSecret: parseHmacSecret(
       process.env.AUTH_CSRF_HMAC_SECRET_BASE64,
       nodeEnvironment,
