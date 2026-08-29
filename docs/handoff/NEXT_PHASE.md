@@ -1,4 +1,4 @@
-# Next Gate — FASE 8, finanzas y cierres diarios
+# Next Gate — FASE 8B, aplicación y API de finanzas y cierres
 
 FASE 7 está cerrada de punta a punta en el repositorio versionado: 7A el
 esquema, 7B la aplicación y API, 7C la interfaz. Todo fue verificado localmente
@@ -21,8 +21,9 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`PHASE_8_SELECTED`** — finanzas y cierres, elegida por el propietario el
   2026-08-28.
 - **`PHASE_8_PLANNING_COMPLETE`**
-- **`PHASE_8A_AUTHORIZED`** — fundación de esquema de finanzas y cierres.
-- **`NEXT_GATE = PHASE_8A_SCHEMA`**
+- **`PHASE_8A_SCHEMA_COMPLETE`**
+- **`PHASE_8B_NOT_AUTHORIZED`**
+- **`NEXT_GATE = PHASE_8B_APPLICATION`**
 
 Cerrar FASE 7 no autorizó ninguna acción operacional. El propietario eligió
 como siguiente tramo finanzas y cierres diarios, y el 2026-08-29 resolvió las
@@ -46,9 +47,37 @@ Siguen abiertas las partes de DEC-025 sobre límite temporal de reapertura,
 reapertura con cierres posteriores y nueva aprobación tras modificar. Se
 resolverán antes del bloque que implemente la reapertura.
 
-Hallazgo de alcance verificado contra el código: no existe ningún modelo Prisma
-de finanzas ni de cierres, así que FASE 8 **requiere una migración**, a
-diferencia de 7B y 7C. Los cinco permisos ya existen en el manifest.
+## FASE 8A — completada
+
+La fundación de esquema está implementada y verificada el 2026-08-29 contra el
+PostgreSQL local de Docker Compose: la migración
+`20260829144239_phase_8a_finances_closings_foundation` aplica limpia sobre una
+base temporal y las 213 pruebas de integración pasan. Nada se desplegó y la
+base local `sgi_comarca_staging` se verificó intacta.
+
+Lo que la base ya garantiza por sí sola:
+
+- un asiento financiero persistido es siempre manual, con monto positivo,
+  categoría del mismo tipo y activa cuando es operacional;
+- el historial financiero es inmutable: corregir exige un asiento inverso;
+- un único cierre por fecha, con la fórmula aprobada como CHECK y sin gastos;
+- `balanced` se verifica contra la tolerancia registrada en el propio cierre;
+- las cifras del cierre son inmutables y sólo admite `CLOSED → REOPENED`, con
+  su documento de reapertura presente y el historial completo preservado.
+
+Volver a cerrar un cierre reabierto queda deliberadamente fuera de 8A porque
+DEC-025 sigue abierta en ese punto.
+
+## FASE 8B — pendiente de autorización
+
+Servicios transaccionales, lectura paginada, creación manual de asientos,
+creación y reapertura de cierres, idempotencia por actor, auditoría saneada y
+RBAC exacto con los cinco permisos que ya existen en el manifest. No se prevé
+permiso nuevo ni migración adicional.
+
+Antes del bloque que implemente la reapertura hay que resolver las partes
+abiertas de DEC-025: límite temporal, reapertura con cierres posteriores y
+nueva aprobación tras modificar.
 
 Los demás candidatos siguen sin seleccionar y sin autorizar.
 

@@ -65,6 +65,7 @@ file.
 | 7A | Sales schema foundation and the `sales.read` role grant completed. This includes structural integrity for operational sales; it does not include the sales application/API, UI, legacy import, or any staging deployment. `PHASE_7A_SCHEMA_COMPLETE`. |
 | 7B | Sales application layer and REST API complete in blocks 7B.1–7B.4: contracts and pure domain, read endpoints, transactional creation, and lifecycle. PostgreSQL integration, the plan §14 concurrency matrix, E2E regression, static checks and build passed locally on 2026-08-28. A money-scale defect on the read surface was found by that run and fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; no staging deployment, sales UI, or legacy import is included. `PHASE_7B_COMPLETE`. |
 | 7C | Sales UI complete in blocks 7C.1–7C.4: list and detail, multi-line and multi-warehouse creation, in-transit confirmation, total cancellation, and Playwright coverage of the critical flows. Verification on 2026-08-28 passed 24/24 Chromium E2E tests plus the full integration and quality baseline, and found a defect that hid the public sales error codes behind a generic response; it was fixed. The owner reviewed the diff and evidence and declared the phase closed on 2026-08-28. This closes the versioned implementation only; nothing was deployed and staging was never touched. `PHASE_7C_COMPLETE`. |
+| 8A | Finances and daily closings schema foundation complete: financial categories and entries, daily closings and their reopening history, with the ADR-010 rules enforced by CHECK constraints and triggers. A persisted entry is always manual, the closing formula excludes expenses, the applied tolerance is recorded per closing, and figures and history are immutable. Verified on 2026-08-29 against the local Docker Compose PostgreSQL: migration applies cleanly and 213/213 integration tests pass. Not deployed; staging was verified untouched. `PHASE_8A_SCHEMA_COMPLETE`. |
 
 ## Current milestone
 
@@ -72,6 +73,7 @@ file.
 - `PHASE_7A_SCHEMA_COMPLETE`
 - `PHASE_7B_COMPLETE`
 - `PHASE_7C_COMPLETE`
+- `PHASE_8A_SCHEMA_COMPLETE`
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -248,7 +250,8 @@ All versioned migrations, in order:
 2. `20260804164613_phase_3b_authentication_models`;
 3. `20260806042328_phase_3b_user_permission_effect`;
 4. `20260820170000_phase_6a_transfer_foundation`;
-5. `20260826232758_phase_7a_sales_foundation`.
+5. `20260826232758_phase_7a_sales_foundation`;
+6. `20260829144239_phase_8a_finances_closings_foundation`.
 
 ## Current transfer architecture
 
@@ -342,7 +345,13 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-28 at FASE 7C closure: 53 files / 175
+Revalidated on 2026-08-29 after FASE 8A: 53 files / 175 unit tests, 22 files /
+213 PostgreSQL integration tests, lint (8/8), typecheck (7/7) and build (7/7)
+passed, with formatting clean. The E2E baseline was not re-run for 8A because
+it adds no runtime surface; the last E2E evidence remains the 24/24 from
+2026-08-28.
+
+Previously revalidated on 2026-08-28 at FASE 7C closure: 53 files / 175
 unit tests, 21 files / 195 PostgreSQL integration and concurrency tests, and
 24/24 Chromium E2E tests passed. Format, lint (8/8 tasks), typecheck (7/7 tasks)
 and build (7/7 tasks) also passed. The E2E total comprises the existing 17
