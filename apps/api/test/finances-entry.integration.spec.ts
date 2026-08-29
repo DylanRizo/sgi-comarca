@@ -305,13 +305,27 @@ describe('FASE 8B.3 manual financial entries', () => {
         `UPDATE financial_entries SET amount = 99 WHERE id = $1::uuid`,
         line.id,
       ),
-    ).rejects.toMatchObject({ code: '55000' });
+    ).rejects.toMatchObject({
+      code: 'P2010',
+      meta: {
+        driverAdapterError: {
+          cause: { originalCode: '55000' },
+        },
+      },
+    });
     await expect(
       client.$executeRawUnsafe(
         `DELETE FROM financial_entries WHERE id = $1::uuid`,
         line.id,
       ),
-    ).rejects.toMatchObject({ code: '55000' });
+    ).rejects.toMatchObject({
+      code: 'P2010',
+      meta: {
+        driverAdapterError: {
+          cause: { originalCode: '55000' },
+        },
+      },
+    });
   });
 
   it('shows the new entries through the read model', async () => {
