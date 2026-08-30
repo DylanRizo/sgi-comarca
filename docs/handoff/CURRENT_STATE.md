@@ -88,22 +88,28 @@ file.
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
 - `PHASE_6_CONCURRENCY_FIX_PASS`
-- `STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`
+- `STAGING_PHASE_7A_8A_SCHEMA_APPLIED`
 - `FIRST_STAGING_SALE_NOT_AUTHORIZED`
+- `FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`
+- `FIRST_STAGING_CLOSING_NOT_AUTHORIZED`
 - `WAVES_3_PLUS_NOT_STARTED`
 
 The first staging transfer gate is closed and passed. That authorization covered
 exactly one transfer; it is not general authorization to use transfers in
 staging. Further staging writes remain gate-controlled and require explicit
-authorization. FASE 7A is complete only in the versioned repository. Its
-migration and bootstrap/RBAC change have not been applied to staging, and no
-staging sale is authorized. FASE 7B and FASE 7C are closed in the versioned
-repository and verified locally; neither is deployed and neither touched
-staging. FASE 8 (schema, application/API, and UI — blocks 8A through 8C) is
-closed end to end in the versioned repository, verified directly against
-local PostgreSQL; none of it is deployed and none touched staging. No closed
-phase authorizes an operational action. The next gate is
-described in [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
+authorization. FASE 7A and 8A are complete in the versioned repository, and
+on 2026-08-30 the owner authorized applying their migrations and
+bootstrap/RBAC change to staging; see
+["FASE 7A/8A schema deployed to staging"](#fase-7a8a-schema-deployed-to-staging--2026-08-30)
+below. That deployment covers schema and RBAC only — no staging sale,
+financial entry, or closing is authorized. FASE 7B and FASE 7C are closed in
+the versioned repository and verified locally; neither is deployed and
+neither touched staging. FASE 8 (schema, application/API, and UI — blocks 8A
+through 8C) is closed end to end in the versioned repository, verified
+directly against local PostgreSQL; only its 8A schema and RBAC are deployed
+to staging, and 8B/8C remain undeployed. No closed phase, and no schema
+deployment, authorizes an operational write. The next gate is described in
+[NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
 
 ## Current capabilities
@@ -245,15 +251,60 @@ validated in FASE 5C and the single controlled transfer validated by the FASE 6
 gate. Consolidated product stock was invariant across the transfer, no balance
 row was created, and no valuation was created, copied, or modified.
 
-This staging snapshot remains the operational snapshot verified on 2026-08-23.
-On 2026-08-29 a read-only safeguard check reconfirmed its latest migration as
-`20260820170000_phase_6a_transfer_foundation` and the recorded counts for
-products (144), balances (357), movements (3), transfers (1), and import batches
-(1). No test targeted staging and no row was written. Before any future staging
-migration gate, positively verify the target and revalidate read-only
-that `sales`, `sale_items`, `sale_cancellations`, and
-`in_transit_confirmations` are still empty. The recorded empty state is an
-operational precondition to revalidate, not live truth.
+These counts (products, balances, valuations, movements, transfers, transfer
+items, reconciliation issues, import batches) remained unchanged through the
+2026-08-30 FASE 7/8 schema deployment below; they are the invariant this gate
+was checked against, not merely historical evidence.
+
+## FASE 7A/8A schema deployed to staging — 2026-08-30
+
+The owner authorized deploying the FASE 7A and 8A migrations and the
+`sales.read` bootstrap/RBAC change to staging. This deploys schema and
+permissions only. It does not create any sale, financial entry, or daily
+closing, and `FIRST_STAGING_SALE_NOT_AUTHORIZED` remains in force.
+
+Target was positively verified before any write: container
+`sgi-comarca-postgres-1` (`postgres:18.4-alpine`, healthy), database
+`sgi_comarca_staging` on `localhost:5433`, latest migration
+`20260820170000_phase_6a_transfer_foundation`, and the exact RBAC baseline
+(6 roles, 15 permissions, 14 active role_permissions, 4 users with the
+manifest's exact display names/roles, 1 direct grant, 3 warehouses) matching
+`packages/database/src/bootstrap/manifest.ts` in every field except the
+still-missing `sales.read` permission and its `SALES` grant.
+
+Checkpoints (custom-format `pg_dump`, verified restorable with
+`pg_restore --list`, not committed — `backups/` stays out of Git):
+
+| Checkpoint | File | Size | SHA-256 |
+|---|---|---:|---|
+| Pre-deploy | `backups/phase-7-8-staging-deploy/staging/sgi_comarca_staging_pre_phase7_8_deploy_20260830T004324Z.dump` | 530,289 bytes | `cd8152b60828d6171f1f8de41df143394d82407b54895832180daa1bc00fbcf0` |
+| Post-deploy | `backups/phase-7-8-staging-deploy/staging/sgi_comarca_staging_post_phase7_8_deploy_20260830T004535Z.dump` | 581,483 bytes | `1c1d17890a80621a3c96f9cf853c07c00ce4c1e2a4d078b95e6b80affab0fc39` |
+
+`prisma migrate deploy` applied `20260826232758_phase_7a_sales_foundation`
+and `20260829144239_phase_8a_finances_closings_foundation` in order; both are
+now recorded in `_prisma_migrations`. `runBootstrap` then ran against the
+same target and, exactly as predicted from the pre-deploy diff, created only
+one `Permission` (`sales.read`), one `RolePermission`
+(`SALES → sales.read`), and one `SYSTEM_BOOTSTRAP_APPLIED` audit log row —
+zero roles, users, warehouses, user roles, or user permissions were touched.
+
+Read-only verification after both steps: all pre-existing counts identical
+to the pre-deploy snapshot (products 144, balances 357, valuations 357,
+movements 3, transfers 1, transfer items 1, reconciliation issues 189, import
+batches 1, users 4, roles 6, warehouses 3); `sales`, `sale_items`,
+`sale_cancellations`, `in_transit_confirmations`, `financial_categories`,
+`financial_entries`, `daily_closings`, and `daily_closing_reopenings` all at
+0 rows; the FASE 7A/8A triggers (`sales_write_guard`,
+`sale_items_operational_guard`, `financial_entries_write_guard`,
+`daily_closings_write_guard`, and the rest) present and active; permissions
+now 16, active role_permissions now 15, with `SALES → sales.read` confirmed
+present.
+
+`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED` and its FASE 8A equivalent are
+retired: the schema and RBAC are deployed. `FIRST_STAGING_SALE_NOT_AUTHORIZED`
+remains: no application server was pointed at staging during this gate, and
+no sale, entry, or closing was created, confirmed, cancelled, or reopened
+there. Each of those remains its own future gate.
 
 ## First staging transfer evidence
 
@@ -453,8 +504,9 @@ development target was positively identified as `sgi_comarca_dev` / `sgi_dev`.
 The E2E run ended with zero sessions to terminate and `DROP DATABASE`; a final
 catalog query found no `sgi_e2e_*`, `sgi_phase8b3_*`, or `sgi_phase8b4_*`
 database. Staging was never a test target. Its safeguard revalidation was
-read-only, FASE 7A is still not migrated there, and no real staging sale is
-authorized.
+read-only. FASE 7A and 8A were later migrated there on 2026-08-30 (see
+["FASE 7A/8A schema deployed to staging"](#fase-7a8a-schema-deployed-to-staging--2026-08-30)),
+and no real staging sale, financial entry, or closing is authorized.
 
 The prior evidence gap after `d982477` is closed by this run. The E2E runner
 needed two retries before executing tests because cold local API startup twice

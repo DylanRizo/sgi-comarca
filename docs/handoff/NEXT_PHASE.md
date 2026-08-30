@@ -2,13 +2,18 @@
 
 FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
 esquema, 8B la aplicación y API, 8C la interfaz. Todo fue verificado
-directamente el 2026-08-29 contra PostgreSQL local. Nada se desplegó y
-staging nunca fue tocado.
+directamente el 2026-08-29 contra PostgreSQL local.
+
+El 2026-08-30 el propietario autorizó y se ejecutó el despliegue de FASE 7A
+y 8A a staging (esquema y RBAC únicamente). Evidencia completa en
+[CURRENT_STATE.md § "FASE 7A/8A schema deployed to staging"](CURRENT_STATE.md).
+Ninguna venta, asiento o cierre real fue creado en staging; ese despliegue
+no autorizó ninguno de esos, y cada uno sigue siendo un gate separado.
 
 Con esto, FASE 7 y FASE 8 están ambas cerradas de punta a punta en el
-repositorio versionado. Ningún módulo de negocio queda pendiente de
-implementación local salvo lo que dependa de decisiones humanas todavía
-abiertas o de importación legacy.
+repositorio versionado, y su esquema/RBAC ya están desplegados en staging.
+Ningún módulo de negocio queda pendiente de implementación local salvo lo
+que dependa de decisiones humanas todavía abiertas o de importación legacy.
 
 Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 [reporte de FASE 8B](../reviews/phase-8b-completion-report.md),
@@ -22,31 +27,21 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`PHASE_8A_SCHEMA_COMPLETE`**, **`PHASE_8B_COMPLETE`**,
   **`PHASE_8C_COMPLETE`**
 - **`PHASE_8_COMPLETE`**
-- **`STAGING_PHASE_7A_MIGRATION_NOT_AUTHORIZED`**
+- **`STAGING_PHASE_7A_8A_SCHEMA_APPLIED`** (2026-08-30; ver CURRENT_STATE.md)
 - **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
+- **`FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`**
+- **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
 - **`NEXT_GATE = NOT_SELECTED`**
 
-Cerrar FASE 8 no autorizó ninguna acción operacional. Este documento no
-selecciona ni autoriza el siguiente gate: enumera los candidatos para que el
-propietario elija uno de forma explícita.
+Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
+a staging tampoco autorizó ninguna. Este documento no selecciona ni autoriza
+el siguiente gate: enumera los candidatos para que el propietario elija uno
+de forma explícita.
 
 ## Gates candidatos
 
-### A. Despliegue de FASE 7 y 8 a staging
-
-Aplicar las migraciones `20260826232758_phase_7a_sales_foundation` y
-`20260829144239_phase_8a_finances_closings_foundation`, y el cambio de
-bootstrap/RBAC, al entorno de staging. Requiere verificación positiva del
-destino, checkpoint previo y posterior con su SHA-256 verificado, y
-revalidación read-only de que `sales`, `sale_items`, `sale_cancellations`,
-`in_transit_confirmations`, `financial_entries` y `daily_closings` siguen
-vacías.
-
-No incluye crear ninguna venta, asiento o cierre real: cada uno es un gate
-separado y posterior. Es el único candidato que muta estado externo.
-
-### B. Importación legacy de `Ventas` y `Finanzas` (Waves 3+)
+### A. Importación legacy de `Ventas` y `Finanzas` (Waves 3+)
 
 Bloqueado por decisiones humanas todavía abiertas en
 [open-decisions.md](../legacy/open-decisions.md): DEC-012 (normalización de
@@ -56,7 +51,7 @@ inferirse desde la implementación operacional de FASE 7 u 8.
 
 Antes de planificar este gate, el propietario debe resolver esas decisiones.
 
-### C. Deuda técnica menor
+### B. Deuda técnica menor
 
 No es una fase; son mejoras acotadas que pueden agruparse:
 
@@ -77,6 +72,10 @@ No es una fase; son mejoras acotadas que pueden agruparse:
 - Las ventas legacy continúan diferidas y sin materializar.
 - `WAVES_3_PLUS_NOT_STARTED` continúa vigente.
 - Los movimientos históricos del ledger nunca se editan ni eliminan a mano.
-- El snapshot de staging del 2026-08-23 es evidencia histórica, no verdad
-  live. Antes de cualquier gate de migración debe revalidarse el target
-  read-only.
+- Staging tiene ahora el esquema y RBAC de FASE 7A/8A aplicados
+  (2026-08-30), verificado directamente ese día; `sales`, `sale_items`,
+  `sale_cancellations`, `in_transit_confirmations`, `financial_entries`,
+  `financial_categories`, `daily_closings` y `daily_closing_reopenings`
+  siguen todas vacías ahí. Antes de cualquier gate operacional futuro sobre
+  staging debe revalidarse el target read-only; el estado aquí descrito no
+  es verdad live indefinida.
