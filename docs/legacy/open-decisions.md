@@ -107,7 +107,7 @@ filas y mantiene trazabilidad de los 24 hallazgos `blocksPhase4`.
   preservan raw-only en este bloque.
 - La importación persistente no está autorizada.
 
-Este inventario conserva la evidencia y las alternativas identificadas en FASE 0. Los estados de DEC-015, DEC-025, DEC-031 y DEC-032 se sincronizaron posteriormente con decisiones aprobadas por el propietario; no se alteró la evidencia histórica. La columna “comportamiento seguro para ensayo” preserva datos y evita correcciones automáticas cuando una parte continúa abierta.
+Este inventario conserva la evidencia y las alternativas identificadas en FASE 0. Los estados de DEC-015, DEC-025, DEC-031 y DEC-032 se sincronizaron posteriormente con decisiones aprobadas por el propietario, y los de DEC-012, DEC-013, DEC-016 y DEC-017 el 2026-08-30 mediante [ADR-011](../decisions/ADR-011-legacy-sales-import-decisions.md); no se alteró la evidencia histórica. La columna “comportamiento seguro para ensayo” preserva datos y evita correcciones automáticas cuando una parte continúa abierta.
 
 | ID | Decisión requerida | Evidencia/alternativas | Comportamiento seguro para ensayo | Estado |
 |---|---|---|---|---|
@@ -122,12 +122,12 @@ Este inventario conserva la evidencia y las alternativas identificadas en FASE 0
 | DEC-009 | 157 diferencias y 4 claves sin contraparte | Inventario vs último saldo comparable | Inventario manda; reportar cada diferencia; no sintetizar balance desde Movimientos | `RESOLVED_IN_PHASE_4B` |
 | DEC-010 | Significado de `Stock Resultante` | El código calcula global; la columna incluye ubicación | Tratarlo como dato histórico informativo, no como saldo por almacén | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-011 | `Unidad` vs `Unidades` | 93 productos usan singular fuera del catálogo | Catálogo explícito de 14 Units; alias versionado `Unidad → Unidades` | `RESOLVED_IN_PHASE_4B` |
-| DEC-012 | Normalización de personas | Variantes ortográficas y mayúsculas | Preservar original y generar candidatos, sin fusionar | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-013 | Normalización de canales | `Facebook`, `Facebook Marketplace`, 117 vacíos | Preservar; nulos permanecen desconocidos | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-012 | Normalización de personas | Variantes ortográficas y mayúsculas | `Vendedor` mapea por texto exacto a los cuatro usuarios aprobados; `Entregador` se preserva en `Sale.delivererText` y sus 7 candidatos quedan `PENDING_MAPPING` sin fusionar; no existe FK de entregador | `RESOLVED_FOR_LEGACY_SALES_IMPORT` |
+| DEC-013 | Normalización de canales | `Facebook`, `Facebook Marketplace`, 117 vacíos | Canónico `Facebook Marketplace` con alias versionado `Facebook → Facebook Marketplace`; los 117 vacíos quedan `UNKNOWN` explícito, nunca un canal por defecto | `RESOLVED_FOR_LEGACY_SALES_IMPORT` |
 | DEC-014 | Fuente de precio vigente | Contexto histórico: Productos vs 76 filas de Inventario diferentes. Decisión posterior: `InventoryBalance` único por producto+almacén contiene los valores vigentes ya resueltos. | Leer `currentUnitPrice`/`currentUnitCost`; permitir override de precio auditado; nunca consultar `ProductWarehouseValuation` ni aceptar costo/subtotales del cliente. | `RESOLVED_FOR_PHASE_7B` |
 | DEC-015 | Regla de costo y costos cero | 19 códigos con costos variables; cinco filas cero entre Entrada/Inventario | Waves 1–2 conservan costo/precio por warehouse y cero con issue; margen/analytics posteriores siguen separados | `APPROVED_FOR_WAVES_1_2` |
-| DEC-016 | Estado de 401 líneas de venta | Q vacía; código las trata como Completado | Importar estado legacy nulo y una clasificación inferida separada | `REQUIRES_HUMAN_APPROVAL` |
-| DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar nulo; no derivar estado | `REQUIRES_HUMAN_APPROVAL` |
+| DEC-016 | Estado de las 404 líneas de venta | Q vacía en 401 filas; encabezado real `Columna 1` mientras el código espera `Estado de Pago`; las 3 `Completado` son ambiguas entre entrega y pago | Las 404 filas entran con `status = LEGACY_UNKNOWN` y `paymentStatus = UNKNOWN`; la clasificación inferida no se persiste y sólo aparece en el dry-run | `RESOLVED_FOR_LEGACY_SALES_IMPORT` |
+| DEC-017 | Hora final vacía | 159 líneas; no equivale de forma segura a tránsito | Preservar `completedAt = NULL` y `status = LEGACY_UNKNOWN`; nunca derivar `IN_TRANSIT` de la ausencia; el dry-run reporta el solapamiento con DEC-016 | `RESOLVED_FOR_LEGACY_SALES_IMPORT` |
 | DEC-018 | Método de pago histórico | Solo 32 líneas etiquetadas; código clasifica resto Digital | Importar `UNKNOWN`; conservar inferencia legacy aparte | `REQUIRES_HUMAN_APPROVAL` |
 | DEC-019 | Venta en tránsito al cierre | Legacy la cancela automáticamente | El cierre reporta las ventas en tránsito de la fecha y no las toca; nunca cancela ni repone inventario como efecto secundario | `RESOLVED_FOR_PHASE_8` |
 | DEC-020 | Confirmación de tránsito: regla base | Legacy cambia estado sin nuevo descuento; `AGENTS.md` exige que confirmar no vuelva a descontar | Aplicar la regla obligatoria; detalles operativos abajo | `APPROVED_BY_PROJECT_CONSTRAINT` |
