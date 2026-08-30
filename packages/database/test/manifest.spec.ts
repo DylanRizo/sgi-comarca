@@ -32,13 +32,17 @@ describe('FASE 3B bootstrap manifest', () => {
     );
     expect(bootstrapPermissions.map(({ code }) => code).sort()).toEqual(
       [
+        'analytics.read',
         'closings.create',
         'closings.read',
         'closings.reopen',
         'finances.manual.create',
         'finances.read',
         'inventory.adjust',
+        'inventory.audit.approve',
+        'inventory.audit.create',
         'inventory.read',
+        'reports.read',
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
@@ -104,11 +108,40 @@ describe('FASE 3B bootstrap manifest', () => {
     );
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
+      { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.create' },
+      { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
+      { loginIdentifier: 'dylan', permissionCode: 'reports.read' },
+      { loginIdentifier: 'dylan', permissionCode: 'analytics.read' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(16);
+    expect(bootstrapPermissions).toHaveLength(20);
     expect(bootstrapUserRoles).toHaveLength(11);
     expect(bootstrapRolePermissions).toHaveLength(15);
-    expect(bootstrapUserPermissions).toHaveLength(1);
+    expect(bootstrapUserPermissions).toHaveLength(5);
+  });
+
+  it('grants the FASE 9 permissions only as direct grants to dylan', () => {
+    const phase9Codes = [
+      'inventory.audit.create',
+      'inventory.audit.approve',
+      'reports.read',
+      'analytics.read',
+    ];
+
+    for (const code of phase9Codes) {
+      expect(
+        bootstrapPermissions.some(({ code: declared }) => declared === code),
+      ).toBe(true);
+      expect(
+        bootstrapRolePermissions.some(
+          ({ permissionCode }) => permissionCode === code,
+        ),
+      ).toBe(false);
+      expect(
+        bootstrapUserPermissions.filter(
+          ({ permissionCode }) => permissionCode === code,
+        ),
+      ).toEqual([{ loginIdentifier: 'dylan', permissionCode: code }]);
+    }
   });
 
   it('grants sales.read only to SALES without an ADMIN bypass', () => {

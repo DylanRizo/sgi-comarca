@@ -36,6 +36,15 @@ enum InventoryMovementType {
   @@map("inventory_movement_type")
 }
 
+enum InventoryCountSessionStatus {
+  OPEN
+  PENDING_APPROVAL
+  APPROVED
+  CANCELLED
+
+  @@map("inventory_count_session_status")
+}
+
 enum SaleStatus {
   LEGACY_UNKNOWN
   IN_TRANSIT
@@ -167,6 +176,9 @@ model User {
   dailyClosingsClosed         DailyClosing[]          @relation("DailyClosingActor")
   dailyClosingReopenings      DailyClosingReopening[] @relation("DailyClosingReopeningActor")
   resolvedIssues              ReconciliationIssue[]   @relation("ReconciliationIssueResolver")
+  countSessionsCreated        InventoryCountSession[] @relation("InventoryCountSessionCreator")
+  countSessionsApproved       InventoryCountSession[] @relation("InventoryCountSessionApprover")
+  countSessionsCancelled      InventoryCountSession[] @relation("InventoryCountSessionCanceller")
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -363,10 +375,12 @@ model Warehouse {
   inventoryBalances          InventoryBalance[]
   productWarehouseValuations ProductWarehouseValuation[]
   inventoryMovements         InventoryMovement[]
-  outgoingInventoryTransfers InventoryTransfer[]         @relation("InventoryTransferFromWarehouse")
-  incomingInventoryTransfers InventoryTransfer[]         @relation("InventoryTransferToWarehouse")
+  outgoingInventoryTransfers InventoryTransfer[]              @relation("InventoryTransferFromWarehouse")
+  incomingInventoryTransfers InventoryTransfer[]              @relation("InventoryTransferToWarehouse")
   saleItems                  SaleItem[]
-  legacyRecords              LegacyRecord[]              @relation("LegacyRecordWarehouse")
+  legacyRecords              LegacyRecord[]                   @relation("LegacyRecordWarehouse")
+  countSessionScopes         InventoryCountSessionWarehouse[]
+  countLines                 InventoryCountLine[]
 
   @@index([active, name], map: "warehouses_active_name_idx")
   @@map("warehouses")
@@ -405,6 +419,7 @@ model Product {
   inventoryTransferItems     InventoryTransferItem[]
   saleItems                  SaleItem[]
   legacyRecords              LegacyRecord[]              @relation("LegacyRecordProduct")
+  countLines                 InventoryCountLine[]
 
   @@index([name], map: "products_name_idx")
   @@index([unitId, active], map: "products_unit_active_idx")
@@ -480,6 +495,7 @@ model InventoryMovement {
   saleItem      SaleItem?              @relation(fields: [saleItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   transferItem  InventoryTransferItem? @relation(fields: [transferItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   legacyRecords LegacyRecord[]         @relation("LegacyRecordInventoryMovement")
+  countLine     InventoryCountLine?    @relation("InventoryCountLineAdjustment")
 
   @@index([productId, warehouseId, occurredAt], map: "inventory_movements_product_warehouse_time_idx")
   @@index([type, occurredAt], map: "inventory_movements_type_time_idx")
@@ -525,6 +541,72 @@ model InventoryTransferItem {
   @@unique([transferId, productId], map: "inventory_transfer_items_transfer_product_key")
   @@index([productId], map: "inventory_transfer_items_product_idx")
   @@map("inventory_transfer_items")
+}
+
+model InventoryCountSession {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  status             InventoryCountSessionStatus
+  businessDate       DateTime                    @map("business_date") @db.Date
+  reason             String                      @db.VarChar(500)
+  createdByUserId    String                      @map("created_by_user_id") @db.Uuid
+  submittedAt        DateTime?                   @map("submitted_at") @db.Timestamptz(6)
+  approvedByUserId   String?                     @map("approved_by_user_id") @db.Uuid
+  approvedAt         DateTime?                   @map("approved_at") @db.Timestamptz(6)
+  cancelledByUserId  String?                     @map("cancelled_by_user_id") @db.Uuid
+  cancelledAt        DateTime?                   @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?                     @map("cancellation_reason") @db.VarChar(500)
+  idempotencyKeyHash String?                     @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?                     @map("request_hash") @db.Char(64)
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy   User                             @relation("InventoryCountSessionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  approvedBy  User?                            @relation("InventoryCountSessionApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cancelledBy User?                            @relation("InventoryCountSessionCanceller", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouses  InventoryCountSessionWarehouse[]
+  lines       InventoryCountLine[]
+
+  @@unique([createdByUserId, idempotencyKeyHash], map: "inventory_count_sessions_creator_idempotency_key")
+  @@index([status, businessDate], map: "inventory_count_sessions_status_business_date_idx")
+  @@index([createdByUserId, businessDate(sort: Desc)], map: "inventory_count_sessions_creator_time_idx")
+  @@map("inventory_count_sessions")
+}
+
+model InventoryCountSessionWarehouse {
+  id          String @id @default(uuid()) @db.Uuid
+  sessionId   String @map("session_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+
+  session   InventoryCountSession @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([sessionId, warehouseId], map: "inventory_count_session_warehouses_session_warehouse_key")
+  @@index([warehouseId], map: "inventory_count_session_warehouses_warehouse_idx")
+  @@map("inventory_count_session_warehouses")
+}
+
+model InventoryCountLine {
+  id                   String   @id @default(uuid()) @db.Uuid
+  sessionId            String   @map("session_id") @db.Uuid
+  productId            String   @map("product_id") @db.Uuid
+  warehouseId          String   @map("warehouse_id") @db.Uuid
+  expectedQuantity     Decimal  @map("expected_quantity") @db.Decimal(18, 4)
+  countedQuantity      Decimal  @map("counted_quantity") @db.Decimal(18, 4)
+  difference           Decimal  @db.Decimal(18, 4)
+  adjustmentMovementId String?  @unique(map: "inventory_count_lines_adjustment_movement_key") @map("adjustment_movement_id") @db.Uuid
+  countedAt            DateTime @map("counted_at") @db.Timestamptz(6)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  session            InventoryCountSession @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product            Product               @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse          Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  adjustmentMovement InventoryMovement?    @relation("InventoryCountLineAdjustment", fields: [adjustmentMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([sessionId, productId, warehouseId], map: "inventory_count_lines_session_product_warehouse_key")
+  @@index([sessionId], map: "inventory_count_lines_session_idx")
+  @@index([productId, warehouseId], map: "inventory_count_lines_product_warehouse_idx")
+  @@map("inventory_count_lines")
 }
 
 model Sale {
@@ -644,23 +726,23 @@ model FinancialCategory {
 }
 
 model FinancialEntry {
-  id                 String             @id @default(uuid()) @db.Uuid
-  origin             FinanceOrigin
-  entryType          FinancialEntryType @map("entry_type")
-  businessDate       DateTime           @map("business_date") @db.Date
-  categoryId         String?            @map("category_id") @db.Uuid
-  amount             Decimal            @db.Decimal(18, 2)
-  currencyCode       String             @default("NIO") @map("currency_code") @db.VarChar(3)
-  description        String?            @db.VarChar(500)
-  responsibleUserId  String?            @map("responsible_user_id") @db.Uuid
-  createdByUserId    String?            @map("created_by_user_id") @db.Uuid
-  idempotencyKeyHash String?            @map("idempotency_key_hash") @db.Char(64)
-  requestHash        String?            @map("request_hash") @db.Char(64)
-  legacyCategoryText String?            @map("legacy_category_text") @db.VarChar(160)
-  legacyResponsibleText String?         @map("legacy_responsible_text") @db.VarChar(200)
-  legacyRecordId     String?            @map("legacy_record_id") @db.Uuid
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String             @id @default(uuid()) @db.Uuid
+  origin                FinanceOrigin
+  entryType             FinancialEntryType @map("entry_type")
+  businessDate          DateTime           @map("business_date") @db.Date
+  categoryId            String?            @map("category_id") @db.Uuid
+  amount                Decimal            @db.Decimal(18, 2)
+  currencyCode          String             @default("NIO") @map("currency_code") @db.VarChar(3)
+  description           String?            @db.VarChar(500)
+  responsibleUserId     String?            @map("responsible_user_id") @db.Uuid
+  createdByUserId       String?            @map("created_by_user_id") @db.Uuid
+  idempotencyKeyHash    String?            @map("idempotency_key_hash") @db.Char(64)
+  requestHash           String?            @map("request_hash") @db.Char(64)
+  legacyCategoryText    String?            @map("legacy_category_text") @db.VarChar(160)
+  legacyResponsibleText String?            @map("legacy_responsible_text") @db.VarChar(200)
+  legacyRecordId        String?            @map("legacy_record_id") @db.Uuid
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   category     FinancialCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   responsible  User?              @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)

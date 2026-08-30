@@ -97,6 +97,24 @@ export const bootstrapPermissions = [
     code: 'transfers.create',
     description: 'Crear transferencias; sin grants en FASE 3A.',
   },
+  {
+    code: 'inventory.audit.create',
+    description: 'Crear sesiones de auditoría física y capturar conteos.',
+  },
+  {
+    code: 'inventory.audit.approve',
+    description:
+      'Aprobar sesiones de auditoría física y generar sus ajustes vinculados.',
+  },
+  {
+    code: 'reports.read',
+    description: 'Consultar reportes operativos y exportarlos.',
+  },
+  {
+    code: 'analytics.read',
+    description:
+      'Consultar KPIs operativos; los KPIs monetarios exigen además finances.read.',
+  },
 ] as const;
 
 export const bootstrapUsers = [
@@ -164,6 +182,10 @@ export const bootstrapRolePermissions = [
 
 export const bootstrapUserPermissions = [
   { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
+  { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.create' },
+  { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
+  { loginIdentifier: 'dylan', permissionCode: 'reports.read' },
+  { loginIdentifier: 'dylan', permissionCode: 'analytics.read' },
 ] as const;
 
 export function grantKey(left: string, right: string): string {
