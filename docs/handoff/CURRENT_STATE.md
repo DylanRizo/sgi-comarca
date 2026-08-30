@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-08-29.
+Updated: 2026-08-30.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -12,8 +12,14 @@ never records an authoritative "current" HEAD of its own, because any commit
 that updates the handoff would immediately invalidate such a field.
 
 - Repository: `DylanRizo/sgi-comarca`.
-- Branch: `main`.
+- Branch: `main`, except the FASE 9A work below, which lives on
+  `migration/09-reports` and is not yet merged into `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 9A schema/RBAC fixes (break-glass authorization matrix,
+  legacy importer, migration column reference) on `migration/09-reports`:
+  `b55aef9`.
+- Committed FASE 9A physical count schema and RBAC foundation on
+  `migration/09-reports`: `2671d5d`.
 - Committed FASE 8C UI and its e2e suite, closing FASE 8 end to end:
   `1e304cf`.
 - Committed FASE 8B application/API closure: `6090001`.
@@ -73,6 +79,7 @@ file.
 | 8A | Finances and daily closings schema foundation complete: financial categories and entries, daily closings and their reopening history, with the ADR-010 rules enforced by CHECK constraints and triggers. A persisted entry is always manual, the closing formula excludes expenses, the applied tolerance is recorded per closing, and figures and history are immutable. Verified on 2026-08-29 against the local Docker Compose PostgreSQL: migration applies cleanly and 213/213 integration tests pass. Not deployed; staging was verified untouched. `PHASE_8A_SCHEMA_COMPLETE`. |
 | 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. |
 | 8C | Finances and daily closings UI complete in Spanish over the closed FASE 8B API: a merged finance list (manual entries plus sale income derived at read time, never a persisted or editable entry), category/type/date filters, period totals, manual entry creation, closing list/detail with frozen figures and reopening history, closing creation, and a reopen action gated by permission and by closing status. Verified directly on 2026-08-29: 58 files / 203 unit tests, 32/32 Chromium E2E (24 regression plus 8 new), lint 8/8, typecheck 7/7, build 7/7, format clean, and a manual security review with no findings. Building it exposed and fixed a real cross-suite E2E ordering bug (an exact product count in 02-inventory.e2e.ts depended on file discovery order rather than an explicit one) and a cross-module 403-message bug naming the wrong permission. Not deployed; nothing was written to staging. `PHASE_8C_COMPLETE`. This closes FASE 8 end to end: schema, application/API, and UI. `PHASE_8_COMPLETE`. |
+| 9A | Physical inventory count schema and RBAC foundation complete on `migration/09-reports` (not yet merged into `main`): `InventoryCountSession` (lifecycle `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either non-terminal state, with separate creator/approver/canceller actors and actor-scoped idempotency), `InventoryCountSessionWarehouse` (explicit session scope, so a missing line is distinguishable from a warehouse never meant to be counted, per AT-AUD-02), and `InventoryCountLine` (expected/counted/difference, linked immutably to the generated adjustment via a unique `adjustment_movement_id`). The session never writes stock itself; a deferred constraint trigger requires the linked movement to be an `ADJUSTMENT` matching the line's product, warehouse, and magnitude, so the FASE 5C atomic adjustment path remains the only stock-writing route. Named to avoid colliding with the existing `InventoryAuditService` (audit log), per the plan's §6. RBAC adds `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and `analytics.read` as direct grants to the sole admin only; no role grants any of the four, preserving the still-open role-grant decision in the FASE 9 plan. No API and no UI. Commit `2671d5d` added the foundation; commit `b55aef9` fixed a break-glass authorization-matrix gap (it was checking only `sales.cancel` as the lone direct grant and ignoring the four new ones), a legacy-importer reference, and a migration column reference, and added full integration coverage. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 58 files/204 tests, integration 26 files/262 tests, build 7/7, `format:check` and `db:validate` clean. Not deployed; staging remains on the FASE 7A/8A migration. `PHASE_9A_SCHEMA_COMPLETE`. |
 
 ## Current milestone
 
@@ -84,6 +91,8 @@ file.
 - `PHASE_8B_COMPLETE`
 - `PHASE_8C_COMPLETE`
 - `PHASE_8_COMPLETE`
+- `PHASE_9A_SCHEMA_COMPLETE` (on `migration/09-reports`, not yet merged into
+  `main`)
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -227,6 +236,32 @@ sales schema, FASE 7B provides the application/API, and FASE 7C provides the
 UI. None of those repository capabilities means staging
 deployment or legacy sales import occurred.
 
+## Current inventory-count schema (FASE 9A, `migration/09-reports` only)
+
+- `InventoryCountSession` is the audit session document: lifecycle
+  `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either
+  non-terminal state, with separate creator, approver, and canceller actors
+  and an actor-scoped idempotency hash.
+- `InventoryCountSessionWarehouse` declares which warehouses a session
+  covers, so a line that is simply missing is distinguishable from a
+  warehouse the session never intended to count.
+- `InventoryCountLine` carries expected quantity, counted quantity, and the
+  difference, and links immutably to the generated adjustment through a
+  unique `adjustment_movement_id`. It never writes stock itself: a deferred
+  constraint trigger requires the linked movement to be an `ADJUSTMENT`
+  matching the line's product, warehouse, and magnitude, so the FASE 5C
+  atomic adjustment path stays the only stock-writing route.
+- Named `InventoryCountSession`/`InventoryCountLine` rather than reusing
+  "audit" to avoid colliding with the pre-existing `InventoryAuditService`,
+  which writes `AuditLog` rows and is unrelated to physical counting.
+- RBAC: `inventory.audit.create`, `inventory.audit.approve`, `reports.read`,
+  and `analytics.read` exist as direct grants to the sole admin only. No
+  role grants any of the four yet; which role(s) should is still an open
+  business decision (see `docs/reviews/phase-9-audits-reports-plan.md` §2).
+- No API and no UI exist yet for this schema, and nothing was applied to
+  staging or any persistent database. This schema lives only on
+  `migration/09-reports`, which has not merged into `main`.
+
 ## Last verified staging snapshot
 
 This is non-secret operational evidence verified read-only on 2026-08-23,
@@ -332,13 +367,20 @@ integration/concurrency suites.
 
 ## Current RBAC
 
-- The manifest contains 16 permissions and 15 role grants.
+- On `main`, the manifest contains 16 permissions and 15 role grants.
+- On `migration/09-reports` (FASE 9A, unmerged), it contains 20 permissions,
+  the same 15 role grants, and 5 direct grants: `sales.cancel` plus the four
+  FASE 9A permissions below.
 - `inventory.read → INVENTORY_MANAGER`.
 - `inventory.adjust → INVENTORY_MANAGER`.
 - `transfers.create → INVENTORY_MANAGER`.
 - `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
 - `sales.cancel` remains one direct grant only to Dylan; no role grants it.
+- `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and
+  `analytics.read` (FASE 9A, `migration/09-reports` only) are direct grants
+  to Dylan only; no role grants any of them yet, and deciding which role(s)
+  should remains open (see the FASE 9 plan §2).
 - `FINANCE` receives exactly `finances.read`, `finances.manual.create`,
   `closings.read`, `closings.create`, and `closings.reopen` through its role.
 - `ADMIN` is not a superuser and has no permission bypass.
@@ -351,7 +393,7 @@ The full matrix is in
 
 ## Current migrations
 
-All versioned migrations, in order:
+On `main`, in order:
 
 1. `20260804044231_phase_3a_initial_structure`;
 2. `20260804164613_phase_3b_authentication_models`;
@@ -359,6 +401,10 @@ All versioned migrations, in order:
 4. `20260820170000_phase_6a_transfer_foundation`;
 5. `20260826232758_phase_7a_sales_foundation`;
 6. `20260829144239_phase_8a_finances_closings_foundation`.
+
+On `migration/09-reports` (unmerged), additionally:
+
+7. `20260830181934_phase_9a_inventory_count_foundation`.
 
 ## Current transfer architecture
 
@@ -451,6 +497,17 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 `PHASE_6_CONCURRENCY_FIX_PASS`.
 
 ## Last green baseline
+
+Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`)
+after committing the FASE 9A schema/RBAC fixes (`b55aef9`), run directly
+against the local Docker Compose PostgreSQL (`sgi-comarca-postgres-1`,
+`postgres:18.4-alpine`): lint 8/8 tasks, typecheck 7/7 tasks, unit 58 files /
+204 tests, integration 26 files / 262 tests (up from 25/244 at the 8B.5
+baseline below, by one new spec file covering the FASE 9A count schema plus
+the updated bootstrap/schema/authentication specs), build 7/7 tasks,
+`format:check` clean, and `db:validate` clean. No Playwright E2E run was
+needed: FASE 9A is schema and RBAC only, with no API or UI surface to
+exercise yet. Staging was not touched.
 
 Revalidated on 2026-08-29 at the 8C closure, run directly: 58 files / 203
 unit tests, and 32/32 Chromium E2E tests (24 regression plus 8 new

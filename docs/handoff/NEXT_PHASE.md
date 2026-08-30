@@ -1,4 +1,4 @@
-# Next Gate — FASE 9A, esquema de auditoría física
+# Next Gate — FASE 9B.1, aplicación y API de auditoría física
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -6,6 +6,15 @@ planificación está en
 [phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
 Seleccionar la fase no autoriza implementar: el esquema, el cambio de RBAC y
 el despliegue a staging siguen siendo gates separados.
+
+El 2026-08-30 se completó y verificó directamente el bloque **9A — esquema de
+auditoría física**, en la rama `migration/09-reports` (todavía sin fusionar a
+`main`): commits `2671d5d` (fundación) y `b55aef9` (fix de la matriz de
+autorización break-glass, del importador legacy y de una referencia de
+columna en la migración, más cobertura de integración completa). Evidencia
+completa en
+[CURRENT_STATE.md § "Current inventory-count schema"](CURRENT_STATE.md).
+Sin API y sin UI; nada se aplicó a staging.
 
 
 FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
@@ -40,26 +49,44 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_NOT_STARTED`**
-- **`NEXT_GATE = PHASE_9A_SCHEMA`**
+- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`** (on
+  `migration/09-reports`, unmerged)
+- **`NEXT_GATE = PHASE_9B_1_INVENTORY_AUDIT_APPLICATION`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
-implementarla.
+implementarla. Cerrar 9A tampoco autoriza 9B.1 por sí solo: sigue pendiente
+la decisión de negocio que se describe abajo.
+
+## Bloque cerrado
+
+### FASE 9A — esquema de auditoría física (completo, sin fusionar a `main`)
+
+`InventoryCountSession`, `InventoryCountSessionWarehouse` e
+`InventoryCountLine`, con el vínculo inmutable al ajuste generado al aprobar,
+y los cuatro permisos nuevos (`inventory.audit.create`,
+`inventory.audit.approve`, `reports.read`, `analytics.read`) en el manifest
+como grants directos únicamente al administrador — ningún rol los recibe
+todavía. La convención de nombres que evita la colisión con el
+`InventoryAuditService` existente quedó resuelta a favor de
+`InventoryCountSession`/`InventoryCountLine`. Verificado directamente el
+2026-08-30: ver
+[CURRENT_STATE.md § "Current inventory-count schema"](CURRENT_STATE.md).
+Sin API, sin UI, nada aplicado a staging.
 
 ## Gate seleccionado
 
-### FASE 9A — esquema de auditoría física
+### FASE 9B.1 — auditoría física, aplicación y API
 
-Sesión de auditoría, líneas de conteo y vínculo inmutable a los ajustes
-generados al aprobar. Requiere migración nueva y cuatro permisos nuevos
-(`inventory.audit.create`, `inventory.audit.approve`, `reports.read`,
-`analytics.read`), así que es su propio bloque con su propio gate, y su
-despliegue a staging es otro distinto.
+Crear sesión, capturar conteos, calcular diferencias, aprobar y generar los
+ajustes atómicos delegando en la ruta de FASE 5C. Idempotencia por actor,
+como en transferencias y ventas. No requiere migración nueva ni cambio de
+RBAC en el esquema — reutiliza lo que 9A ya dejó.
 
-Pendiente antes de escribir esquema: los grants por rol de los cuatro permisos
-nuevos, y la convención de nombres que evita la colisión con el
-`InventoryAuditService` existente. Detalle en
+**Pendiente antes de implementar:** los grants por rol de los cuatro permisos
+nuevos siguen sin decidirse (§2, "Todavía abierto", del plan), igual que si
+crear y aprobar una auditoría pueden ser el mismo actor. Sin esa decisión,
+9B.1 solo sería utilizable por el administrador vía grant directo. Detalle en
 [phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
 
 ## Otros gates candidatos, no seleccionados
