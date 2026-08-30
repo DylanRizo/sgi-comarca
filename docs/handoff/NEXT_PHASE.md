@@ -1,4 +1,12 @@
-# Next Gate — Selección del propietario
+# Next Gate — FASE 9A, esquema de auditoría física
+
+El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
+aprobó su estructura por bloques y su separación de lectura financiera. La
+planificación está en
+[phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
+Seleccionar la fase no autoriza implementar: el esquema, el cambio de RBAC y
+el despliegue a staging siguen siendo gates separados.
+
 
 FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
 esquema, 8B la aplicación y API, 8C la interfaz. Todo fue verificado
@@ -32,24 +40,49 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`NEXT_GATE = NOT_SELECTED`**
+- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_NOT_STARTED`**
+- **`NEXT_GATE = PHASE_9A_SCHEMA`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
-a staging tampoco autorizó ninguna. Este documento no selecciona ni autoriza
-el siguiente gate: enumera los candidatos para que el propietario elija uno
-de forma explícita.
+a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
+implementarla.
 
-## Gates candidatos
+## Gate seleccionado
+
+### FASE 9A — esquema de auditoría física
+
+Sesión de auditoría, líneas de conteo y vínculo inmutable a los ajustes
+generados al aprobar. Requiere migración nueva y cuatro permisos nuevos
+(`inventory.audit.create`, `inventory.audit.approve`, `reports.read`,
+`analytics.read`), así que es su propio bloque con su propio gate, y su
+despliegue a staging es otro distinto.
+
+Pendiente antes de escribir esquema: los grants por rol de los cuatro permisos
+nuevos, y la convención de nombres que evita la colisión con el
+`InventoryAuditService` existente. Detalle en
+[phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
+
+## Otros gates candidatos, no seleccionados
 
 ### A. Importación legacy de `Ventas` y `Finanzas` (Waves 3+)
 
-Bloqueado por decisiones humanas todavía abiertas en
-[open-decisions.md](../legacy/open-decisions.md): DEC-012 (normalización de
-personas), DEC-013 (canales), DEC-016 (estado de 401 líneas de venta),
-DEC-017 (hora final vacía), agrupación y duplicados. Ninguna regla puede
+El 2026-08-30 el propietario resolvió cuatro de las decisiones que bloqueaban
+este gate mediante
+[ADR-011](../decisions/ADR-011-legacy-sales-import-decisions.md): DEC-012
+(normalización de personas), DEC-013 (canales), DEC-016 (estado de las 404
+líneas de venta) y DEC-017 (hora final vacía). Ninguna de las cuatro cambia el
+esquema ni requiere migración.
+
+Sigue bloqueado por decisiones humanas todavía abiertas en
+[open-decisions.md](../legacy/open-decisions.md): DEC-018 (método de pago
+histórico), DEC-006 (cuatro líneas de venta duplicadas), DEC-007 (siete ventas
+sin movimiento) y DEC-026 (importación CSV legacy). Ninguna regla puede
 inferirse desde la implementación operacional de FASE 7 u 8.
 
-Antes de planificar este gate, el propietario debe resolver esas decisiones.
+Además, el importador legacy de `Ventas` no existe todavía: `legacySellerText`,
+`delivererText` y `salesChannelText` no están referenciados en ningún `.ts` del
+repositorio. Resolver las decisiones restantes habilita planificarlo; no lo
+implementa ni autoriza escritura alguna.
 
 ### B. Deuda técnica menor
 
