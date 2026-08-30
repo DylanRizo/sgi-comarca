@@ -20,13 +20,17 @@ const approvedRoleCodes = [
 ] as const;
 
 const approvedPermissionCodes = [
+  'analytics.read',
   'closings.create',
   'closings.read',
   'closings.reopen',
   'finances.manual.create',
   'finances.read',
   'inventory.adjust',
+  'inventory.audit.approve',
+  'inventory.audit.create',
   'inventory.read',
+  'reports.read',
   'sales.cancel',
   'sales.confirm_in_transit',
   'sales.create',
@@ -54,6 +58,19 @@ const approvedRolePermissionKeys = [
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
   'SALES:sales.read',
+] as const;
+
+/**
+ * Direct grants belong exclusively to the sole ADMIN. FASE 9A added the audit,
+ * reports and analytics capabilities here rather than to any role, so no role
+ * receives them and deny-by-default still holds.
+ */
+const approvedDirectPermissionCodes = [
+  'analytics.read',
+  'inventory.audit.approve',
+  'inventory.audit.create',
+  'reports.read',
+  'sales.cancel',
 ] as const;
 
 const approvedUserRoleSignatures = [
@@ -152,15 +169,16 @@ async function assertApprovedAuthorizationMatrix(
     approvedUserRoleSignatures,
   );
 
-  if (
-    userPermissions.length !== 1 ||
-    userPermissions[0]?.userId !== adminUserId ||
-    userPermissions[0]?.permission.code !== 'sales.cancel'
-  ) {
+  if (userPermissions.some(({ userId }) => userId !== adminUserId)) {
     throw new AdminRecoveryError(
       'The approved authorization matrix is incompatible: direct permissions.',
     );
   }
+  assertExactValues(
+    'direct permissions',
+    userPermissions.map(({ permission }) => permission.code),
+    approvedDirectPermissionCodes,
+  );
 }
 
 function createToken(): string {

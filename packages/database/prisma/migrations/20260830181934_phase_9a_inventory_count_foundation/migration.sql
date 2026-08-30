@@ -323,7 +323,7 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  SELECT "type", "product_id", "warehouse_id", "quantity"
+  SELECT "type", "product_id", "warehouse_id", "quantity_delta"
   INTO movement_type, movement_product, movement_warehouse, movement_quantity
   FROM "inventory_movements"
   WHERE "id" = NEW."adjustment_movement_id";

@@ -19,6 +19,9 @@ const applicationTables = [
   'import_batches',
   'in_transit_confirmations',
   'inventory_balances',
+  'inventory_count_lines',
+  'inventory_count_session_warehouses',
+  'inventory_count_sessions',
   'inventory_movements',
   'inventory_transfer_items',
   'inventory_transfers',
@@ -131,7 +134,7 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     await pool.end();
   });
 
-  it('has exactly 31 application tables and only the Prisma technical table', async () => {
+  it('has exactly 34 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -147,18 +150,18 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(31);
+    expect(actualApplicationTables).toHaveLength(34);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly 27 non-internal triggers', async () => {
+  it('has the approved functions and exactly 34 non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('check_inventory_count_line_adjustment', 'check_inventory_count_session_approval', 'check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_inventory_count_line_write', 'guard_inventory_count_session_write', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -177,6 +180,8 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     );
 
     expect(functions.rows).toEqual([
+      { proname: 'check_inventory_count_line_adjustment' },
+      { proname: 'check_inventory_count_session_approval' },
       { proname: 'check_operational_sale_item_ledger' },
       { proname: 'enforce_inventory_transfer_has_items' },
       { proname: 'enforce_inventory_transfer_item_ledger' },
@@ -186,6 +191,8 @@ describe('PostgreSQL structure through PHASE 7A', () => {
       { proname: 'enforce_session_lifecycle' },
       { proname: 'guard_daily_closing_write' },
       { proname: 'guard_financial_entry_write' },
+      { proname: 'guard_inventory_count_line_write' },
+      { proname: 'guard_inventory_count_session_write' },
       { proname: 'guard_sale_action_insert' },
       { proname: 'guard_sale_item_insert' },
       { proname: 'guard_sale_write' },
@@ -224,6 +231,34 @@ describe('PostgreSQL structure through PHASE 7A', () => {
       {
         table_name: 'in_transit_confirmations',
         trigger_name: 'in_transit_confirmations_operational_guard',
+      },
+      {
+        table_name: 'inventory_count_lines',
+        trigger_name: 'inventory_count_lines_adjustment_coherent',
+      },
+      {
+        table_name: 'inventory_count_lines',
+        trigger_name: 'inventory_count_lines_immutable_delete',
+      },
+      {
+        table_name: 'inventory_count_lines',
+        trigger_name: 'inventory_count_lines_write_guard',
+      },
+      {
+        table_name: 'inventory_count_session_warehouses',
+        trigger_name: 'inventory_count_session_warehouses_immutable',
+      },
+      {
+        table_name: 'inventory_count_sessions',
+        trigger_name: 'inventory_count_sessions_approval_coherent',
+      },
+      {
+        table_name: 'inventory_count_sessions',
+        trigger_name: 'inventory_count_sessions_immutable_delete',
+      },
+      {
+        table_name: 'inventory_count_sessions',
+        trigger_name: 'inventory_count_sessions_write_guard',
       },
       {
         table_name: 'inventory_movements',

@@ -479,13 +479,17 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
   it('returns the exact deterministic permission matrix for all four initial users', async () => {
     const expectedPermissions = {
       dylan: [
+        'analytics.read',
         'closings.create',
         'closings.read',
         'closings.reopen',
         'finances.manual.create',
         'finances.read',
         'inventory.adjust',
+        'inventory.audit.approve',
+        'inventory.audit.create',
         'inventory.read',
+        'reports.read',
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
