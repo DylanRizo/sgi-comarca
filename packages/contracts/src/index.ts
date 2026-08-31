@@ -69,6 +69,14 @@ export {
   type InventoryTransferRequest,
   type InventoryTransferResult,
 } from './inventory-transfer.js';
+export type {
+  FinanceReportRow,
+  InventoryReportRow,
+  MovementReportRow,
+  ReportFormat,
+  ReportPublicErrorCode,
+  SalesReportRow,
+} from './reports.js';
 export {
   saleCreationStatuses,
   saleOrigins,

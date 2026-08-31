@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { InventoryCountsModule } from './inventory-counts/inventory-counts.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { UnitsModule } from './units/units.module.js';
 import { WarehousesModule } from './warehouses/warehouses.module.js';
@@ -58,6 +59,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     InventoryCountsModule,
     SalesModule,
     FinancesModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

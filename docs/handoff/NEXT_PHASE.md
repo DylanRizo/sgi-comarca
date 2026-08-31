@@ -1,4 +1,4 @@
-# Next Gate — FASE 9B.2, reportes
+# Next Gate — FASE 9B.3, analytics
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -51,13 +51,14 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
 - **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`**,
-  **`PHASE_9B_1_COMPLETE`** (on `migration/09-reports`, unmerged)
-- **`NEXT_GATE = PHASE_9B_2_REPORTS`**
+  **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`** (on
+  `migration/09-reports`, unmerged)
+- **`NEXT_GATE = PHASE_9B_3_ANALYTICS`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
-implementarla. Cerrar 9A y 9B.1 no autoriza desplegarlos ni usarlos contra
-staging: ese sigue siendo un gate propio y separado.
+implementarla. Cerrar 9A, 9B.1 y 9B.2 no autoriza desplegarlos ni usarlos
+contra staging: ese sigue siendo un gate propio y separado.
 
 ## Bloques cerrados
 
@@ -93,18 +94,32 @@ lo que sigue abierto:
 "Todavía abierto", del plan). Mientras no se decidan, el conteo físico solo es
 utilizable por quien tenga los grants directos. Esa decisión no bloquea 9B.2.
 
+### FASE 9B.2 — reportes (completo, sin fusionar)
+
+Cuatro reportes —inventario, movimientos, ventas y finanzas— con paginación en
+servidor, filtros y exportación CSV. Lectura pura. Sin migración y sin cambio
+de RBAC: los índices existentes ya respaldan cada filtro.
+
+Dos reglas quedaron enforced en el controlador, no libradas al lector: reportar
+es una capacidad y no un permiso de acceso, así que cada ruta exige además el
+permiso de lectura de su dominio; y las columnas de dinero exigen además
+`finances.read`, emitiéndose como null cuando falta para que el CSV conserve
+una sola forma. Un test comprueba que ningún reporte emite `unitCostSnapshot`,
+hashes, lugar de entrega ni texto legacy.
+
 ## Gate seleccionado
 
-### FASE 9B.2 — reportes
+### FASE 9B.3 — analytics
 
-Inventario, movimientos, ventas, productos, almacenes, vendedores, canales,
-fechas, finanzas y cierres. Paginación en servidor, filtros y exportación CSV.
-Lectura pura: ninguna ruta muta datos. `reports.read` ya existe en el manifest
-desde 9A, así que no requiere migración ni cambio de esquema.
+KPIs de stock y valor de inventario, alertas, ventas por día/semana/mes, ventas
+por canal, vendedores y productos más vendidos. `analytics.read` ya existe en el
+manifest desde 9A, así que no requiere migración ni cambio de esquema.
 
-Condición de parada vigente del plan §5: un reporte nunca puede exponer
-`unitCostSnapshot`, hashes, lugar de entrega ni texto libre legacy, y ningún
-KPI con dinero puede quedar accesible sin `finances.read`.
+Condiciones de parada vigentes del plan §5: ningún KPI con dinero puede quedar
+accesible sin `finances.read`; el margen no puede promediar ni sustituir en
+silencio un costo marcado para revisión, y debe declarar explícitamente su
+cobertura (DEC-015); y ninguna consulta puede degradar el rendimiento sin un
+índice que la respalde.
 
 ## Otros gates candidatos, no seleccionados
 
