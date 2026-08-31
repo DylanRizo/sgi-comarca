@@ -1,4 +1,4 @@
-# Next Gate — FASE 9B.3, analytics
+# Next Gate — FASE 9C, interfaz
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -51,9 +51,9 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
 - **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`**,
-  **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`** (on
-  `migration/09-reports`, unmerged)
-- **`NEXT_GATE = PHASE_9B_3_ANALYTICS`**
+  **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`**,
+  **`PHASE_9B_3_COMPLETE`** (on `migration/09-reports`, unmerged)
+- **`NEXT_GATE = PHASE_9C_UI`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
@@ -107,19 +107,25 @@ permiso de lectura de su dominio; y las columnas de dinero exigen además
 una sola forma. Un test comprueba que ningún reporte emite `unitCostSnapshot`,
 hashes, lugar de entrega ni texto legacy.
 
+### FASE 9B.3 — analytics (completo, sin fusionar)
+
+KPIs de inventario y de ventas, con margen y utilidad. Sin migración y sin
+cambio de RBAC. El margen cumple DEC-015: un costo ausente o cero —que los
+datos usan como bandera de revisión— excluye su línea de ambos lados de la
+resta, y cada respuesta declara su `marginCoverage`. Un periodo sin ningún
+costo confiable reporta margen nulo, no cero.
+
 ## Gate seleccionado
 
-### FASE 9B.3 — analytics
+### FASE 9C — interfaz
 
-KPIs de stock y valor de inventario, alertas, ventas por día/semana/mes, ventas
-por canal, vendedores y productos más vendidos. `analytics.read` ya existe en el
-manifest desde 9A, así que no requiere migración ni cambio de esquema.
+Flujo de conteo físico, vistas de reportes con filtros y exportación, y
+dashboard de analytics. Mismas reglas que 7C y 8C: ocultar un control es
+presentación, no autorización; el backend decide.
 
-Condiciones de parada vigentes del plan §5: ningún KPI con dinero puede quedar
-accesible sin `finances.read`; el margen no puede promediar ni sustituir en
-silencio un costo marcado para revisión, y debe declarar explícitamente su
-cobertura (DEC-015); y ninguna consulta puede degradar el rendimiento sin un
-índice que la respalde.
+Condición de parada vigente: ninguna pantalla puede mostrar una cifra
+monetaria a quien no tenga `finances.read`, ni presentar un margen sin su
+cobertura.
 
 ## Otros gates candidatos, no seleccionados
 

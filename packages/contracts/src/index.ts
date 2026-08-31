@@ -1,3 +1,12 @@
+export type {
+  AnalyticsPublicErrorCode,
+  InventoryAnalytics,
+  MarginCoverage,
+  SalesAnalytics,
+  SalesPeriodPoint,
+  SellerPoint,
+  TopProductPoint,
+} from './analytics.js';
 export type { ApiErrorBody, ApiMeta, ApiSuccess } from './api-response.js';
 export type {
   ActivateAccountRequest,

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { appConfig } from './config/app.config.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -60,6 +61,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     SalesModule,
     FinancesModule,
     ReportsModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
