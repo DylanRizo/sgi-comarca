@@ -121,7 +121,15 @@ export class InventoryAdjustmentService {
     }
   }
 
-  private async adjustInTransaction(
+  /**
+   * The adjustment written inside a caller's transaction. FASE 9B.1 approves a
+   * physical count by calling this per line, so the count session never opens a
+   * second stock-writing route: every adjustment still comes from here, with
+   * the same locking, validation and audit event. It re-checks
+   * `inventory.adjust` against the actor it is given, so an approver must hold
+   * that permission too.
+   */
+  async adjustInTransaction(
     transaction: TransactionClient,
     actorUserId: string,
     input: InventoryAdjustmentRequest,

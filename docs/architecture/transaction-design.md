@@ -422,28 +422,49 @@ sequenceDiagram
 
 ## 10. Auditoría física y ajuste resultante
 
+> Implementado por FASE 9A (esquema) y 9B.1 (aplicación y API). El bloque
+> siguiente describe el flujo tal como quedó construido; una versión anterior
+> de este documento recalculaba la diferencia contra el saldo vigente al
+> aprobar, lo cual es incompatible con el esquema desplegado: el trigger
+> diferido `check_inventory_count_line_adjustment` exige que el movimiento
+> enlazado tenga `quantity_delta` exactamente igual a la columna `difference`
+> fijada al capturar.
+
 ```text
 capture phase:
-  create audit session with selected configurable warehouses
-  record counts and preserve expected snapshot; no stock mutation
+  create count session with selected configurable warehouses (scope is explicit)
+  per counted item:
+    expected = current balance at capture time (0 when no balance row exists)
+    difference = counted - expected, stored on the line; no stock mutation
+  a line is immutable once captured: correcting a miscount means cancelling
+
+submit phase:
+  require at least one line; OPEN -> PENDING_APPROVAL
 
 approval phase begin:
-  claim idempotency("inventory-audit:approve")
-  require approved permission and complete/explicitly pending counts
-  lock audit session; reject already applied/rejected states
-  lock every affected balance ordered
-  for each counted item:
-    read current balance
-    delta = physical_count - current balance
-    create audit adjustment detail with expected/current/physical/delta
-    if delta != 0:
-      update balance to physical_count
-      append stock_movement(AUDIT_ADJUSTMENT, delta, audit_item_id)
-  mark audit APPLIED with approver/timestamp
-  append audit_log; complete idempotency; commit
+  require inventory.audit.approve and inventory.adjust on the same actor
+  lock the session; reject any state other than PENDING_APPROVAL
+    (already APPROVED returns the current state: idempotent by effect)
+  lock every affected balance in one statement, ordered by (product, warehouse)
+  for each line with difference != 0:
+    if current balance != the line's stored expected quantity:
+      reject the WHOLE approval (INVENTORY_COUNT_BALANCE_CHANGED)
+    delegate to the FASE 5C atomic adjustment path with delta = difference
+    link the produced movement to the line (its only permitted update)
+  mark the session APPROVED with approver/timestamp
+  append exactly one audit_log; commit
 ```
 
-Un conteo ausente no equivale a cero; queda pendiente y no cambia saldo. La captura externa hard-coded legacy se importa como evidencia, no se ejecuta contra producción.
+La aprobación nunca escribe stock por su cuenta: delega en la ruta atómica de
+FASE 5C, de modo que todo cambio de saldo sigue produciendo un movimiento
+inmutable. La diferencia se fija al capturar y jamás se recalcula: si el saldo
+cambió entre el conteo y la aprobación, la cantidad contada dejó de ser
+verdad física y la sesión completa se rechaza en lugar de aterrizar en un
+número distinto.
+
+Un conteo ausente no equivale a cero; queda pendiente y no cambia saldo — se
+reporta como `pendingItems` (AT-AUD-02). La captura externa hard-coded legacy
+se importa como evidencia, no se ejecuta contra producción.
 
 ```mermaid
 sequenceDiagram
@@ -451,12 +472,14 @@ sequenceDiagram
     participant A as inventory-audits
     participant DB as PostgreSQL
     U->>A: Capturar conteos
-    A->>DB: Guardar sesión/items sin mutar stock
-    U->>A: Aprobar/aplicar + clave
+    A->>DB: Guardar sesión/líneas sin mutar stock
+    U->>A: Enviar a aprobación
+    A->>DB: OPEN -> PENDING_APPROVAL
+    U->>A: Aprobar
     A->>DB: BEGIN + bloquear sesión y balances
-    A->>A: Calcular diferencia por item
-    A->>DB: Actualizar balances + movimientos AJUSTE
-    A->>DB: Marcar aplicada + audit_log
+    A->>A: Verificar que el saldo no cambió desde el conteo
+    A->>DB: Ajuste atómico FASE 5C por línea + enlace inmutable
+    A->>DB: Marcar aprobada + audit_log
     alt completa y válida
         A->>DB: COMMIT
         A-->>U: Auditoría aplicada
@@ -479,4 +502,6 @@ sequenceDiagram
 | Cancelación | venta + balances originales | `SALE_CANCELLATION +` | cancelar venta |
 | Finanzas manual | categoría/configuración relevante | ninguno de stock | crear movimiento financiero |
 | Cierre | clave de fecha/cierre | ninguno | crear/reabrir cierre |
-| Auditoría | sesión + balances contados | `AUDIT_ADJUSTMENT +/-` | aplicar auditoría |
+| Conteo físico: crear | ninguna | ninguno | `Idempotency-Key` por actor |
+| Conteo físico: capturar | sesión | ninguno | clave natural (sesión, producto, almacén) |
+| Conteo físico: aprobar | sesión + balances de líneas con diferencia | `ADJUSTMENT +/-` (uno por línea con diferencia) | por efecto: estado destino ya alcanzado |

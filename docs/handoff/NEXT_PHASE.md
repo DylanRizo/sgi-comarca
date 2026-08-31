@@ -1,4 +1,4 @@
-# Next Gate — FASE 9B.1, aplicación y API de auditoría física
+# Next Gate — FASE 9B.2, reportes
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -7,14 +7,15 @@ planificación está en
 Seleccionar la fase no autoriza implementar: el esquema, el cambio de RBAC y
 el despliegue a staging siguen siendo gates separados.
 
-El 2026-08-30 se completó y verificó directamente el bloque **9A — esquema de
-auditoría física**, en la rama `migration/09-reports` (todavía sin fusionar a
-`main`): commits `2671d5d` (fundación) y `b55aef9` (fix de la matriz de
-autorización break-glass, del importador legacy y de una referencia de
-columna en la migración, más cobertura de integración completa). Evidencia
+El 2026-08-30 se completaron y verificaron directamente los bloques **9A —
+esquema de auditoría física** y **9B.1 — aplicación y API**, en la rama
+`migration/09-reports` (todavía sin fusionar a `main`). 9A: commits `2671d5d`
+(fundación) y `b55aef9` (fix de la matriz de autorización break-glass, del
+importador legacy y de una referencia de columna en la migración). 9B.1: el
+módulo `inventory-counts`, sin migración nueva ni cambio de RBAC. Evidencia
 completa en
-[CURRENT_STATE.md § "Current inventory-count schema"](CURRENT_STATE.md).
-Sin API y sin UI; nada se aplicó a staging.
+[CURRENT_STATE.md § "Current inventory-count application"](CURRENT_STATE.md).
+Sin UI; nada se aplicó a staging.
 
 
 FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
@@ -49,16 +50,16 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`**
 - **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
 - **`WAVES_3_PLUS_NOT_STARTED`**
-- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`** (on
-  `migration/09-reports`, unmerged)
-- **`NEXT_GATE = PHASE_9B_1_INVENTORY_AUDIT_APPLICATION`**
+- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`**,
+  **`PHASE_9B_1_COMPLETE`** (on `migration/09-reports`, unmerged)
+- **`NEXT_GATE = PHASE_9B_2_REPORTS`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
-implementarla. Cerrar 9A tampoco autoriza 9B.1 por sí solo: sigue pendiente
-la decisión de negocio que se describe abajo.
+implementarla. Cerrar 9A y 9B.1 no autoriza desplegarlos ni usarlos contra
+staging: ese sigue siendo un gate propio y separado.
 
-## Bloque cerrado
+## Bloques cerrados
 
 ### FASE 9A — esquema de auditoría física (completo, sin fusionar a `main`)
 
@@ -69,25 +70,41 @@ y los cuatro permisos nuevos (`inventory.audit.create`,
 como grants directos únicamente al administrador — ningún rol los recibe
 todavía. La convención de nombres que evita la colisión con el
 `InventoryAuditService` existente quedó resuelta a favor de
-`InventoryCountSession`/`InventoryCountLine`. Verificado directamente el
-2026-08-30: ver
-[CURRENT_STATE.md § "Current inventory-count schema"](CURRENT_STATE.md).
-Sin API, sin UI, nada aplicado a staging.
+`InventoryCountSession`/`InventoryCountLine`.
+
+### FASE 9B.1 — auditoría física, aplicación y API (completo, sin fusionar)
+
+El módulo `inventory-counts`: crear sesión con alcance de bodegas, capturar
+conteos, enviar a aprobación, aprobar generando los ajustes atómicos por la
+ruta de FASE 5C, y cancelar. Sin migración nueva y sin cambio de RBAC.
+Verificado directamente el 2026-08-30; detalle y reglas críticas en
+[CURRENT_STATE.md § "Current inventory-count application"](CURRENT_STATE.md).
+
+Tres decisiones se tomaron explícitamente al implementarlo, y ninguna cierra
+lo que sigue abierto:
+
+- el mismo actor puede crear y aprobar (sin segregación de funciones todavía);
+- enviar/aprobar/cancelar son idempotentes por efecto, no por clave, porque el
+  esquema de 9A solo tiene columnas de idempotencia para la creación;
+- aprobar exige `inventory.adjust` además de `inventory.audit.approve`, porque
+  delega en la ruta de ajuste que revalida ese permiso.
+
+**Sigue abierto:** los grants por rol de los cuatro permisos nuevos (§2,
+"Todavía abierto", del plan). Mientras no se decidan, el conteo físico solo es
+utilizable por quien tenga los grants directos. Esa decisión no bloquea 9B.2.
 
 ## Gate seleccionado
 
-### FASE 9B.1 — auditoría física, aplicación y API
+### FASE 9B.2 — reportes
 
-Crear sesión, capturar conteos, calcular diferencias, aprobar y generar los
-ajustes atómicos delegando en la ruta de FASE 5C. Idempotencia por actor,
-como en transferencias y ventas. No requiere migración nueva ni cambio de
-RBAC en el esquema — reutiliza lo que 9A ya dejó.
+Inventario, movimientos, ventas, productos, almacenes, vendedores, canales,
+fechas, finanzas y cierres. Paginación en servidor, filtros y exportación CSV.
+Lectura pura: ninguna ruta muta datos. `reports.read` ya existe en el manifest
+desde 9A, así que no requiere migración ni cambio de esquema.
 
-**Pendiente antes de implementar:** los grants por rol de los cuatro permisos
-nuevos siguen sin decidirse (§2, "Todavía abierto", del plan), igual que si
-crear y aprobar una auditoría pueden ser el mismo actor. Sin esa decisión,
-9B.1 solo sería utilizable por el administrador vía grant directo. Detalle en
-[phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
+Condición de parada vigente del plan §5: un reporte nunca puede exponer
+`unitCostSnapshot`, hashes, lugar de entrega ni texto libre legacy, y ningún
+KPI con dinero puede quedar accesible sin `finances.read`.
 
 ## Otros gates candidatos, no seleccionados
 
@@ -122,7 +139,12 @@ No es una fase; son mejoras acotadas que pueden agruparse:
   `warehouseId` en los `details` de los 422, y el filtro global, que siempre
   devuelve `details` vacío para toda la API;
 - el arranque en frío del API puede exceder el timeout de salud de 60 s del
-  runner E2E; subir ese timeout es una decisión separada.
+  runner E2E; subir ese timeout es una decisión separada;
+- `sales-concurrency.integration.spec.ts` falla de forma intermitente bajo
+  carga paralela de la suite (`SALE_CONCURRENCY_CONFLICT`) y pasa 9/9 en
+  aislamiento. Con 27 archivos de integración desde 9B.1 la contención subió;
+  acotar la concurrencia del runner de integración es una mejora acotada y
+  pendiente.
 
 ## Estado operacional que permanece inalterado
 

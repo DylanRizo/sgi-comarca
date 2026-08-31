@@ -34,20 +34,23 @@ export class PermissionGuard implements CanActivate {
       return true;
     }
 
-    const required = this.reflector.getAllAndOverride<string>(
+    const required = this.reflector.getAllAndOverride<string | string[]>(
       REQUIRED_PERMISSION_METADATA,
       [context.getHandler(), context.getClass()],
     );
-    if (!required) return true;
+    const codes = (
+      typeof required === 'string' ? [required] : (required ?? [])
+    ).filter((code) => code.length > 0);
+    if (codes.length === 0) return true;
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authenticated = authenticatedContext(request);
-    if (
-      !authenticated ||
-      !(await this.permissions.hasPermission(authenticated.userId, required))
-    ) {
-      throw new ForbiddenException('Permission denied.');
+    if (!authenticated) throw new ForbiddenException('Permission denied.');
+    for (const code of codes) {
+      if (await this.permissions.hasPermission(authenticated.userId, code)) {
+        return true;
+      }
     }
-    return true;
+    throw new ForbiddenException('Permission denied.');
   }
 }

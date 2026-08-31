@@ -12,9 +12,11 @@ never records an authoritative "current" HEAD of its own, because any commit
 that updates the handoff would immediately invalidate such a field.
 
 - Repository: `DylanRizo/sgi-comarca`.
-- Branch: `main`, except the FASE 9A work below, which lives on
+- Branch: `main`, except the FASE 9 work below, which lives on
   `migration/09-reports` and is not yet merged into `main`.
 - Expected working tree before starting work: clean.
+- Committed FASE 9B.1 physical count application and REST API on
+  `migration/09-reports`; resolve its hash dynamically with `git log`.
 - Committed FASE 9A schema/RBAC fixes (break-glass authorization matrix,
   legacy importer, migration column reference) on `migration/09-reports`:
   `b55aef9`.
@@ -80,6 +82,61 @@ file.
 | 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. |
 | 8C | Finances and daily closings UI complete in Spanish over the closed FASE 8B API: a merged finance list (manual entries plus sale income derived at read time, never a persisted or editable entry), category/type/date filters, period totals, manual entry creation, closing list/detail with frozen figures and reopening history, closing creation, and a reopen action gated by permission and by closing status. Verified directly on 2026-08-29: 58 files / 203 unit tests, 32/32 Chromium E2E (24 regression plus 8 new), lint 8/8, typecheck 7/7, build 7/7, format clean, and a manual security review with no findings. Building it exposed and fixed a real cross-suite E2E ordering bug (an exact product count in 02-inventory.e2e.ts depended on file discovery order rather than an explicit one) and a cross-module 403-message bug naming the wrong permission. Not deployed; nothing was written to staging. `PHASE_8C_COMPLETE`. This closes FASE 8 end to end: schema, application/API, and UI. `PHASE_8_COMPLETE`. |
 | 9A | Physical inventory count schema and RBAC foundation complete on `migration/09-reports` (not yet merged into `main`): `InventoryCountSession` (lifecycle `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either non-terminal state, with separate creator/approver/canceller actors and actor-scoped idempotency), `InventoryCountSessionWarehouse` (explicit session scope, so a missing line is distinguishable from a warehouse never meant to be counted, per AT-AUD-02), and `InventoryCountLine` (expected/counted/difference, linked immutably to the generated adjustment via a unique `adjustment_movement_id`). The session never writes stock itself; a deferred constraint trigger requires the linked movement to be an `ADJUSTMENT` matching the line's product, warehouse, and magnitude, so the FASE 5C atomic adjustment path remains the only stock-writing route. Named to avoid colliding with the existing `InventoryAuditService` (audit log), per the plan's §6. RBAC adds `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and `analytics.read` as direct grants to the sole admin only; no role grants any of the four, preserving the still-open role-grant decision in the FASE 9 plan. No API and no UI. Commit `2671d5d` added the foundation; commit `b55aef9` fixed a break-glass authorization-matrix gap (it was checking only `sales.cancel` as the lone direct grant and ignoring the four new ones), a legacy-importer reference, and a migration column reference, and added full integration coverage. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 58 files/204 tests, integration 26 files/262 tests, build 7/7, `format:check` and `db:validate` clean. Not deployed; staging remains on the FASE 7A/8A migration. `PHASE_9A_SCHEMA_COMPLETE`. |
+| 9B.1 | Physical count application and REST API complete on `migration/09-reports` (not yet merged into `main`): the `inventory-counts` module implements session creation, count capture, submission, approval and cancellation over the closed 9A schema. Approval delegates every stock change to the FASE 5C atomic adjustment path inside one transaction, so no second stock-writing route exists; it refuses the whole approval when a balance moved since the count (`INVENTORY_COUNT_BALANCE_CHANGED`) rather than recomputing against the new balance, and reports uncounted in-scope products as `pendingItems` instead of assuming zero (AT-AUD-02). Approving requires `inventory.audit.approve` and `inventory.adjust` on the same actor; reads and cancellation accept either audit capability, since 9A defined no read permission. `RequirePermission` gained additive any-of support (a single code still stores plain string metadata). No migration and no RBAC change were needed. See ["Current inventory-count application"](#current-inventory-count-application-fase-9b1-migration09-reports-only). Verified directly against PostgreSQL 18.4 on 2026-08-30. Not deployed; no UI (that is 9C). `PHASE_9B_1_COMPLETE`. |
+
+## Current inventory-count application (FASE 9B.1, `migration/09-reports` only)
+
+The `inventory-counts` module turns the 9A schema into an API. It is versioned
+and locally verified only: nothing is deployed and no UI exists (that is 9C).
+
+- `POST /api/v1/inventory/counts` creates an `OPEN` session declaring its
+  warehouse scope, guarded by `inventory.audit.create`, with a mandatory
+  `Idempotency-Key` hashed under the creator's scope exactly as transfers do.
+- `POST /api/v1/inventory/counts/:id/lines` captures one count. The expected
+  quantity is the balance at capture time (zero when no balance row exists)
+  and the difference is computed by the application, because the schema stores
+  it rather than generating it. Capture is idempotent on the natural key
+  `(session, product, warehouse)` behind an advisory lock; recapturing the same
+  quantity replays, a different quantity is refused — a captured line is
+  immutable, and correcting a miscount means cancelling the session.
+- `POST /api/v1/inventory/counts/:id/submit` moves `OPEN → PENDING_APPROVAL`
+  and refuses an empty session, which could never be approved.
+- `POST /api/v1/inventory/counts/:id/approve` requires
+  `inventory.audit.approve` **and** `inventory.adjust` on the same actor,
+  because it delegates every adjustment to the FASE 5C atomic path. In one
+  transaction it locks the session, locks every affected balance in a single
+  ordered statement, verifies each still equals the line's stored expected
+  quantity, produces one `ADJUSTMENT` per differing line, links each movement
+  to its line, marks the session `APPROVED`, and appends one audit event.
+- `POST /api/v1/inventory/counts/:id/cancel` accepts either capability: the
+  capture side may abandon any non-terminal session, and an approver may stop
+  a submitted one — the schema has no `REJECTED` state, so cancellation is the
+  only terminal stop.
+- Reads accept either `inventory.audit.create` or `inventory.audit.approve`,
+  since 9A defined no read permission and a pure approver must be able to
+  review what it approves. `RequirePermission` now accepts several codes
+  meaning "any of them"; a single code still stores plain string metadata, so
+  every pre-existing route and its boundary specs are unchanged.
+
+Two rules carry the weight and are covered by tests:
+
+- **Balance drift refuses the whole approval.** The schema only checks the
+  adjustment against the stored difference, never against the live balance, so
+  if stock moved between counting and approval the counted quantity is no
+  longer physical truth. The service rejects with
+  `INVENTORY_COUNT_BALANCE_CHANGED` instead of silently landing on a different
+  number. There is no partial approval.
+- **A missing count is never a zero.** Products holding a balance inside the
+  declared scope with no captured line are reported as `pendingItems` and never
+  adjusted, per AT-AUD-02.
+
+Line immutability is an application invariant, not a schema one: 9A has no
+`BEFORE UPDATE` trigger on `inventory_count_lines`, so the service issues no
+UPDATE against a line other than the one-time adjustment link, and the suite
+covers it.
+
+`InventoryAdjustmentService.adjustInTransaction` became public for this;
+nothing about its locking, validation, audit event or signature changed.
 
 ## Current milestone
 
@@ -93,6 +150,7 @@ file.
 - `PHASE_8_COMPLETE`
 - `PHASE_9A_SCHEMA_COMPLETE` (on `migration/09-reports`, not yet merged into
   `main`)
+- `PHASE_9B_1_COMPLETE` (on `migration/09-reports`, not yet merged into `main`)
 - `FIRST_STAGING_IMPORT_COMMITTED`
 - `FIRST_STAGING_INVENTORY_ADJUSTMENT_PASS`
 - `FIRST_STAGING_TRANSFER_PASS`
@@ -498,8 +556,32 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
-Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`)
-after committing the FASE 9A schema/RBAC fixes (`b55aef9`), run directly
+Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`) at
+the FASE 9B.1 closure, run directly against the same local PostgreSQL: lint
+8/8 tasks, typecheck 7/7 tasks, unit 59 files / 207 tests, build 7/7 tasks,
+`format:check` and `db:validate` clean. The new
+`inventory-count-lifecycle.integration.spec.ts` passes 18/18 on its own,
+covering the balance-drift refusal, approval idempotency, concurrent double
+approval, line immutability, `pendingItems`, and RBAC denial for both audit
+capabilities. Extending `RequirePermission` to accept several codes was made
+additive precisely so the four existing HTTP-boundary specs that assert on its
+metadata keep passing unchanged; they do. No Playwright E2E was needed: 9B.1
+adds no UI. Staging was not touched.
+
+The full integration run was **279/280 across 27 files, not a clean sweep**:
+`sales-concurrency.integration.spec.ts > serializes a sale with cancellation
+of another sale on the same pairs` failed once with `SALE_CONCURRENCY_CONFLICT`
+under parallel suite load, then passed 9/9 when its file was run in isolation.
+This is the same pre-existing flake recorded at the 8B.5 closure below, and it
+is a transaction-serialization conflict inside `CreateSaleService`, unrelated
+to authorization or to the count module. It is nonetheless **more likely now
+than before**: 9B.1 adds a 27th spec file, raising parallel contention on the
+shared PostgreSQL container. Treat a green run as requiring either isolation of
+that file or a rerun, and consider constraining integration concurrency a
+candidate for the technical-debt list rather than assuming it will stay rare.
+
+Earlier the same day, after committing the FASE 9A schema/RBAC fixes
+(`b55aef9`), run directly
 against the local Docker Compose PostgreSQL (`sgi-comarca-postgres-1`,
 `postgres:18.4-alpine`): lint 8/8 tasks, typecheck 7/7 tasks, unit 58 files /
 204 tests, integration 26 files / 262 tests (up from 25/244 at the 8B.5

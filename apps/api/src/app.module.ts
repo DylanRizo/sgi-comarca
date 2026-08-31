@@ -7,6 +7,7 @@ import { appConfig } from './config/app.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { FinancesModule } from './finances/finances.module.js';
 import { HealthModule } from './health/health.module.js';
+import { InventoryCountsModule } from './inventory-counts/inventory-counts.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { SalesModule } from './sales/sales.module.js';
@@ -54,6 +55,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     UnitsModule,
     WarehousesModule,
     InventoryModule,
+    InventoryCountsModule,
     SalesModule,
     FinancesModule,
   ],

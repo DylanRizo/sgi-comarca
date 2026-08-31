@@ -30,6 +30,19 @@ export {
   type ReopenDailyClosingRequest,
 } from './finances.js';
 export type { HealthData, ReadinessData } from './health.js';
+export {
+  inventoryCountSessionStatuses,
+  type CancelInventoryCountSessionRequest,
+  type CaptureInventoryCountLineRequest,
+  type CreateInventoryCountSessionRequest,
+  type InventoryCountActor,
+  type InventoryCountLineView,
+  type InventoryCountPendingItem,
+  type InventoryCountPublicErrorCode,
+  type InventoryCountSessionStatus,
+  type InventoryCountSessionSummary,
+  type InventoryCountSessionView,
+} from './inventory-count.js';
 export type {
   InventoryAdjustmentPublicErrorCode,
   InventoryAdjustmentRequest,
