@@ -14,11 +14,28 @@ const inventoryNavigation = [
   { href: '/inventory/movements', label: 'Movimientos' },
 ] as const;
 
+// Physical counts sit behind their own capability, unlike the inventory reads
+// above, so they are filtered separately (FASE 9C).
+const countNavigation = [
+  {
+    href: '/inventory/counts',
+    label: 'Conteos',
+    permission: 'inventory.audit.create',
+  },
+] as const;
+
 const salesNavigation = [{ href: '/sales', label: 'Ventas' }] as const;
 
 const financesNavigation = [
   { href: '/finances', label: 'Finanzas', permission: 'finances.read' },
   { href: '/closings', label: 'Cierres', permission: 'closings.read' },
+] as const;
+
+// FASE 9C. Each entry declares the permission the backend already enforces;
+// hiding a link is presentation only.
+const insightNavigation = [
+  { href: '/reports', label: 'Reportes', permission: 'reports.read' },
+  { href: '/analytics', label: 'Analytics', permission: 'analytics.read' },
 ] as const;
 
 export function AuthenticatedShell({
@@ -80,7 +97,7 @@ export function AuthenticatedShell({
                 </Link>
               ))
             : null}
-          {financesNavigation
+          {[...countNavigation, ...financesNavigation, ...insightNavigation]
             .filter(({ permission }) =>
               state.session.permissions.includes(permission),
             )

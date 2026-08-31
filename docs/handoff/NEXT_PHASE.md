@@ -1,4 +1,4 @@
-# Next Gate — FASE 9C, interfaz
+# Next Gate — decisión del propietario tras cerrar FASE 9
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -52,8 +52,9 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
 - **`WAVES_3_PLUS_NOT_STARTED`**
 - **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`**,
   **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`**,
-  **`PHASE_9B_3_COMPLETE`** (on `migration/09-reports`, unmerged)
-- **`NEXT_GATE = PHASE_9C_UI`**
+  **`PHASE_9B_3_COMPLETE`**, **`PHASE_9C_COMPLETE`**, **`PHASE_9_COMPLETE`**
+  (on `migration/09-reports`, unmerged)
+- **`NEXT_GATE = OWNER_REVIEW_OF_PHASE_9`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
@@ -115,17 +116,35 @@ datos usan como bandera de revisión— excluye su línea de ambos lados de la
 resta, y cada respuesta declara su `marginCoverage`. Un periodo sin ningún
 costo confiable reporta margen nulo, no cero.
 
+### FASE 9C — interfaz (completo, sin fusionar)
+
+Flujo de conteo físico, reportes con filtros y exportación CSV, y vista de
+analytics. La portada dejó de ser una pantalla de diagnóstico de sesión y ahora
+encabeza con el estado del inventario. `globals.css` pasó a ser un sistema de
+tokens con modo oscuro y transiciones que respetan `prefers-reduced-motion`;
+como está escrito contra las clases que las páginas ya usaban, re-estiliza
+todas las pantallas anteriores sin renombrar nada. 32/32 E2E siguen pasando.
+
+Con esto **FASE 9 queda cerrada de punta a punta** en el repositorio versionado.
+
 ## Gate seleccionado
 
-### FASE 9C — interfaz
+### Revisión del propietario
 
-Flujo de conteo físico, vistas de reportes con filtros y exportación, y
-dashboard de analytics. Mismas reglas que 7C y 8C: ocultar un control es
-presentación, no autorización; el backend decide.
+FASE 9 está completa y verificada localmente, pero **nada de esto ha sido
+revisado ni aprobado por el propietario, y nada se ha fusionado a `main` ni
+desplegado**. La rama `migration/09-reports` acumula seis commits funcionales.
 
-Condición de parada vigente: ninguna pantalla puede mostrar una cifra
-monetaria a quien no tenga `finances.read`, ni presentar un margen sin su
-cobertura.
+Lo que corresponde ahora es una decisión humana, no más implementación:
+
+1. revisar el diff y la evidencia de FASE 9;
+2. decidir la fusión de `migration/09-reports` a `main`;
+3. decidir los grants por rol de los cuatro permisos de FASE 9, que siguen
+   abiertos: mientras no se decidan, conteos, reportes y analytics solo son
+   utilizables por quien tenga los grants directos;
+4. decidir si el esquema de 9A se despliega a staging, que es un gate propio.
+
+Ninguna de las cuatro puede inferirse del código.
 
 ## Otros gates candidatos, no seleccionados
 
