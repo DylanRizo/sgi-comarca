@@ -94,6 +94,7 @@ export {
   type CreateSaleItemRequest,
   type CreateSaleRequest,
   type SaleCreationStatus,
+  type SaleErrorDetail,
   type SaleItemView,
   type SaleOrigin,
   type SalePaymentStatus,

@@ -184,9 +184,21 @@ No es una fase; son mejoras acotadas que pueden agruparse:
 - el arnés E2E ahora numera sus archivos (01-04) para fijar el orden de
   ejecución; cualquier especificación nueva debe respetar esa numeración o
   revisar la nota en `playwright.config.ts`;
-- divergencia entre el plan de FASE 7B §13, que preveía `productId` y
+- ~~divergencia entre el plan de FASE 7B §13, que preveía `productId` y
   `warehouseId` en los `details` de los 422, y el filtro global, que siempre
-  devuelve `details` vacío para toda la API;
+  devuelve `details` vacío para toda la API;~~ **Resuelto el 2026-09-01** a
+  favor del plan: nunca hubo una decisión de abandonarlo — ni el informe de
+  cierre de 7B ni `CURRENT_STATE.md` mencionaban `details` — así que era una
+  parte no implementada de un plan aprobado, no un diseño alternativo.
+  `SaleError` transporta el par que falló, `resolveLinePricing` lo exige como
+  parámetro para que ningún call site lo omita, y `SalesHttpException` solo lo
+  expone en los cuatro códigos que §13 nombra (`SALE_BALANCE_NOT_FOUND`,
+  `SALE_COST_MISSING`, `SALE_PRICE_MISSING`, `SALE_REFERENCE_VALUE_INVALID`).
+  `SALE_INSUFFICIENT_STOCK` quedó **deliberadamente fuera**: §13 no lo incluye
+  y añadirlo sería inventar alcance; es una decisión abierta si se desea.
+  Todo lo demás —incluida toda la superficie de auth— conserva `details: []`,
+  así que el cuerpo mantiene una sola forma. Verificado el 2026-09-01: 241/241
+  unitarios, 305/305 integración, 32/32 E2E;
 - ~~el arranque en frío del API puede exceder el timeout de salud de 60 s del
   runner E2E; subir ese timeout es una decisión separada;~~ **Resuelto el
   2026-09-01:** `apps/web/e2e/run-e2e.mjs` pasa el deadline de 60 s a 180 s y lo

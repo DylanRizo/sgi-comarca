@@ -250,7 +250,10 @@ export class CreateSaleService {
     for (const line of lines) {
       const key = pairKey(line.productId, line.warehouseId);
       if (!balances.has(key)) {
-        throw new SaleError('SALE_BALANCE_NOT_FOUND');
+        throw new SaleError('SALE_BALANCE_NOT_FOUND', {
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+        });
       }
       aggregated.set(key, (aggregated.get(key) ?? 0n) + line.quantityScaled);
     }
@@ -270,8 +273,12 @@ export class CreateSaleService {
     const priceOverrides: SalePriceOverrideAuditEntry[] = [];
     const reviewFlags: SaleReviewFlagAuditEntry[] = [];
     const priced = lines.map((line) => {
+      const detail = {
+        productId: line.productId,
+        warehouseId: line.warehouseId,
+      };
       const row = balances.get(pairKey(line.productId, line.warehouseId));
-      if (!row) throw new SaleError('SALE_BALANCE_NOT_FOUND');
+      if (!row) throw new SaleError('SALE_BALANCE_NOT_FOUND', detail);
       const pricing = resolveLinePricing(
         {
           costReviewRequired: row.cost_review_required,
@@ -280,6 +287,7 @@ export class CreateSaleService {
           priceReviewRequired: row.price_review_required,
         },
         line.unitPriceOverride,
+        detail,
       );
       const subtotal = lineSubtotalCents(
         inventoryDecimalString(line.quantityScaled),

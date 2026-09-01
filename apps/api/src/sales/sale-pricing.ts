@@ -1,3 +1,5 @@
+import type { SaleErrorDetail } from '@sgi/contracts';
+
 import { centsToMoney, moneyToCents } from './sale-money.js';
 import { SaleError } from './sale.errors.js';
 
@@ -43,27 +45,30 @@ function normalizeCanonicalMoney(value: string): bigint {
  * - review flags never block; they are surfaced for sanitized audit.
  *
  * `override` is the already-shape-validated client `unitPrice` string, or
- * `null` when omitted.
+ * `null` when omitted. `detail` names the line being priced so a multi-line
+ * rejection can say which pair failed (plan §13); it is required so no caller
+ * can drop that context silently.
  */
 export function resolveLinePricing(
   balance: LockedBalancePricing,
   override: string | null,
+  detail: SaleErrorDetail,
 ): ResolvedLinePricing {
   if (balance.currentUnitCost === null) {
-    throw new SaleError('SALE_COST_MISSING');
+    throw new SaleError('SALE_COST_MISSING', detail);
   }
   const costCents = moneyToCents(balance.currentUnitCost);
   if (costCents === null) {
     // A stored value outside Decimal(18,2)/non-negative is corrupt reference
     // data, not a client error.
-    throw new SaleError('SALE_REFERENCE_VALUE_INVALID');
+    throw new SaleError('SALE_REFERENCE_VALUE_INVALID', detail);
   }
 
   let referenceCents: bigint | null = null;
   if (balance.currentUnitPrice !== null) {
     referenceCents = moneyToCents(balance.currentUnitPrice);
     if (referenceCents === null) {
-      throw new SaleError('SALE_REFERENCE_VALUE_INVALID');
+      throw new SaleError('SALE_REFERENCE_VALUE_INVALID', detail);
     }
   }
 
@@ -76,7 +81,7 @@ export function resolveLinePricing(
   } else if (referenceCents !== null) {
     appliedCents = referenceCents;
   } else {
-    throw new SaleError('SALE_PRICE_MISSING');
+    throw new SaleError('SALE_PRICE_MISSING', detail);
   }
 
   return {

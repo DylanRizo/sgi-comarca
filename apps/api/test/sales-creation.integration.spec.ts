@@ -338,7 +338,12 @@ describe('FASE 7B.3 operational sale creation', () => {
         ],
         status: 'IN_TRANSIT',
       }),
-    ).rejects.toThrow(new SaleError('SALE_BALANCE_NOT_FOUND'));
+    ).rejects.toThrow(
+      new SaleError('SALE_BALANCE_NOT_FOUND', {
+        productId: productBId,
+        warehouseId: warehouseBId,
+      }),
+    );
 
     await expect(
       creation.create(sellerId, randomUUID() + randomUUID(), {
@@ -352,7 +357,12 @@ describe('FASE 7B.3 operational sale creation', () => {
         ],
         status: 'IN_TRANSIT',
       }),
-    ).rejects.toThrow(new SaleError('SALE_COST_MISSING'));
+    ).rejects.toThrow(
+      new SaleError('SALE_COST_MISSING', {
+        productId: nullCostProductId,
+        warehouseId: warehouseAId,
+      }),
+    );
 
     await expect(
       creation.create(sellerId, randomUUID() + randomUUID(), {
@@ -366,7 +376,12 @@ describe('FASE 7B.3 operational sale creation', () => {
         ],
         status: 'IN_TRANSIT',
       }),
-    ).rejects.toThrow(new SaleError('SALE_PRICE_MISSING'));
+    ).rejects.toThrow(
+      new SaleError('SALE_PRICE_MISSING', {
+        productId: nullPriceProductId,
+        warehouseId: warehouseAId,
+      }),
+    );
   });
 
   it('uses the reference price when the null-price product gets an override', async () => {

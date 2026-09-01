@@ -100,3 +100,14 @@ export type SalesPublicErrorCode =
   | 'SALE_PRODUCT_UNAVAILABLE'
   | 'SALE_REFERENCE_VALUE_INVALID'
   | 'SALE_WAREHOUSE_UNAVAILABLE';
+
+/**
+ * Identifies the sale line that caused a balance/price/cost 422 (FASE 7B plan
+ * §13). Both fields are identifiers the caller itself submitted, so echoing
+ * them back carries no private value; it only tells a multi-line request which
+ * pair failed.
+ */
+export interface SaleErrorDetail {
+  productId: string;
+  warehouseId: string;
+}

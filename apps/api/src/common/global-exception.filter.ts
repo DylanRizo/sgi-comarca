@@ -61,7 +61,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
               : authenticationFailure
                 ? 'ACCESS_DENIED'
                 : 'REQUEST_FAILED',
-        details: [],
+        // Only the sales 422s the FASE 7B plan §13 approved carry details, and
+        // they carry just the caller's own product/warehouse identifiers. Every
+        // other error keeps an empty array so the body has one shape.
+        details:
+          publicError instanceof SalesHttpException
+            ? publicError.publicDetails
+            : [],
         message: publicError
           ? publicError.publicMessage
           : internalError
