@@ -538,11 +538,39 @@ a {
   font-weight: 400;
 }
 
+/*
+ * FASE 10A. The nav wraps instead of scrolling horizontally. With ten
+ * destinations the previous `overflow-x: auto` strip pushed Analytics out of
+ * sight even on a 1440px desktop, with no affordance saying more existed;
+ * wrapping keeps every destination discoverable at any width.
+ */
 .application-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.2rem;
-  overflow-x: auto;
-  scrollbar-width: thin;
+}
+
+/*
+ * The toggle only exists below the breakpoint, where the wrapped list would
+ * otherwise consume most of a phone screen. Desktop shows the nav outright and
+ * never renders this control, so its collapsed state cannot strand a link.
+ */
+.nav-toggle {
+  display: none;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.94rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  background: var(--surface-muted);
 }
 
 .application-nav a {
@@ -1468,6 +1496,39 @@ a {
 }
 
 @media (max-width: 47.99rem) {
+  /*
+   * FASE 10A. Brand and toggle share the top row; the nav and the user block
+   * each take a full row beneath. This overrides the three-column desktop
+   * header declared at 40rem, so the 640-767px range gets the menu too.
+   */
+  .application-header {
+    grid-template-areas: 'brand toggle' 'nav nav' 'user user';
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem;
+  }
+
+  .brand-link {
+    grid-area: brand;
+  }
+
+  .nav-toggle {
+    display: flex;
+    grid-area: toggle;
+  }
+
+  .application-nav {
+    grid-area: nav;
+    flex-direction: column;
+  }
+
+  .application-nav[data-open='false'] {
+    display: none;
+  }
+
+  .application-user {
+    grid-area: user;
+  }
+
   .data-table,
   .data-table tbody,
   .data-table tr,

@@ -8,15 +8,17 @@ import {
   ClipboardList,
   FileText,
   House,
+  Menu,
   Package,
   ShoppingCart,
   Wallet,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/auth/logout-button';
 import { useAuth } from '@/providers/auth-provider';
@@ -89,6 +91,9 @@ export function AuthenticatedShell({
 }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
   const { state } = useAuth();
+  // FASE 10A. Declared before the early return below so the hook order stays
+  // stable regardless of authentication state.
+  const [menuOpen, setMenuOpen] = useState(false);
   if (state.kind !== 'authenticated') return null;
 
   const canReadInventory = state.session.permissions.includes('inventory.read');
@@ -105,7 +110,34 @@ export function AuthenticatedShell({
           <span>SGI La Comarca</span>
           <small>Gestión operativa</small>
         </Link>
-        <nav aria-label="Navegación principal" className="application-nav">
+        <button
+          aria-controls="primary-navigation"
+          aria-expanded={menuOpen}
+          className="nav-toggle"
+          onClick={() => {
+            setMenuOpen((open) => !open);
+          }}
+          type="button"
+        >
+          {menuOpen ? (
+            <X aria-hidden="true" size={18} />
+          ) : (
+            <Menu aria-hidden="true" size={18} />
+          )}
+          {menuOpen ? 'Cerrar menú' : 'Menú'}
+        </button>
+        <nav
+          aria-label="Navegación principal"
+          className="application-nav"
+          data-open={menuOpen ? 'true' : 'false'}
+          id="primary-navigation"
+          // Following a link must not leave the panel covering the page it
+          // opened. Handled on the container so every link closes it without
+          // an effect that would re-render on each navigation.
+          onClick={() => {
+            setMenuOpen(false);
+          }}
+        >
           <Link
             aria-current={pathname === '/app' ? 'page' : undefined}
             href={'/app' as Route}
