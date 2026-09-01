@@ -325,6 +325,129 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(transferGrants).toEqual([1, 0]);
   });
 
+  it('adds a manifest direct grant that a live database is missing', async () => {
+    // The FASE 9 staging gate hit this exact shape: a database already in use,
+    // whose direct grants matched the manifest except for one the manifest had
+    // newly added. Requiring exact equality made it unreachable, because the
+    // run aborted before creating the permission the grant refers to.
+    const dylan = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    const approve = await client.permission.findUniqueOrThrow({
+      where: { code: 'inventory.audit.approve' },
+    });
+    await client.userPermission.deleteMany({
+      where: { permissionId: approve.id, userId: dylan.id },
+    });
+    await client.permission.delete({ where: { id: approve.id } });
+
+    // Credentials and sessions are what put runBootstrap into its live
+    // authorization upgrade path.
+    const activatedAt = new Date('2026-08-15T12:00:00.000Z');
+    await client.user.update({
+      data: { activatedAt, status: 'ACTIVE' },
+      where: { id: dylan.id },
+    });
+    const credential = await client.passwordCredential.create({
+      data: {
+        passwordHash: 'CONTROLLED_ARGON2ID_BOOTSTRAP_TEST_HASH',
+        userId: dylan.id,
+      },
+    });
+    const session = await client.session.create({
+      data: {
+        absoluteExpiresAt: new Date('2026-08-15T20:00:00.000Z'),
+        createdAt: activatedAt,
+        idleExpiresAt: new Date('2026-08-15T12:30:00.000Z'),
+        lastSeenAt: activatedAt,
+        tokenHash: 'b'.repeat(64),
+        userId: dylan.id,
+      },
+    });
+
+    const result = await runBootstrap(client);
+
+    expect(result.created).toMatchObject({
+      permissions: 1,
+      userPermissions: 1,
+      users: 0,
+      userRoles: 0,
+    });
+    expect(
+      await client.userPermission.count({
+        where: {
+          permission: { code: 'inventory.audit.approve' },
+          revokedAt: null,
+          userId: dylan.id,
+        },
+      }),
+    ).toBe(1);
+
+    // The live authentication it was upgrading around is untouched.
+    expect(
+      await client.session.findUniqueOrThrow({ where: { id: session.id } }),
+    ).toMatchObject({ userId: dylan.id });
+    expect(
+      await client.passwordCredential.findUniqueOrThrow({
+        where: { id: credential.id },
+      }),
+    ).toMatchObject({ userId: dylan.id });
+
+    expect((await runBootstrap(client)).created).toMatchObject({
+      permissions: 0,
+      userPermissions: 0,
+    });
+
+    await client.session.deleteMany({ where: { userId: dylan.id } });
+    await client.passwordCredential.deleteMany({ where: { userId: dylan.id } });
+    await client.user.update({
+      data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
+      where: { id: dylan.id },
+    });
+  });
+
+  it('still refuses a direct grant nobody approved, on a live database', async () => {
+    // The relaxation above must not become a way in: an extra grant means a
+    // privilege was handed out outside the manifest, and bootstrap may not
+    // build on top of that.
+    const dylan = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    const samantha = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'samantha' },
+    });
+    const approve = await client.permission.findUniqueOrThrow({
+      where: { code: 'inventory.audit.approve' },
+    });
+
+    const activatedAt = new Date('2026-08-15T12:00:00.000Z');
+    await client.user.update({
+      data: { activatedAt, status: 'ACTIVE' },
+      where: { id: dylan.id },
+    });
+    const credential = await client.passwordCredential.create({
+      data: {
+        passwordHash: 'CONTROLLED_ARGON2ID_BOOTSTRAP_TEST_HASH',
+        userId: dylan.id,
+      },
+    });
+    const unexpected = await client.userPermission.create({
+      data: { permissionId: approve.id, userId: samantha.id },
+    });
+
+    await expect(runBootstrap(client)).rejects.toThrow(
+      'unexpected active records exist',
+    );
+
+    await client.userPermission.delete({ where: { id: unexpected.id } });
+    await client.passwordCredential.delete({ where: { id: credential.id } });
+    await client.user.update({
+      data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
+      where: { id: dylan.id },
+    });
+    await runBootstrap(client);
+  });
+
   it('rolls back every partial change when the matrix is incompatible', async () => {
     const admin = await client.role.findUniqueOrThrow({
       where: { code: 'ADMIN' },

@@ -142,7 +142,21 @@ async function assertLiveAuthorizationUpgradeBaseline(
       grantKey(loginIdentifier, roleCode),
     ),
   );
-  assertExactRecords(
+  // Direct grants are checked for extras only, not for exact equality, and the
+  // asymmetry with the identity records above is deliberate.
+  //
+  // An unexpected active grant still blocks the run: it means someone handed
+  // out a privilege outside the manifest, and bootstrap must never build on
+  // that. A *missing* grant is different — it is the manifest declaring a new
+  // one, which the main body then creates additively under its own guards,
+  // including its refusal to reactivate a revoked grant.
+  //
+  // Requiring exact equality here made the manifest unable to express "add this
+  // direct grant" against a database already in use: the run aborted before
+  // creating the permission the grant refers to, so no ordering of steps could
+  // satisfy it. That surfaced when FASE 9 added the first new direct grant
+  // since the live database was seeded.
+  assertNoUnexpectedRecords(
     'live bootstrap user permissions',
     userPermissions.map(({ permission, user }) =>
       grantKey(user.loginIdentifier, permission.code),
