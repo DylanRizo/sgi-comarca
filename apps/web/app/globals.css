@@ -22,13 +22,15 @@
   --text-soft: #3d4a43;
   --muted: #5d6a62;
   --border: #dde4df;
-  --border-strong: #a9b7ae;
-  --field-border: #9ca9a0;
+  --border-strong: #8b968f;
+  --field-border: #89958d;
 
   --accent: #176b45;
   --accent-strong: #0f5134;
   --accent-soft: #e7f5ec;
-  --accent-ring: #59a987;
+  --accent-ring: #519a7b;
+  /* Ink for text on a saturated fill: accent, accent-strong, danger. */
+  --ink-on-fill: #ffffff;
 
   --success: #176b45;
   --success-soft: #e7f5ec;
@@ -76,13 +78,15 @@
     --text-soft: #c2cfc7;
     --muted: #94a49b;
     --border: #26332c;
-    --border-strong: #3a4a41;
-    --field-border: #46584d;
+    --border-strong: #566e60;
+    --field-border: #576d5f;
 
     --accent: #4bab7d;
     --accent-strong: #6cc79a;
     --accent-soft: #17301f;
     --accent-ring: #6cc79a;
+    /* Dark-mode fills are light, so the ink on them inverts. */
+    --ink-on-fill: #0b1310;
 
     --success: #6cc79a;
     --success-soft: #16301f;
@@ -394,7 +398,7 @@ a {
 .primary-link {
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--ink-on-fill);
   box-shadow: var(--shadow-sm);
 }
 
@@ -498,7 +502,7 @@ a {
   transform: translateY(-150%);
   border-radius: var(--radius-sm);
   background: var(--accent-strong);
-  color: #ffffff;
+  color: var(--ink-on-fill);
 }
 
 .skip-link:focus {
@@ -1065,7 +1069,7 @@ a {
   border: 1px solid var(--danger);
   border-radius: var(--radius);
   background: var(--danger);
-  color: #ffffff;
+  color: var(--ink-on-fill);
   font-weight: 600;
   cursor: pointer;
 }
