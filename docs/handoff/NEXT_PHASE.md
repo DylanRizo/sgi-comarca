@@ -1,4 +1,4 @@
-# Next Gate — decisión del propietario tras cerrar FASE 9
+# Next Gate — primer conteo físico real en staging
 
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
@@ -54,7 +54,9 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
   **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`**,
   **`PHASE_9B_3_COMPLETE`**, **`PHASE_9C_COMPLETE`**, **`PHASE_9_COMPLETE`**
   (on `migration/09-reports`, unmerged)
-- **`NEXT_GATE = OWNER_REVIEW_OF_PHASE_9`**
+- **`STAGING_PHASE_9_SCHEMA_RBAC_APPLIED`** (2026-09-01; ver CURRENT_STATE.md)
+- **`FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED`**
+- **`NEXT_GATE = FIRST_STAGING_INVENTORY_COUNT`**
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
@@ -129,22 +131,29 @@ Con esto **FASE 9 queda cerrada de punta a punta** en el repositorio versionado.
 
 ## Gate seleccionado
 
-### Revisión del propietario
+### Primer conteo físico real en staging
 
-FASE 9 está completa y verificada localmente, pero **nada de esto ha sido
-revisado ni aprobado por el propietario, y nada se ha fusionado a `main` ni
-desplegado**. La rama `migration/09-reports` acumula seis commits funcionales.
+FASE 9 está fusionada a `main` y su esquema y RBAC están desplegados en
+staging desde el 2026-09-01. Lo que queda es operacional, no de
+implementación: ejecutar exactamente **un** conteo físico controlado, igual
+que se hizo con la primera transferencia en FASE 6.
 
-Lo que corresponde ahora es una decisión humana, no más implementación:
+Ese gate requiere autorización explícita propia y **no está autorizado por el
+despliegue de esquema**. Aprobar un conteo escribe stock por la ruta de ajuste
+de FASE 5C, así que es una mutación operacional real sobre los 357 saldos que
+staging tiene hoy.
 
-1. revisar el diff y la evidencia de FASE 9;
-2. decidir la fusión de `migration/09-reports` a `main`;
-3. decidir los grants por rol de los cuatro permisos de FASE 9, que siguen
-   abiertos: mientras no se decidan, conteos, reportes y analytics solo son
-   utilizables por quien tenga los grants directos;
-4. decidir si el esquema de 9A se despliega a staging, que es un gate propio.
+Antes de ejecutarlo hay que revalidar el target read-only; el estado descrito
+en `CURRENT_STATE.md` no es verdad live indefinida.
 
-Ninguna de las cuatro puede inferirse del código.
+## Pendiente sin bloquear nada
+
+- **Push a `origin/main`.** La fusión se hizo solo en local; `main` está
+  adelante del remoto. Es una decisión aparte.
+- **Segregación de funciones en el conteo.** Hoy el mismo actor puede crear y
+  aprobar. Con la aprobación como grant directo único, en la práctica solo el
+  administrador aprueba, así que el hueco es teórico; endurecerlo sigue siendo
+  una decisión abierta.
 
 ## Otros gates candidatos, no seleccionados
 

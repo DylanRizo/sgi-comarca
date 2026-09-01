@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-08-30.
+Updated: 2026-09-01.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -159,6 +159,8 @@ nothing about its locking, validation, audit event or signature changed.
 - `FIRST_STAGING_TRANSFER_PASS`
 - `PHASE_6_CONCURRENCY_FIX_PASS`
 - `STAGING_PHASE_7A_8A_SCHEMA_APPLIED`
+- `STAGING_PHASE_9_SCHEMA_RBAC_APPLIED`
+- `FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED`
 - `FIRST_STAGING_SALE_NOT_AUTHORIZED`
 - `FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`
 - `FIRST_STAGING_CLOSING_NOT_AUTHORIZED`
@@ -401,6 +403,66 @@ retired: the schema and RBAC are deployed. `FIRST_STAGING_SALE_NOT_AUTHORIZED`
 remains: no application server was pointed at staging during this gate, and
 no sale, entry, or closing was created, confirmed, cancelled, or reopened
 there. Each of those remains its own future gate.
+
+## FASE 9 schema and RBAC deployed to staging — 2026-09-01
+
+The owner authorized deploying the FASE 9A migration and the FASE 9 RBAC
+grants to staging. This deploys schema and permissions only. No physical
+count, sale, financial entry, or closing was created, and
+`FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED` is now in force.
+
+Target was positively verified before any write: container
+`sgi-comarca-postgres-1` (`postgres:18.4-alpine`), database
+`sgi_comarca_staging` on `localhost:5433`, latest migration
+`20260829144239_phase_8a_finances_closings_foundation`, no
+`inventory_count%` table present, and the exact RBAC baseline (6 roles, 16
+permissions, 15 active role_permissions, 1 direct grant, 4 users, 11 active
+user roles). Every invariant count matched the record from the FASE 7A/8A
+deployment.
+
+Checkpoints (custom-format `pg_dump`, verified restorable with
+`pg_restore --list`, not committed — `backups/` stays out of Git):
+
+| Checkpoint | File | Size | SHA-256 |
+|---|---|---:|---|
+| Pre-deploy | `backups/phase-9-staging-deploy/staging/sgi_comarca_staging_pre_phase9_deploy_20260901T044417Z.dump` | 581,483 bytes | `608be904884bce5967a095fc04ac9853076d1a804255a0808cda59565807fb51` |
+| Post-deploy | `backups/phase-9-staging-deploy/staging/sgi_comarca_staging_post_phase9_deploy_20260901T051726Z.dump` | 606,884 bytes | `8dabba8ca2f7144fa9c99e2bc1b84689e9775cc15bc29e1153f6455fc5a339c6` |
+
+**The first bootstrap attempt failed, and the failure was correct.**
+`runBootstrap` takes a stricter path once a database holds credentials or
+sessions, and that path required the live direct grants to match the manifest
+exactly. FASE 9 had added `inventory.audit.approve` as the first new direct
+grant since this database was seeded, so the run aborted — before it could
+create the permission that grant refers to, which meant no ordering of steps
+could satisfy it. The transaction rolled back cleanly: RBAC stayed at
+16/15/1 and every invariant count was unchanged. The migration, applied in a
+separate step beforehand, remained applied. Commit `1bddb33` fixed the
+baseline check to reject unexpected grants while tolerating ones the manifest
+newly declares, which the main body then creates additively under its own
+guards. Two tests cover both directions.
+
+`prisma migrate deploy` then applied
+`20260830181934_phase_9a_inventory_count_foundation`; seven migrations are
+now recorded. `runBootstrap` created exactly what the pre-deploy diff
+predicted: 4 permissions (`inventory.audit.create`,
+`inventory.audit.approve`, `reports.read`, `analytics.read`), 5
+role_permissions (`INVENTORY_MANAGER` → audit.create, reports.read,
+analytics.read; `SALES` → reports.read, analytics.read), 1 user_permission
+(`dylan` → `inventory.audit.approve`), and one `SYSTEM_BOOTSTRAP_APPLIED`
+audit row recording 10 mutations. Zero roles, users, warehouses, or user
+roles were touched.
+
+Read-only verification after both steps: all pre-existing counts identical
+to the pre-deploy snapshot (products 144, balances 357, valuations 357,
+movements 3, transfers 1, transfer items 1, reconciliation issues 189,
+import batches 1, users 4, roles 6, warehouses 3, active user roles 11);
+`inventory_count_sessions`, `inventory_count_session_warehouses`, and
+`inventory_count_lines` present with 7 active triggers and 0 rows; `sales`,
+`financial_entries`, and `daily_closings` still at 0; permissions now 20,
+active role_permissions 20, direct grants 2.
+
+No application server was pointed at staging during this gate. The first
+real physical count there remains its own future gate.
 
 ## First staging transfer evidence
 
