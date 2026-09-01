@@ -187,13 +187,22 @@ No es una fase; son mejoras acotadas que pueden agruparse:
 - divergencia entre el plan de FASE 7B §13, que preveía `productId` y
   `warehouseId` en los `details` de los 422, y el filtro global, que siempre
   devuelve `details` vacío para toda la API;
-- el arranque en frío del API puede exceder el timeout de salud de 60 s del
-  runner E2E; subir ese timeout es una decisión separada;
-- `sales-concurrency.integration.spec.ts` falla de forma intermitente bajo
+- ~~el arranque en frío del API puede exceder el timeout de salud de 60 s del
+  runner E2E; subir ese timeout es una decisión separada;~~ **Resuelto el
+  2026-09-01:** `apps/web/e2e/run-e2e.mjs` pasa el deadline de 60 s a 180 s y lo
+  hace configurable con `SGI_E2E_READY_TIMEOUT_MS`; el mensaje de timeout ahora
+  reporta los segundos esperados. Subirlo no enmascara caídas: el bucle sigue
+  abortando en cuanto el proceso hijo muere, así que solo un cuelgue silencioso
+  agota el deadline. Verificado el 2026-09-01: 32/32 E2E en verde (3.4 min);
+- ~~`sales-concurrency.integration.spec.ts` falla de forma intermitente bajo
   carga paralela de la suite (`SALE_CONCURRENCY_CONFLICT`) y pasa 9/9 en
-  aislamiento. Con 27 archivos de integración desde 9B.1 la contención subió;
-  acotar la concurrencia del runner de integración es una mejora acotada y
-  pendiente.
+  aislamiento.~~ **Resuelto el 2026-09-01:** `vitest.integration.config.ts`
+  ahora fija `fileParallelism: false`. La suite de integración corre contra una
+  sola instancia de PostgreSQL, así que el paralelismo de archivos inanía al
+  host y agotaba el presupuesto de reintentos del bloqueo optimista; serializar
+  los archivos deja como única concurrencia la que cada test ejerce a propósito.
+  Verificado el 2026-09-01: 29 archivos / 305 tests en verde (~485 s). Solo
+  cambia infraestructura de test; no toca código de producción, esquema ni RBAC.
 
 ## Estado operacional que permanece inalterado
 

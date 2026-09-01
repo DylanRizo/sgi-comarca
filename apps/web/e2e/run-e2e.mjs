@@ -76,8 +76,29 @@ async function stop(child) {
   }
 }
 
+// Both services compile on a cold start -- the API through tsx and the web
+// through `next dev` -- so a loaded machine can need well over a minute before
+// either answers. Raising the budget does not hide a crash: the loop below
+// still fails immediately when the child process exits, so only a silent hang
+// spends the full deadline. Override with SGI_E2E_READY_TIMEOUT_MS when a
+// slower host needs more room.
+const readyTimeoutMs = readReadyTimeoutMs();
+
+function readReadyTimeoutMs() {
+  const configured = process.env.SGI_E2E_READY_TIMEOUT_MS;
+  if (configured === undefined) return 180_000;
+  const parsed = Number(configured);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      'SGI_E2E_READY_TIMEOUT_MS must be a positive integer of milliseconds.',
+    );
+  }
+  return parsed;
+}
+
 async function waitFor(url, child) {
-  const deadline = Date.now() + 60_000;
+  const startedAt = Date.now();
+  const deadline = startedAt + readyTimeoutMs;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
       throw new Error(`Service for ${url} exited before becoming ready.`);
@@ -90,7 +111,12 @@ async function waitFor(url, child) {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Timed out waiting for ${url}.`);
+  const waitedSeconds = Math.round((Date.now() - startedAt) / 1000);
+  throw new Error(
+    `Timed out waiting for ${url} after ${String(waitedSeconds)}s. ` +
+      'The process was still running; raise SGI_E2E_READY_TIMEOUT_MS if this ' +
+      'host simply starts slowly.',
+  );
 }
 
 async function psql(sql) {
