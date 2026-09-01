@@ -429,19 +429,25 @@ integration/concurrency suites.
 ## Current RBAC
 
 - On `main`, the manifest contains 16 permissions and 15 role grants.
-- On `migration/09-reports` (FASE 9A, unmerged), it contains 20 permissions,
-  the same 15 role grants, and 5 direct grants: `sales.cancel` plus the four
-  FASE 9A permissions below.
+- On `migration/09-reports` (unmerged), it contains 20 permissions, 20 role
+  grants, and 2 direct grants. On 2026-08-31 the owner approved the FASE 9
+  grants, moving counting, reports and analytics onto roles and leaving only
+  `sales.cancel` and `inventory.audit.approve` as direct.
 - `inventory.read → INVENTORY_MANAGER`.
 - `inventory.adjust → INVENTORY_MANAGER`.
 - `transfers.create → INVENTORY_MANAGER`.
 - `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
 - `sales.cancel` remains one direct grant only to Dylan; no role grants it.
-- `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and
-  `analytics.read` (FASE 9A, `migration/09-reports` only) are direct grants
-  to Dylan only; no role grants any of them yet, and deciding which role(s)
-  should remains open (see the FASE 9 plan §2).
+- `inventory.audit.create → INVENTORY_MANAGER`, so anyone managing inventory
+  may capture a physical count.
+- `reports.read` and `analytics.read → INVENTORY_MANAGER` and `SALES`. This is
+  safe by construction rather than by trust: every report and KPI additionally
+  requires its domain's own read permission, and every monetary column
+  requires `finances.read`, which neither role carries.
+- `inventory.audit.approve` remains one direct grant to Dylan; no role grants
+  it. Approving a count writes stock through the FASE 5C adjustment path, so
+  whoever counted a warehouse cannot approve their own count into the ledger.
 - `FINANCE` receives exactly `finances.read`, `finances.manual.create`,
   `closings.read`, `closings.create`, and `closings.reopen` through its role.
 - `ADMIN` is not a superuser and has no permission bypass.

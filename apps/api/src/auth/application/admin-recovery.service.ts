@@ -52,24 +52,27 @@ const approvedRolePermissionKeys = [
   'FINANCE:closings.reopen',
   'FINANCE:finances.manual.create',
   'FINANCE:finances.read',
+  'INVENTORY_MANAGER:analytics.read',
   'INVENTORY_MANAGER:inventory.adjust',
+  'INVENTORY_MANAGER:inventory.audit.create',
   'INVENTORY_MANAGER:inventory.read',
+  'INVENTORY_MANAGER:reports.read',
   'INVENTORY_MANAGER:transfers.create',
+  'SALES:analytics.read',
+  'SALES:reports.read',
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
   'SALES:sales.read',
 ] as const;
 
 /**
- * Direct grants belong exclusively to the sole ADMIN. FASE 9A added the audit,
- * reports and analytics capabilities here rather than to any role, so no role
- * receives them and deny-by-default still holds.
+ * Direct grants belong exclusively to the sole ADMIN and carry only what no
+ * role provides. On 2026-08-31 the owner moved counting, reports and analytics
+ * onto roles; approving a count stayed here, because it writes stock through
+ * the FASE 5C adjustment path and must not be held by whoever counted.
  */
 const approvedDirectPermissionCodes = [
-  'analytics.read',
   'inventory.audit.approve',
-  'inventory.audit.create',
-  'reports.read',
   'sales.cancel',
 ] as const;
 

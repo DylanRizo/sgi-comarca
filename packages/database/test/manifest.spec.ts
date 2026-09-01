@@ -98,9 +98,14 @@ describe('FASE 3B bootstrap manifest', () => {
         'FINANCE:closings.reopen',
         'FINANCE:finances.manual.create',
         'FINANCE:finances.read',
+        'INVENTORY_MANAGER:analytics.read',
         'INVENTORY_MANAGER:inventory.adjust',
+        'INVENTORY_MANAGER:inventory.audit.create',
         'INVENTORY_MANAGER:inventory.read',
+        'INVENTORY_MANAGER:reports.read',
         'INVENTORY_MANAGER:transfers.create',
+        'SALES:analytics.read',
+        'SALES:reports.read',
         'SALES:sales.confirm_in_transit',
         'SALES:sales.create',
         'SALES:sales.read',
@@ -108,40 +113,65 @@ describe('FASE 3B bootstrap manifest', () => {
     );
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
-      { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.create' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
-      { loginIdentifier: 'dylan', permissionCode: 'reports.read' },
-      { loginIdentifier: 'dylan', permissionCode: 'analytics.read' },
     ]);
     expect(bootstrapPermissions).toHaveLength(20);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(15);
-    expect(bootstrapUserPermissions).toHaveLength(5);
+    expect(bootstrapRolePermissions).toHaveLength(20);
+    expect(bootstrapUserPermissions).toHaveLength(2);
   });
 
-  it('grants the FASE 9 permissions only as direct grants to dylan', () => {
-    const phase9Codes = [
-      'inventory.audit.create',
-      'inventory.audit.approve',
-      'reports.read',
-      'analytics.read',
-    ];
+  it('separates counting a warehouse from approving the count into the ledger', () => {
+    // The owner approved this split on 2026-08-31. Capturing a count is
+    // operational work for anyone managing inventory; approving one writes
+    // stock through the FASE 5C adjustment path, so it stays a direct grant
+    // and whoever counted a warehouse cannot approve their own count.
+    expect(
+      bootstrapRolePermissions
+        .filter(
+          ({ permissionCode }) => permissionCode === 'inventory.audit.create',
+        )
+        .map(({ roleCode }) => roleCode),
+    ).toEqual(['INVENTORY_MANAGER']);
 
-    for (const code of phase9Codes) {
+    expect(
+      bootstrapRolePermissions.some(
+        ({ permissionCode }) => permissionCode === 'inventory.audit.approve',
+      ),
+    ).toBe(false);
+    expect(
+      bootstrapUserPermissions.filter(
+        ({ permissionCode }) => permissionCode === 'inventory.audit.approve',
+      ),
+    ).toEqual([
+      { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
+    ]);
+  });
+
+  it('grants reporting to the operational roles without widening access', () => {
+    // Reporting is safe to spread because every report additionally requires
+    // its domain's read permission and every monetary column requires
+    // finances.read, which neither of these roles carries.
+    for (const code of ['reports.read', 'analytics.read']) {
       expect(
-        bootstrapPermissions.some(({ code: declared }) => declared === code),
-      ).toBe(true);
+        bootstrapRolePermissions
+          .filter(({ permissionCode }) => permissionCode === code)
+          .map(({ roleCode }) => roleCode)
+          .sort(),
+      ).toEqual(['INVENTORY_MANAGER', 'SALES']);
       expect(
-        bootstrapRolePermissions.some(
+        bootstrapUserPermissions.some(
           ({ permissionCode }) => permissionCode === code,
         ),
       ).toBe(false);
-      expect(
-        bootstrapUserPermissions.filter(
-          ({ permissionCode }) => permissionCode === code,
-        ),
-      ).toEqual([{ loginIdentifier: 'dylan', permissionCode: code }]);
     }
+
+    expect(
+      bootstrapRolePermissions.some(
+        ({ permissionCode, roleCode }) =>
+          permissionCode === 'finances.read' && roleCode !== 'FINANCE',
+      ),
+    ).toBe(false);
   });
 
   it('grants sales.read only to SALES without an ADMIN bypass', () => {

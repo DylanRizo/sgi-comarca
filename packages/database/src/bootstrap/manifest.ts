@@ -172,6 +172,14 @@ export const bootstrapRolePermissions = [
     roleCode: 'INVENTORY_MANAGER',
     permissionCode: 'transfers.create',
   },
+  {
+    roleCode: 'INVENTORY_MANAGER',
+    permissionCode: 'inventory.audit.create',
+  },
+  { roleCode: 'INVENTORY_MANAGER', permissionCode: 'reports.read' },
+  { roleCode: 'INVENTORY_MANAGER', permissionCode: 'analytics.read' },
+  { roleCode: 'SALES', permissionCode: 'reports.read' },
+  { roleCode: 'SALES', permissionCode: 'analytics.read' },
   { roleCode: 'SALES', permissionCode: 'sales.create' },
   { roleCode: 'SALES', permissionCode: 'sales.read' },
   {
@@ -180,12 +188,15 @@ export const bootstrapRolePermissions = [
   },
 ] as const;
 
+/**
+ * Direct grants carry only what no role provides. Approving a physical count
+ * writes stock through the FASE 5C adjustment path, so it stays the sole
+ * admin's capability: whoever counts a warehouse cannot also approve their own
+ * count into the ledger.
+ */
 export const bootstrapUserPermissions = [
   { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
-  { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.create' },
   { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
-  { loginIdentifier: 'dylan', permissionCode: 'reports.read' },
-  { loginIdentifier: 'dylan', permissionCode: 'analytics.read' },
 ] as const;
 
 export function grantKey(left: string, right: string): string {

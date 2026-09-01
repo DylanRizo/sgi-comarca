@@ -29,21 +29,33 @@ forma explícita.
 | `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen` |
 | `READ_ONLY` | Ninguno |
 
-Existen 15 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, tres
-INVENTORY_MANAGER y tres SALES. `transfers.create` se concede exclusivamente a
+Existen 20 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, seis
+INVENTORY_MANAGER y cinco SALES. `transfers.create` se concede exclusivamente a
 `INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
+
+El 2026-08-31 el propietario aprobó los grants de FASE 9: `inventory.audit.create`
+a `INVENTORY_MANAGER`, y `reports.read` y `analytics.read` a `INVENTORY_MANAGER`
+y `SALES`. Difundir la lectura de reportes es seguro por diseño y no por
+confianza: cada reporte exige además el permiso de lectura de su dominio, y toda
+columna monetaria exige `finances.read`, que ninguno de esos dos roles tiene.
 
 ## UserRole y UserPermission iniciales
 
 | Usuario | Roles activos exactos | UserPermission activo |
 |---|---|---|
-| Dylan | `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, `SALES` | `GRANT sales.cancel` |
+| Dylan | `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, `SALES` | `GRANT sales.cancel`, `GRANT inventory.audit.approve` |
 | Samantha | `FINANCE`, `INVENTORY_MANAGER`, `SALES` | Ninguno |
 | Jean | `INVENTORY_MANAGER`, `SALES` | Ninguno |
 | Luden | `INVENTORY_MANAGER`, `SALES` | Ninguno |
 
 `PARTNER` y `READ_ONLY` no tienen usuarios. Dylan es el único ADMIN inicial,
 pero ninguna política de autorización depende de su nombre, login o ID.
+
+Los `UserPermission` directos contienen únicamente lo que ningún rol otorga.
+`inventory.audit.approve` permanece ahí a propósito: aprobar un conteo escribe
+stock por la ruta de ajuste de FASE 5C, así que quien cuenta una bodega no puede
+aprobar su propio conteo al libro. Cualquier usuario con `INVENTORY_MANAGER`
+puede capturar conteos; solo el ADMIN los aprueba.
 
 ## Permisos efectivos iniciales
 
@@ -60,12 +72,16 @@ pero ninguna política de autorización depende de su nombre, login o ID.
 | `closings.reopen` | Sí | Sí | No | No |
 | `inventory.adjust` | Sí | Sí | Sí | Sí |
 | `inventory.read` | Sí | Sí | Sí | Sí |
+| `inventory.audit.create` | Sí | Sí | Sí | Sí |
+| `inventory.audit.approve` | Sí | No | No | No |
+| `reports.read` | Sí | Sí | Sí | Sí |
+| `analytics.read` | Sí | Sí | Sí | Sí |
 | `sales.create` | Sí | Sí | Sí | Sí |
 | `sales.confirm_in_transit` | Sí | Sí | Sí | Sí |
 | `sales.read` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
 | `transfers.create` | Sí | Sí | Sí | Sí |
-| Total | 16 | 11 | 6 | 6 |
+| Total | 20 | 14 | 9 | 9 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el
