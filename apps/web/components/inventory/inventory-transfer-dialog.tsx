@@ -12,6 +12,7 @@ import { inventoryApi } from '@/lib/http/inventory-api';
 import { formatQuantity } from '@/lib/inventory/presentation';
 import { transferPreview } from '@/lib/inventory/transfer-preview';
 import { useAuth } from '@/providers/auth-provider';
+import { useModalDialog } from '@/lib/use-modal-dialog';
 
 function transferError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -149,12 +150,18 @@ export function InventoryTransferDialog({
             ? 'Ingresa una cantidad válida con máximo 4 decimales.'
             : null;
 
+  // FASE 10B. Escape, focus trap and focus restoration for this
+  // aria-modal dialog; disabled while a submission is in flight, matching
+  // the close control.
+  const dialogRef = useModalDialog<HTMLElement>(onCancel, !submitting);
+
   return (
     <div className="modal-backdrop">
       <section
         aria-labelledby="transfer-title"
         aria-modal="true"
         className="adjustment-dialog transfer-dialog"
+        ref={dialogRef}
         role="dialog"
       >
         <header>

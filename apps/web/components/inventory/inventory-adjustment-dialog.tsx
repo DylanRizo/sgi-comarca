@@ -12,6 +12,7 @@ import { inventoryApi } from '@/lib/http/inventory-api';
 import { adjustmentPreview } from '@/lib/inventory/adjustment-preview';
 import { formatQuantity } from '@/lib/inventory/presentation';
 import { useAuth } from '@/providers/auth-provider';
+import { useModalDialog } from '@/lib/use-modal-dialog';
 
 export type InventoryAdjustmentSelection = {
   balance: InventoryBalanceView;
@@ -90,12 +91,18 @@ export function InventoryAdjustmentDialog({
         : `SALIDA ${preview.quantityDelta}`
       : 'AJUSTE PENDIENTE';
 
+  // FASE 10B. Escape, focus trap and focus restoration for this
+  // aria-modal dialog; disabled while a submission is in flight, matching
+  // the close control.
+  const dialogRef = useModalDialog<HTMLElement>(onCancel, !submitting);
+
   return (
     <div className="modal-backdrop">
       <section
         aria-labelledby="adjustment-title"
         aria-modal="true"
         className="adjustment-dialog"
+        ref={dialogRef}
         role="dialog"
       >
         <header>

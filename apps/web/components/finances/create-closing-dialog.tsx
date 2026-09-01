@@ -7,6 +7,7 @@ import { ApiHttpError } from '@/lib/http/api-client';
 import { closingsApi } from '@/lib/http/finances-api';
 import { closingPreview } from '@/lib/finances/closing-preview';
 import { useAuth } from '@/providers/auth-provider';
+import { useModalDialog } from '@/lib/use-modal-dialog';
 
 function createClosingError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -93,12 +94,18 @@ export function CreateClosingDialog({
     }
   }
 
+  // FASE 10B. Escape, focus trap and focus restoration for this
+  // aria-modal dialog; disabled while a submission is in flight, matching
+  // the close control.
+  const dialogRef = useModalDialog<HTMLElement>(onCancel, !submitting);
+
   return (
     <div className="modal-backdrop">
       <section
         aria-labelledby="create-closing-title"
         aria-modal="true"
         className="adjustment-dialog"
+        ref={dialogRef}
         role="dialog"
       >
         <header>

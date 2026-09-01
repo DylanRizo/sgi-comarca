@@ -18,6 +18,7 @@ import {
   type SaleDraftLine,
 } from '@/lib/sales/create-sale-draft';
 import { useAuth } from '@/providers/auth-provider';
+import { useModalDialog } from '@/lib/use-modal-dialog';
 
 function createSaleError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -167,12 +168,18 @@ export function CreateSaleDialog({
       ? saleDraftIssueMessage(preview.issue)
       : null;
 
+  // FASE 10B. Escape, focus trap and focus restoration for this
+  // aria-modal dialog; disabled while a submission is in flight, matching
+  // the close control.
+  const dialogRef = useModalDialog<HTMLElement>(onCancel, !submitting);
+
   return (
     <div className="modal-backdrop">
       <section
         aria-labelledby="create-sale-title"
         aria-modal="true"
         className="adjustment-dialog sale-dialog"
+        ref={dialogRef}
         role="dialog"
       >
         <header>

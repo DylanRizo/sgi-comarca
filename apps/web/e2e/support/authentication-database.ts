@@ -153,6 +153,40 @@ export class AuthenticationDatabase {
     });
   }
 
+  /**
+   * Seed one adjustable balance under a suffixed code, so a suite running
+   * after the numbered ones never collides with a fixture an earlier suite
+   * made undeletable by selling or moving it (see playwright.config.ts).
+   */
+  async seedAdjustableProduct(suffix: string): Promise<string> {
+    const code = `E2E-A11Y-${suffix.toUpperCase()}`;
+    await this.client.$transaction(async (transaction) => {
+      const unit = await transaction.unit.upsert({
+        create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+        update: {},
+        where: { code: 'E2E-UNIT' },
+      });
+      const product = await transaction.product.create({
+        data: { code, name: `Producto accesibilidad ${suffix}`, unitId: unit.id },
+        select: { id: true },
+      });
+      const warehouse = await transaction.warehouse.findFirstOrThrow({
+        orderBy: { code: 'asc' },
+        select: { id: true },
+      });
+      await transaction.inventoryBalance.create({
+        data: {
+          currentUnitCost: 2,
+          currentUnitPrice: 6,
+          productId: product.id,
+          quantity: 5,
+          warehouseId: warehouse.id,
+        },
+      });
+    });
+    return code;
+  }
+
   async inventoryFixtureProductCount(): Promise<number> {
     const products = await this.client.product.findMany({
       include: { unit: true },

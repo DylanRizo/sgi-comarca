@@ -12,6 +12,7 @@ import { financesApi } from '@/lib/http/finances-api';
 import { entryPreview } from '@/lib/finances/entry-preview';
 import { entryTypeLabel } from '@/lib/finances/presentation';
 import { useAuth } from '@/providers/auth-provider';
+import { useModalDialog } from '@/lib/use-modal-dialog';
 
 function createEntryError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -134,12 +135,18 @@ export function CreateEntryDialog({
     }
   }
 
+  // FASE 10B. Escape, focus trap and focus restoration for this
+  // aria-modal dialog; disabled while a submission is in flight, matching
+  // the close control.
+  const dialogRef = useModalDialog<HTMLElement>(onCancel, !submitting);
+
   return (
     <div className="modal-backdrop">
       <section
         aria-labelledby="create-entry-title"
         aria-modal="true"
         className="adjustment-dialog"
+        ref={dialogRef}
         role="dialog"
       >
         <header>
