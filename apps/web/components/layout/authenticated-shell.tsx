@@ -1,5 +1,18 @@
 'use client';
 
+import {
+  ArrowLeftRight,
+  Boxes,
+  CalendarCheck,
+  ChartColumn,
+  ClipboardList,
+  FileText,
+  House,
+  Package,
+  ShoppingCart,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -8,10 +21,20 @@ import type { ReactNode } from 'react';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { useAuth } from '@/providers/auth-provider';
 
+/**
+ * FASE 10A. Icons are decorative: every link keeps its visible text, and the
+ * glyph is hidden from assistive technology, so the accessible name is
+ * unchanged and the Playwright suite keeps selecting on the same labels
+ * (ADR-012).
+ */
+function NavIcon({ icon: Icon }: Readonly<{ icon: LucideIcon }>) {
+  return <Icon aria-hidden="true" className="nav-icon" size={17} />;
+}
+
 const inventoryNavigation = [
-  { href: '/products', label: 'Productos' },
-  { href: '/inventory', label: 'Inventario' },
-  { href: '/inventory/movements', label: 'Movimientos' },
+  { href: '/products', icon: Package, label: 'Productos' },
+  { href: '/inventory', icon: Boxes, label: 'Inventario' },
+  { href: '/inventory/movements', icon: ArrowLeftRight, label: 'Movimientos' },
 ] as const;
 
 // Physical counts sit behind their own capability, unlike the inventory reads
@@ -19,23 +42,46 @@ const inventoryNavigation = [
 const countNavigation = [
   {
     href: '/inventory/counts',
+    icon: ClipboardList,
     label: 'Conteos',
     permission: 'inventory.audit.create',
   },
 ] as const;
 
-const salesNavigation = [{ href: '/sales', label: 'Ventas' }] as const;
+const salesNavigation = [
+  { href: '/sales', icon: ShoppingCart, label: 'Ventas' },
+] as const;
 
 const financesNavigation = [
-  { href: '/finances', label: 'Finanzas', permission: 'finances.read' },
-  { href: '/closings', label: 'Cierres', permission: 'closings.read' },
+  {
+    href: '/finances',
+    icon: Wallet,
+    label: 'Finanzas',
+    permission: 'finances.read',
+  },
+  {
+    href: '/closings',
+    icon: CalendarCheck,
+    label: 'Cierres',
+    permission: 'closings.read',
+  },
 ] as const;
 
 // FASE 9C. Each entry declares the permission the backend already enforces;
 // hiding a link is presentation only.
 const insightNavigation = [
-  { href: '/reports', label: 'Reportes', permission: 'reports.read' },
-  { href: '/analytics', label: 'Analytics', permission: 'analytics.read' },
+  {
+    href: '/reports',
+    icon: FileText,
+    label: 'Reportes',
+    permission: 'reports.read',
+  },
+  {
+    href: '/analytics',
+    icon: ChartColumn,
+    label: 'Analytics',
+    permission: 'analytics.read',
+  },
 ] as const;
 
 export function AuthenticatedShell({
@@ -64,10 +110,11 @@ export function AuthenticatedShell({
             aria-current={pathname === '/app' ? 'page' : undefined}
             href={'/app' as Route}
           >
+            <NavIcon icon={House} />
             Inicio
           </Link>
           {canReadInventory
-            ? inventoryNavigation.map(({ href, label }) => (
+            ? inventoryNavigation.map(({ href, icon, label }) => (
                 <Link
                   aria-current={
                     pathname === href ||
@@ -78,12 +125,13 @@ export function AuthenticatedShell({
                   href={href as Route}
                   key={href}
                 >
+                  <NavIcon icon={icon} />
                   {label}
                 </Link>
               ))
             : null}
           {canReadSales
-            ? salesNavigation.map(({ href, label }) => (
+            ? salesNavigation.map(({ href, icon, label }) => (
                 <Link
                   aria-current={
                     pathname === href || pathname.startsWith(`${href}/`)
@@ -93,6 +141,7 @@ export function AuthenticatedShell({
                   href={href as Route}
                   key={href}
                 >
+                  <NavIcon icon={icon} />
                   {label}
                 </Link>
               ))
@@ -101,7 +150,7 @@ export function AuthenticatedShell({
             .filter(({ permission }) =>
               state.session.permissions.includes(permission),
             )
-            .map(({ href, label }) => (
+            .map(({ href, icon, label }) => (
               <Link
                 aria-current={
                   pathname === href || pathname.startsWith(`${href}/`)
@@ -111,6 +160,7 @@ export function AuthenticatedShell({
                 href={href as Route}
                 key={href}
               >
+                <NavIcon icon={icon} />
                 {label}
               </Link>
             ))}
