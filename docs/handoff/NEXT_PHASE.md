@@ -56,7 +56,10 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
   (on `migration/09-reports`, unmerged)
 - **`STAGING_PHASE_9_SCHEMA_RBAC_APPLIED`** (2026-09-01; ver CURRENT_STATE.md)
 - **`FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED`**
-- **`NEXT_GATE = FIRST_STAGING_INVENTORY_COUNT`**
+- **`PHASE_10_PLANNING_COMPLETE`**, **`PHASE_10_NOT_STARTED`**
+  (on `migration/10-ui`, unmerged)
+- **`NEXT_GATE = FIRST_STAGING_INVENTORY_COUNT`** (operacional) y
+  **`PHASE_10_IMPLEMENTATION`** (desarrollo); son independientes entre sí
 
 Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
 a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
@@ -128,6 +131,27 @@ como está escrito contra las clases que las páginas ya usaban, re-estiliza
 todas las pantallas anteriores sin renombrar nada. 32/32 E2E siguen pasando.
 
 Con esto **FASE 9 queda cerrada de punta a punta** en el repositorio versionado.
+
+## FASE 10 seleccionada y planificada — 2026-09-01
+
+El propietario seleccionó **FASE 10 — Unificación UI** como siguiente fase de
+desarrollo. La planificación está en
+[phase-10-ui-plan.md](../reviews/phase-10-ui-plan.md). Planificar no autoriza
+implementar.
+
+Al verificar el estado real se encontró que la pila de interfaz declarada en
+`AGENTS.md` no coincide con el repositorio: shadcn/ui, Lucide, TanStack Query,
+TanStack Table, React Hook Form + Zod y Recharts **no están instaladas**, y la
+UI se apoya en el sistema de tokens propio de 9C (1,503 líneas). La desviación
+nunca se había registrado. El propietario resolvió el alcance en
+[ADR-012](../decisions/ADR-012-ui-stack-deviation.md): FASE 10 cumple su puerta
+y añade **solo Lucide**, sin migrar a shadcn/ui.
+
+Restricción registrada en el plan §3: los cuatro specs E2E existentes **no**
+pueden re-ejecutarse en varios viewports, porque comparten una única base
+efímera y `02-inventory` afirma un conteo global exacto de productos. La puerta
+multi-viewport exige un conjunto de pruebas nuevo, sin aserciones de estado
+global.
 
 ## Gate seleccionado
 
