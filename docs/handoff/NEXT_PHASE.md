@@ -56,7 +56,8 @@ Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
   (on `migration/09-reports`, unmerged)
 - **`STAGING_PHASE_9_SCHEMA_RBAC_APPLIED`** (2026-09-01; ver CURRENT_STATE.md)
 - **`FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED`**
-- **`PHASE_10_PLANNING_COMPLETE`**, **`PHASE_10_NOT_STARTED`**
+- **`PHASE_10_PLANNING_COMPLETE`**, **`PHASE_10A_COMPLETE`**,
+  **`PHASE_10B_PARTIAL`**, **`PHASE_10C_COMPLETE`**, **`PHASE_10_NOT_CLOSED`**
   (on `migration/10-ui`, unmerged)
 - **`NEXT_GATE = FIRST_STAGING_INVENTORY_COUNT`** (operacional) y
   **`PHASE_10_IMPLEMENTATION`** (desarrollo); son independientes entre sí
@@ -152,6 +153,35 @@ pueden re-ejecutarse en varios viewports, porque comparten una única base
 efímera y `02-inventory` afirma un conteo global exacto de productos. La puerta
 multi-viewport exige un conjunto de pruebas nuevo, sin aserciones de estado
 global.
+
+### Ejecución de FASE 10 — 2026-09-01
+
+**10A y 10C completos; 10B parcial.** Detalle y evidencia en el
+[plan §9](../reviews/phase-10-ui-plan.md). Cinco commits en `migration/10-ui`,
+sin fusionar. 42/42 E2E en tres proyectos (escritorio, tablet, móvil),
+lint 8/8, typecheck 7/7, build 7/7.
+
+Dos hallazgos que conviene no perder:
+
+- La navegación ocultaba `Analytics` incluso a 1440px por un
+  `overflow-x: auto`, y **las 32 pruebas pasaban con el defecto presente**,
+  porque Playwright resuelve enlaces por rol y nombre y los desplaza al
+  viewport. Solo apareció al mirar capturas de la app en ejecución. Es un
+  recordatorio de que la puerta visual de esta fase no la puede sustituir una
+  aserción funcional.
+- Los cinco diálogos declaraban `aria-modal="true"` sin que nada lo hiciera
+  cumplir: sin foco inicial, sin trampa de Tab, sin Escape. Una declaración
+  falsa es peor que su ausencia, porque un lector de pantalla anuncia un
+  contexto modal inexistente.
+
+El plan §1.1 corrige tres premisas del inventario inicial que resultaron
+falsas: las tablas ya tenían presentación móvil, la indicación de foco ya
+estaba cubierta por una regla global, y el destino del skip link sí existía.
+
+**Falta para cerrar FASE 10:** contraste en claro y oscuro; la decisión de
+propietario sobre **colores y logotipo** (límite «antes de la aceptación
+visual» según el roadmap); y el pulido de la navegación, que a 1440px deja
+`Analytics` sola en la segunda fila.
 
 ## Gate seleccionado
 

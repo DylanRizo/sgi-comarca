@@ -29,6 +29,30 @@ Todo lo siguiente se comprobó leyendo el repositorio, no por supuesto.
 - **Verificación actual**: un único proyecto Playwright, `chromium` de
   escritorio, con 32 pruebas en verde.
 
+### 1.1 Correcciones a este inventario — 2026-09-01, durante la ejecución
+
+Tres de los puntos anteriores resultaron equivocados al implementar. Se
+conservan arriba como fotografía de lo que se creyó al planificar, y se
+corrigen aquí:
+
+- **Las tablas no son tres, son once**, y el conteo original omitió
+  `apps/web/components`. Más importante: **ya tenían presentación móvil**. El
+  bloque `max-width: 47.99rem` convierte `.data-table` en tarjetas usando
+  `data-label` por celda, y las once la usan. La tabla de reportes parecía
+  carecer de `data-label`, pero su única ocurrencia es un bucle sobre
+  `definition.columns`. **No hubo trabajo pendiente aquí.**
+- **«6 reglas de foco» era una métrica engañosa**: contaba ocurrencias, no
+  cobertura. Existe una regla global `:focus-visible` con contorno de 2px y
+  desplazamiento, que cubre todo elemento enfocable. La indicación de foco ya
+  estaba resuelta.
+- **El destino del skip link existe**: `<main id="main-content">` está presente
+  en todas las pantallas. No estaba roto.
+
+Además, un límite técnico que el §4 pedía y **CSS no permite**: los puntos de
+corte no pueden tokenizarse con variables, porque `@media (min-width: var(--x))`
+no es válido. Lo máximo honesto es normalizar y documentar los valores, no
+«tokenizarlos». El bloque 10A se ejecutó sin ese punto.
+
 ## 2. Alcance aprobado
 
 El propietario aprobó el 2026-09-01 el alcance registrado en
@@ -134,3 +158,63 @@ el pendiente.
 - Alcance fijado por ADR-012; ninguna librería añadida todavía.
 - Sigue abierto e independiente el gate operacional
   `FIRST_STAGING_INVENTORY_COUNT`.
+
+## 9. Ejecución — 2026-09-01, rama `migration/10-ui`
+
+### 10A — base responsive e iconografía (completo)
+
+`lucide-react` fijado a versión exacta; los diez destinos llevan icono
+decorativo (`aria-hidden`), de modo que ningún nombre accesible cambió y la
+suite conservó sus selectores.
+
+Las capturas de la app en ejecución revelaron un defecto que las pruebas no
+podían ver: con diez destinos en una tira `overflow-x: auto`, **Analytics caía
+fuera del viewport incluso a 1440px**, sin ninguna señal de que existiera; en
+un teléfono de 390px cabían tres de diez. Playwright no lo detectaba porque
+resuelve enlaces por rol y nombre y los desplaza al viewport, así que las 32
+pruebas pasaban con el defecto presente. Los iconos lo habían agravado al
+ensanchar cada enlace.
+
+La navegación ahora **envuelve** en lugar de desplazarse, y bajo 48rem colapsa
+tras un botón con `aria-expanded`/`aria-controls`. Cierra desde el clic del
+contenedor, no desde un efecto que observe la ruta.
+
+### 10B — accesibilidad (parcial)
+
+Los cinco diálogos declaraban `aria-modal="true"` —que promete que el resto de
+la página está inerte— **sin que nada lo hiciera cumplir**: el foco no entraba,
+Tab salía a la página de atrás, Escape no hacía nada y al cerrar el foco quedaba
+huérfano. La declaración era falsa, que es peor que no declararla.
+
+Un único hook `useModalDialog` aporta el comportamiento en un sitio en vez de
+cinco: foco inicial, envoltura de Tab y Shift+Tab, recuperación si escapa,
+cierre con Escape y restauración al disparador. Escape está condicionado al
+mismo estado que deshabilita el botón de cerrar, así que no puede abandonar un
+envío en curso.
+
+**Pendiente de 10B:** la revisión de contraste en claro y oscuro.
+
+### 10C — verificación multi-viewport (completo)
+
+`90-responsive.e2e.ts` es **sin siembra y sin conteos**, por lo que puede
+correrse idéntico en los tres proyectos pese a compartir una sola base. Un
+primer borrador de la suite de 10B sí sembró el fixture compartido y chocó con
+la unicidad de códigos: es exactamente el riesgo de orden que documenta
+`playwright.config.ts`, y quedó resuelto con un fixture propio sufijado.
+
+Los proyectos `tablet` (768px) y `mobile` (390px) difieren de escritorio solo en
+el ancho, con viewports explícitos en vez de presets de dispositivo.
+
+### Evidencia
+
+42/42 pruebas en los tres proyectos; lint 8/8; typecheck 7/7; build 7/7.
+Revisión visual de las once pantallas en escritorio y de las principales en
+teléfono, incluido el diálogo de ajuste.
+
+### Pendientes para poder cerrar FASE 10
+
+1. contraste en claro y oscuro (10B);
+2. **colores y logotipo**, decisión del propietario con límite «antes de la
+   aceptación visual» según el roadmap;
+3. pulido: a 1440px la navegación envuelve dejando `Analytics` sola en la
+   segunda fila. Es correcto y descubrible, pero desbalanceado.
