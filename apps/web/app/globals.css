@@ -1500,39 +1500,6 @@ a {
 }
 
 @media (max-width: 47.99rem) {
-  /*
-   * FASE 10A. Brand and toggle share the top row; the nav and the user block
-   * each take a full row beneath. This overrides the three-column desktop
-   * header declared at 40rem, so the 640-767px range gets the menu too.
-   */
-  .application-header {
-    grid-template-areas: 'brand toggle' 'nav nav' 'user user';
-    grid-template-columns: 1fr auto;
-    gap: 0.75rem;
-  }
-
-  .brand-link {
-    grid-area: brand;
-  }
-
-  .nav-toggle {
-    display: flex;
-    grid-area: toggle;
-  }
-
-  .application-nav {
-    grid-area: nav;
-    flex-direction: column;
-  }
-
-  .application-nav[data-open='false'] {
-    display: none;
-  }
-
-  .application-user {
-    grid-area: user;
-  }
-
   .data-table,
   .data-table tbody,
   .data-table tr,
@@ -1577,5 +1544,100 @@ a {
   .chart-bars li {
     grid-template-columns: 1fr;
     gap: 0.25rem;
+  }
+}
+
+/*
+ * FASE 10A revision. The collapsed top bar now reaches all the way to the
+ * sidebar breakpoint. A sidebar needs width to earn its place: at 768px it ate
+ * a quarter of the viewport and pushed the tables into horizontal overflow, so
+ * below 64rem the nav collapses behind the toggle and content keeps the full
+ * width. Table card presentation stays on its own 48rem breakpoint, because
+ * that is about column count, not about the navigation.
+ */
+@media (max-width: 63.99rem) {
+  .application-header {
+    grid-template-areas: 'brand toggle' 'nav nav' 'user user';
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem;
+  }
+
+  .brand-link {
+    grid-area: brand;
+  }
+
+  .nav-toggle {
+    display: flex;
+    grid-area: toggle;
+  }
+
+  .application-nav {
+    grid-area: nav;
+    flex-direction: column;
+  }
+
+  .application-nav[data-open='false'] {
+    display: none;
+  }
+
+  .application-user {
+    grid-area: user;
+  }
+}
+
+/*
+ * FASE 10A revision. From the breakpoint up the shell becomes a left sidebar
+ * instead of a top bar. Ten destinations never fitted one horizontal row: they
+ * first scrolled out of sight, then wrapped onto two rows, and neither reads
+ * well. A vertical column gives each destination a full-width target, puts the
+ * icons to work as a scan column, and returns the whole page width to content.
+ * This is the "sidebar adaptable" the FASE 10 runbook asked for.
+ *
+ * Declared last so it wins over the three-column header at 40rem. Below the
+ * breakpoint nothing here applies and the collapsed top bar with its toggle
+ * stays exactly as it is.
+ */
+@media (min-width: 64rem) {
+  .application-shell {
+    display: grid;
+    grid-template-columns: clamp(12.5rem, 17vw, 15.5rem) 1fr;
+    align-items: start;
+  }
+
+  .application-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    /* Sticky and full height so the nav stays put while content scrolls; it
+       scrolls internally if the destinations ever outgrow the viewport. */
+    height: 100vh;
+    padding: 1.25rem 0.9rem;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .application-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+  }
+
+  .application-nav a {
+    justify-content: flex-start;
+  }
+
+  /* Pinned to the foot of the column, away from the destinations. */
+  .application-user {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .application-user > span {
+    text-align: left;
   }
 }

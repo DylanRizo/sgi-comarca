@@ -29,9 +29,14 @@ const routes = [
   '/analytics',
 ] as const;
 
-// Below this width the shell collapses its navigation behind the toggle; it
-// mirrors the 48rem breakpoint in globals.css.
-const collapseWidth = 768;
+// Below this width the shell collapses its navigation behind the toggle and
+// content keeps the full viewport; at or above it the shell becomes a left
+// sidebar. Mirrors the 64rem breakpoint in globals.css.
+const collapseWidth = 1024;
+
+// Tables switch to their card presentation on their own, narrower breakpoint
+// (48rem): that is about how many columns fit, not about the navigation.
+const tableCardWidth = 768;
 
 async function activateAndLogin(
   request: APIRequestContext,
@@ -127,7 +132,7 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     if (await header.count()) {
       // Below the breakpoint the header row is visually hidden and each cell
       // carries its own label instead; above it, the header leads the table.
-      if (width < collapseWidth) {
+      if (width < tableCardWidth) {
         await expect(header).not.toBeInViewport();
       } else {
         await expect(header).toBeVisible();
