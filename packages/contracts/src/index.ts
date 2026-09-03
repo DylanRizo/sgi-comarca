@@ -1,4 +1,9 @@
 export type {
+  ClosingDayExpense,
+  ClosingSellerContribution,
+  DailyClosingPreviewView,
+} from './finances.js';
+export type {
   AnalyticsPublicErrorCode,
   InventoryAnalytics,
   MarginCoverage,

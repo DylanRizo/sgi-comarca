@@ -40,6 +40,41 @@ function transactionConflict(error: unknown): boolean {
   return ['40001', '40P01', '55P03'].some((code) => message.includes(code));
 }
 
+/** A client that can run the day-figures query, inside a transaction or not. */
+type SalesFigureClient = { $queryRawUnsafe: DatabaseClient['$queryRawUnsafe'] };
+
+export interface DaySalesFigures {
+  systemSales: string;
+  inTransitSaleCount: number;
+}
+
+/**
+ * The day's sales as the closing counts them: only completed sales, with
+ * transit and cancelled excluded by the approved rule.
+ *
+ * Shared by the preview and the closing itself on purpose. If the preview ran
+ * its own query the two could drift, and a partner would count the drawer
+ * against one number while the system recorded another.
+ */
+export async function daySalesFigures(
+  client: SalesFigureClient,
+  businessDate: string,
+): Promise<DaySalesFigures> {
+  const [row] = await client.$queryRawUnsafe<
+    { in_transit: bigint; total: string }[]
+  >(
+    `SELECT
+       coalesce(sum(total) FILTER (WHERE status = 'COMPLETED'), 0)::text AS total,
+       count(*) FILTER (WHERE status = 'IN_TRANSIT')::bigint AS in_transit
+     FROM sales WHERE business_date = $1::date`,
+    businessDate,
+  );
+  return {
+    inTransitSaleCount: Number(row?.in_transit ?? 0n),
+    systemSales: row?.total ?? '0',
+  };
+}
+
 function civilDateUtc(businessDate: string): Date {
   return new Date(`${businessDate}T00:00:00.000Z`);
 }
@@ -227,19 +262,10 @@ export class DailyClosingService {
     });
     if (existing) throw new FinanceError('CLOSING_ALREADY_EXISTS');
 
-    // System sales for the date: only completed sales, matching the finances
-    // read model and the approved rule that transit and cancelled never count.
-    const [salesRow] = await transaction.$queryRawUnsafe<
-      { in_transit: bigint; total: string }[]
-    >(
-      `SELECT
-         coalesce(sum(total) FILTER (WHERE status = 'COMPLETED'), 0)::text AS total,
-         count(*) FILTER (WHERE status = 'IN_TRANSIT')::bigint AS in_transit
-       FROM sales WHERE business_date = $1::date`,
+    const { inTransitSaleCount, systemSales } = await daySalesFigures(
+      transaction,
       request.businessDate,
     );
-    const systemSales = salesRow?.total ?? '0';
-    const inTransitSaleCount = Number(salesRow?.in_transit ?? 0n);
 
     const calculation = calculateClosing({
       realCash: request.realCash,

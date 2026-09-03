@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 const nonNegativeMoney = /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/u;
@@ -28,3 +29,18 @@ export class ReopenDailyClosingDto {
   @Matches(/\S/u)
   reason!: string;
 }
+
+export class ClosingPreviewQueryDto {
+  @IsString()
+  @Matches(businessDate, {
+    message: 'businessDate must be an ISO date (YYYY-MM-DD).',
+  })
+  businessDate!: string;
+}
+
+export const closingPreviewQueryPipe = new ValidationPipe({
+  expectedType: ClosingPreviewQueryDto,
+  forbidNonWhitelisted: true,
+  transform: true,
+  whitelist: true,
+});

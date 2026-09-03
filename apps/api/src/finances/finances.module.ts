@@ -4,6 +4,7 @@ import { type ConfigType } from '@nestjs/config';
 import { appConfig } from '../config/app.config.js';
 
 import { CreateFinancialEntryService } from './create-financial-entry.service.js';
+import { ClosingPreviewService } from './closing-preview.service.js';
 import { DailyClosingService } from './daily-closing.service.js';
 import { DatabaseService } from '../database/database.service.js';
 import { FinanceReadService } from './finance-read.service.js';
@@ -39,6 +40,20 @@ import {
         ),
     },
     {
+      provide: ClosingPreviewService,
+      inject: [DatabaseService, appConfig.KEY],
+      useFactory: (
+        database: DatabaseService,
+        configuration: ConfigType<typeof appConfig>,
+      ) =>
+        database.instantiateProvider(
+          (client) =>
+            // The same tolerance the closing applies, so the live balance the
+            // screen shows cannot disagree with the recorded result.
+            new ClosingPreviewService(client, configuration.closingTolerance),
+        ),
+    },
+    {
       provide: FinanceReadService,
       inject: [DatabaseService],
       useFactory: (database: DatabaseService) =>
@@ -48,6 +63,7 @@ import {
     },
   ],
   exports: [
+    ClosingPreviewService,
     CreateFinancialEntryService,
     DailyClosingService,
     FinanceReadService,

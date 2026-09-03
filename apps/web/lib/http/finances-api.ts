@@ -1,5 +1,6 @@
 import type {
   CreateDailyClosingRequest,
+  DailyClosingPreviewView,
   CreateFinancialEntryRequest,
   DailyClosingStatus,
   DailyClosingView,
@@ -65,6 +66,11 @@ export const financesApi = {
 };
 
 export const closingsApi = {
+  preview: (businessDate: string, signal?: AbortSignal) =>
+    apiRequest<DailyClosingPreviewView>(
+      `/api/v1/closings/preview${inventoryQueryString({ businessDate })}`,
+      signal ? { signal } : {},
+    ),
   closing: (id: string, signal?: AbortSignal) =>
     apiRequest<DailyClosingView>(
       `/api/v1/closings/${encodeURIComponent(id)}`,

@@ -87,6 +87,55 @@ export interface DailyClosingView {
   reopenings: DailyClosingReopeningView[];
 }
 
+/**
+ * What one seller collected on the day, split by how it was paid.
+ *
+ * The legacy system inferred the method from a marker inside the observations
+ * text and treated everything else as digital. Here the method is its own
+ * column and may legitimately be blank, so an unspecified amount is reported
+ * as such instead of being folded into digital and quietly overstating it.
+ */
+export interface ClosingSellerContribution {
+  sellerUserId: string | null;
+  sellerName: string;
+  cashAmount: string;
+  digitalAmount: string;
+  unspecifiedAmount: string;
+  totalAmount: string;
+  saleCount: number;
+}
+
+export interface ClosingDayExpense {
+  id: string;
+  categoryName: string | null;
+  description: string | null;
+  amount: string;
+}
+
+/**
+ * Everything the partner needs on screen before counting the cash drawer.
+ *
+ * `systemSales` and `inTransitSaleCount` come from the same query the closing
+ * itself runs, so the figure previewed is the figure that will be recorded.
+ * `tolerance` travels with it so the screen can show the live balance using the
+ * exact threshold the server will apply, rather than guessing one.
+ *
+ * Expenses are context for counting physical cash. They never move the
+ * difference (DEC-023).
+ */
+export interface DailyClosingPreviewView {
+  businessDate: string;
+  alreadyClosed: boolean;
+  existingClosingId: string | null;
+  existingClosingStatus: DailyClosingStatus | null;
+  systemSales: string;
+  inTransitSaleCount: number;
+  tolerance: string;
+  bySeller: ClosingSellerContribution[];
+  dayExpenses: ClosingDayExpense[];
+  totalExpenses: string;
+}
+
 export interface CreateDailyClosingRequest {
   businessDate: string;
   /** Decimal(18,2) strings, non-negative. */

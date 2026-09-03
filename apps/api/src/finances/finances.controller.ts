@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type {
   ApiSuccess,
+  DailyClosingPreviewView,
   DailyClosingView,
   FinanceLineView,
   FinanceTotalsView,
@@ -37,6 +38,13 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto.js';
 import { CreateFinancialEntryService } from './create-financial-entry.service.js';
+import { ClosingPreviewService } from './closing-preview.service.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
+  ClosingPreviewQueryDto,
+  closingPreviewQueryPipe,
+} from './dto/daily-closing.dto.js';
 import { DailyClosingService } from './daily-closing.service.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -110,7 +118,28 @@ export class DailyClosingsController {
     @Inject(FinanceReadService) private readonly finances: FinanceReadService,
     @Inject(DailyClosingService)
     private readonly closings: DailyClosingService,
+    @Inject(ClosingPreviewService)
+    private readonly preview: ClosingPreviewService,
   ) {}
+
+  /**
+   * The day's figures before committing to a closing. A pure read: it creates
+   * nothing, so `closings.read` is the right gate rather than `closings.create`
+   * — someone who may look at closings may look at what one would contain.
+   */
+  @Get('preview')
+  @RequirePermission('closings.read')
+  async previewClosing(
+    @Query(closingPreviewQueryPipe) query: ClosingPreviewQueryDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<DailyClosingPreviewView>> {
+    return readSuccess(
+      await this.preview.preview(query.businessDate),
+      request,
+      response,
+    );
+  }
 
   @Post()
   @RequirePermission('closings.create')

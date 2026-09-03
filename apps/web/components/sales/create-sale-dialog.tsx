@@ -254,7 +254,7 @@ export function CreateSaleDialog({
               are context. Mixing them slows down the frequent path.
             */}
             <fieldset className="sale-lines">
-              <legend>Entrega y canal</legend>
+              <legend>Logística y canal</legend>
               <div className="sale-form-grid">
                 <label className="filter-field">
                   <span>Canal de venta</span>
@@ -293,7 +293,7 @@ export function CreateSaleDialog({
                   </select>
                 </label>
                 <label className="filter-field">
-                  <span>Entregador</span>
+                  <span>Repartidor</span>
                   <input
                     maxLength={200}
                     onChange={(event) =>
@@ -304,7 +304,7 @@ export function CreateSaleDialog({
                   />
                 </label>
                 <label className="filter-field">
-                  <span>Lugar de entrega</span>
+                  <span>Dirección</span>
                   <input
                     maxLength={500}
                     onChange={(event) =>

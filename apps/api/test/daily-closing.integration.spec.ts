@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { ClosingPreviewService } from '../src/finances/closing-preview.service.js';
+import { CreateFinancialEntryService } from '../src/finances/create-financial-entry.service.js';
 import { DailyClosingService } from '../src/finances/daily-closing.service.js';
 import { FinanceError } from '../src/finances/finance.errors.js';
 import { CreateSaleService } from '../src/sales/create-sale.service.js';
@@ -56,6 +58,8 @@ describe('FASE 8B.4 daily closing lifecycle', () => {
   let administrator!: DatabaseClient;
   let client!: DatabaseClient;
   let closings!: DailyClosingService;
+  let previews!: ClosingPreviewService;
+  let entries!: CreateFinancialEntryService;
   let sales!: CreateSaleService;
   let databaseName: string;
   let financeUserId: string;
@@ -104,6 +108,8 @@ describe('FASE 8B.4 daily closing lifecycle', () => {
       undefined,
       { now: () => new Date(now) },
     );
+    previews = new ClosingPreviewService(client, '0.50');
+    entries = new CreateFinancialEntryService(client);
     sales = new CreateSaleService(client, undefined, {
       now: () => new Date(now),
     });
@@ -225,6 +231,144 @@ describe('FASE 8B.4 daily closing lifecycle', () => {
         where: { action: 'closings.created', entityId: closing.id },
       }),
     ).toBe(1);
+  });
+
+  it('previews the same figures the closing will record', async () => {
+    // The whole point: if the preview and the closing disagreed, a partner
+    // would count the drawer against one number and the system would store
+    // another. Both read through the same query.
+    now = new Date('2026-10-02T14:00:00.000Z');
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-02',
+      items: [{ productId, quantity: '2', warehouseId }],
+      paymentMethodText: 'Efectivo',
+      status: 'COMPLETED',
+    });
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-02',
+      items: [{ productId, quantity: '1', warehouseId }],
+      status: 'IN_TRANSIT',
+    });
+
+    const preview = await previews.preview('2026-10-02');
+    expect(preview.alreadyClosed).toBe(false);
+    expect(preview.existingClosingId).toBeNull();
+    expect(preview.inTransitSaleCount).toBe(1);
+    expect(preview.tolerance).toBe('0.50');
+
+    const closing = await closings.create(
+      financeUserId,
+      key(),
+      request('2026-10-02', preview.systemSales),
+    );
+    expect(closing.systemSales).toBe(preview.systemSales);
+    expect(closing.inTransitSaleCount).toBe(preview.inTransitSaleCount);
+    expect(closing.balanced).toBe(true);
+  });
+
+  it('splits each seller by how the sale was paid', async () => {
+    now = new Date('2026-10-03T14:00:00.000Z');
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-03',
+      items: [{ productId, quantity: '2', warehouseId }],
+      paymentMethodText: 'Efectivo',
+      sellerUserId: sellerId,
+      status: 'COMPLETED',
+    });
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-03',
+      items: [{ productId, quantity: '1', warehouseId }],
+      paymentMethodText: 'Digital',
+      sellerUserId: sellerId,
+      status: 'COMPLETED',
+    });
+
+    const preview = await previews.preview('2026-10-03');
+    expect(preview.bySeller).toHaveLength(1);
+    const seller = preview.bySeller[0];
+    expect(seller?.sellerUserId).toBe(sellerId);
+    expect(seller?.sellerName).not.toBe('');
+    expect(seller?.cashAmount).toBe('20.00');
+    expect(seller?.digitalAmount).toBe('10.00');
+    expect(seller?.unspecifiedAmount).toBe('0.00');
+    expect(seller?.totalAmount).toBe('30.00');
+    expect(seller?.saleCount).toBe(2);
+  });
+
+  it('reports an unstated payment method instead of assuming digital', async () => {
+    // The legacy system folded anything not marked cash into digital, which
+    // silently overstated it. An unknown method is reported as unknown.
+    now = new Date('2026-10-04T14:00:00.000Z');
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-04',
+      items: [{ productId, quantity: '3', warehouseId }],
+      sellerUserId: sellerId,
+      status: 'COMPLETED',
+    });
+
+    const seller = (await previews.preview('2026-10-04')).bySeller[0];
+    expect(seller?.unspecifiedAmount).toBe('30.00');
+    expect(seller?.digitalAmount).toBe('0.00');
+    expect(seller?.cashAmount).toBe('0.00');
+  });
+
+  it('warns that the date is already closed, and points at the closing', async () => {
+    now = new Date('2026-10-05T14:00:00.000Z');
+    const closing = await closings.create(
+      financeUserId,
+      key(),
+      request('2026-10-05', '0.00'),
+    );
+
+    const preview = await previews.preview('2026-10-05');
+    expect(preview.alreadyClosed).toBe(true);
+    expect(preview.existingClosingId).toBe(closing.id);
+    expect(preview.existingClosingStatus).toBe('CLOSED');
+  });
+
+  it('lists the day expenses without letting them move the balance', async () => {
+    // DEC-023: expenses are context for counting physical cash, never part of
+    // the difference.
+    now = new Date('2026-10-06T14:00:00.000Z');
+    await sales.create(sellerId, key(), {
+      businessDate: '2026-10-06',
+      items: [{ productId, quantity: '1', warehouseId }],
+      status: 'COMPLETED',
+    });
+    const category = await client.financialCategory.create({
+      data: {
+        active: true,
+        code: 'TEST-COMBUSTIBLE',
+        entryType: 'EXPENSE',
+        name: 'Combustible',
+      },
+      select: { id: true, name: true },
+    });
+    // Through the real service, so the expense satisfies the FASE 8A shape
+    // constraints exactly as a recorded one does.
+    await entries.create(financeUserId, key(), {
+      amount: '7.50',
+      businessDate: '2026-10-06',
+      categoryId: category.id,
+      description: 'Combustible',
+      entryType: 'EXPENSE',
+      responsibleUserId: financeUserId,
+    });
+
+    const preview = await previews.preview('2026-10-06');
+    expect(preview.totalExpenses).toBe('7.50');
+    expect(preview.dayExpenses).toHaveLength(1);
+    expect(preview.dayExpenses[0]?.description).toBe('Combustible');
+    expect(preview.dayExpenses[0]?.categoryName).toBe(category.name);
+
+    // The expense is listed, and the balance still ignores it entirely.
+    const closing = await closings.create(
+      financeUserId,
+      key(),
+      request('2026-10-06', preview.systemSales),
+    );
+    expect(closing.balanced).toBe(true);
+    expect(closing.difference).toBe('0.00');
   });
 
   it('freezes completed sales and counts in-transit sales separately', async () => {

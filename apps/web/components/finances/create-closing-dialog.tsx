@@ -1,11 +1,12 @@
 'use client';
 
-import type { DailyClosingView } from '@sgi/contracts';
-import { type FormEvent, useRef, useState } from 'react';
+import type { DailyClosingPreviewView, DailyClosingView } from '@sgi/contracts';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import { formatMoney } from '@/lib/inventory/presentation';
 import { ApiHttpError } from '@/lib/http/api-client';
 import { closingsApi } from '@/lib/http/finances-api';
-import { closingPreview } from '@/lib/finances/closing-preview';
+import { closingBalance, closingPreview } from '@/lib/finances/closing-preview';
 import { useAuth } from '@/providers/auth-provider';
 import { useModalDialog } from '@/lib/use-modal-dialog';
 
@@ -52,13 +53,40 @@ export function CreateClosingDialog({
   const [realCash, setRealCash] = useState('');
   const [realDigital, setRealDigital] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [day, setDay] = useState<DailyClosingPreviewView | null>(null);
+  const [dayError, setDayError] = useState(false);
+
+  // The day's figures load as soon as a date is chosen, so the partner counts
+  // the drawer against a number on screen instead of after saving.
+  useEffect(() => {
+    const controller = new AbortController();
+    const scheduled = window.setTimeout(() => {
+      setDay(null);
+      setDayError(false);
+      closingsApi
+        .preview(businessDate, controller.signal)
+        .then((loaded) => setDay(loaded))
+        .catch(() => {
+          if (!controller.signal.aborted) setDayError(true);
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(scheduled);
+      controller.abort();
+    };
+  }, [businessDate]);
+
+  const balance = day
+    ? closingBalance(day.systemSales, realCash, realDigital, day.tolerance)
+    : { kind: 'unknown' as const };
 
   const preview = closingPreview(
     businessDate,
     realCash || '0',
     realDigital || '0',
   );
-  const canSubmit = preview.kind === 'valid' && !submitting;
+  const canSubmit =
+    preview.kind === 'valid' && !submitting && day?.alreadyClosed !== true;
 
   function changeIntent(action: () => void) {
     action();
@@ -129,6 +157,88 @@ export function CreateClosingDialog({
               value={businessDate}
             />
           </label>
+          {dayError ? (
+            <p className="form-feedback" data-tone="warning" role="status">
+              No fue posible cargar las ventas del día. Podés cerrar de todos
+              modos: el servidor calcula la cifra definitiva.
+            </p>
+          ) : null}
+
+          {day?.alreadyClosed ? (
+            <p className="form-feedback" data-tone="warning" role="alert">
+              Esa fecha ya tiene un cierre registrado. Revisalo antes de
+              intentar cerrarla otra vez.
+            </p>
+          ) : null}
+
+          {day ? (
+            <>
+              <div className="kpi-grid">
+                <article className="kpi-card">
+                  <span className="kpi-label">Ventas del día</span>
+                  <span className="kpi-value">
+                    {formatMoney(day.systemSales)}
+                  </span>
+                  <span className="kpi-note">Solo ventas completadas</span>
+                </article>
+                <article className="kpi-card">
+                  <span className="kpi-label">En tránsito</span>
+                  <span
+                    className="kpi-value"
+                    data-tone={
+                      day.inTransitSaleCount > 0 ? 'warning' : undefined
+                    }
+                  >
+                    {day.inTransitSaleCount}
+                  </span>
+                  <span className="kpi-note">No afectan el cuadre</span>
+                </article>
+                <article className="kpi-card">
+                  <span className="kpi-label">Gastos del día</span>
+                  <span className="kpi-value">
+                    {formatMoney(day.totalExpenses)}
+                  </span>
+                  <span className="kpi-note">Contexto: no restan</span>
+                </article>
+              </div>
+
+              {day.bySeller.length > 0 ? (
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Vendedor</th>
+                        <th scope="col">Efectivo</th>
+                        <th scope="col">Digital</th>
+                        <th scope="col">Sin método</th>
+                        <th scope="col">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {day.bySeller.map((seller) => (
+                        <tr key={seller.sellerUserId ?? 'sin-vendedor'}>
+                          <td data-label="Vendedor">{seller.sellerName}</td>
+                          <td data-label="Efectivo" data-numeric="true">
+                            {formatMoney(seller.cashAmount)}
+                          </td>
+                          <td data-label="Digital" data-numeric="true">
+                            {formatMoney(seller.digitalAmount)}
+                          </td>
+                          <td data-label="Sin método" data-numeric="true">
+                            {formatMoney(seller.unspecifiedAmount)}
+                          </td>
+                          <td data-label="Total" data-numeric="true">
+                            {formatMoney(seller.totalAmount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
           <div className="sale-form-grid">
             <label className="filter-field">
               <span>Efectivo contado (C$)</span>
@@ -153,6 +263,18 @@ export function CreateClosingDialog({
               />
             </label>
           </div>
+
+          {balance.kind === 'known' ? (
+            <p
+              className="form-feedback"
+              data-tone={balance.balanced ? 'success' : 'warning'}
+              role="status"
+            >
+              {balance.balanced
+                ? `Caja cuadrada. Diferencia ${formatMoney(balance.difference)}.`
+                : `Descuadre de ${formatMoney(balance.difference)}. Tolerancia ${formatMoney(day?.tolerance ?? '0')}.`}
+            </p>
+          ) : null}
           <label className="filter-field">
             <span>Observaciones (opcional)</span>
             <input
