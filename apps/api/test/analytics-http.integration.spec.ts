@@ -344,6 +344,90 @@ describe('FASE 9B.3 analytics', () => {
     });
   });
 
+  it('groups sales by channel and reports the share without money', async () => {
+    const response = await get(
+      '/api/v1/analytics/sales?from=2026-09-01&to=2026-09-30',
+      await cookie(analystId),
+    ).expect(200);
+    const channels = response.body.data.byChannel;
+    expect(channels).toHaveLength(1);
+    // The sale was created before channels were captured, so it reports as
+    // unstated rather than being dropped from the breakdown.
+    expect(channels[0].channel).toBe('No especificado');
+    expect(channels[0].saleCount).toBe(1);
+    expect(channels[0].share).toBe('1.0000');
+    // Share is of sale count, so it survives without finances.read.
+    expect(channels[0].revenue).toBeNull();
+  });
+
+  it('names each seller and reports an average ticket only with finances.read', async () => {
+    const plain = await get(
+      '/api/v1/analytics/sales?from=2026-09-01&to=2026-09-30',
+      await cookie(analystId),
+    ).expect(200);
+    expect(plain.body.data.bySeller[0].sellerName).toContain('phase9b3-seller');
+    expect(plain.body.data.bySeller[0].averageTicket).toBeNull();
+    expect(plain.body.data.averageTicket).toBeNull();
+
+    const funded = await get(
+      '/api/v1/analytics/sales?from=2026-09-01&to=2026-09-30',
+      await cookie(financeAnalystId),
+    ).expect(200);
+    // One sale of 150.00, so the ticket equals the revenue.
+    expect(funded.body.data.bySeller[0].averageTicket).toBe('150.00');
+    expect(funded.body.data.averageTicket).toBe('150.00');
+  });
+
+  it('reports each product share of the period units', async () => {
+    const response = await get(
+      '/api/v1/analytics/sales?from=2026-09-01&to=2026-09-30',
+      await cookie(analystId),
+    ).expect(200);
+    const [first, second] = response.body.data.topProducts;
+    // 10 and 5 units of 15 total.
+    expect(first.unitsShare).toBe('0.6667');
+    expect(second.unitsShare).toBe('0.3333');
+  });
+
+  it('reports catalogue availability and alerts on stock at its minimum', async () => {
+    // A minimum above zero on a product whose balance sits at or below it.
+    await client.product.update({
+      data: { minimumStock: '20.0000' },
+      where: { id: costedProductId },
+    });
+
+    const response = await get(
+      '/api/v1/analytics/inventory',
+      await cookie(analystId),
+    ).expect(200);
+    const data = response.body.data;
+
+    // Two active products in the catalogue; one holds stock.
+    expect(data.catalogProducts).toBe(2);
+    expect(data.availability).toBe('0.5000');
+
+    expect(data.lowStock).toHaveLength(1);
+    expect(data.lowStock[0].productCode).toBe('ANL-001');
+    expect(data.lowStock[0].quantity).toBe('10.0000');
+    expect(data.lowStock[0].minimumStock).toBe('20.0000');
+    expect(data.lowStock[0].warehouseCode).not.toBe('');
+
+    await client.product.update({
+      data: { minimumStock: '0.0000' },
+      where: { id: costedProductId },
+    });
+  });
+
+  it('does not alert when no minimum was ever set', async () => {
+    // A default minimum of zero means nobody chose a threshold, so a balance of
+    // zero is not an alert — otherwise every untracked product would shout.
+    const response = await get(
+      '/api/v1/analytics/inventory',
+      await cookie(analystId),
+    ).expect(200);
+    expect(response.body.data.lowStock).toHaveLength(0);
+  });
+
   it('buckets by the requested granularity', async () => {
     const session = await cookie(financeAnalystId);
     const weekly = await get(

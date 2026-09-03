@@ -19,6 +19,11 @@ function formatMoney(value: string | null): string {
   }).format(Number(value));
 }
 
+/** A `0`–`1` ratio the API already rounded, rendered for reading. */
+function percent(ratio: string): string {
+  return `${(Number(ratio) * 100).toFixed(1)} %`;
+}
+
 function formatPercent(ratio: string | null): string {
   if (ratio === null) return '—';
   return `${(Number(ratio) * 100).toFixed(1)} %`;
@@ -163,6 +168,15 @@ export default function AnalyticsPage() {
               </span>
             </article>
             <article className="kpi-card">
+              <span className="kpi-label">Ticket promedio</span>
+              <span className="kpi-value">
+                {formatMoney(data.averageTicket)}
+              </span>
+              <span className="kpi-note">
+                {data.saleCount} venta(s) en el periodo
+              </span>
+            </article>
+            <article className="kpi-card">
               <span className="kpi-label">Margen</span>
               <span className="kpi-value">
                 {formatPercent(data.marginRatio)}
@@ -211,6 +225,70 @@ export default function AnalyticsPage() {
             )}
           </section>
 
+          <section aria-labelledby="sellers-title" className="detail-section">
+            <div className="section-heading">
+              <h2 id="sellers-title">Vendedores</h2>
+            </div>
+            {data.bySeller.length === 0 ? (
+              <p className="read-state">Sin ventas completadas en el rango.</p>
+            ) : (
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Vendedor</th>
+                      <th scope="col">Ventas</th>
+                      <th scope="col">Facturado</th>
+                      <th scope="col">Ticket promedio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.bySeller.map((seller) => (
+                      <tr key={seller.sellerUserId ?? 'sin-vendedor'}>
+                        <td data-label="Vendedor">{seller.sellerName}</td>
+                        <td data-label="Ventas" data-numeric="true">
+                          {seller.saleCount}
+                        </td>
+                        <td data-label="Facturado" data-numeric="true">
+                          {formatMoney(seller.revenue)}
+                        </td>
+                        <td data-label="Ticket promedio" data-numeric="true">
+                          {formatMoney(seller.averageTicket)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="channels-title" className="detail-section">
+            <div className="section-heading">
+              <h2 id="channels-title">Canales de venta</h2>
+            </div>
+            {data.byChannel.length === 0 ? (
+              <p className="read-state">Sin ventas completadas en el rango.</p>
+            ) : (
+              <ul className="chart-bars">
+                {data.byChannel.map((point) => (
+                  <li key={point.channel}>
+                    <span>{point.channel}</span>
+                    <span className="chart-bar-track">
+                      <span
+                        className="chart-bar-fill"
+                        style={{ width: `${Number(point.share) * 100}%` }}
+                      />
+                    </span>
+                    <span className="chart-bar-value">
+                      {percent(point.share)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <section aria-labelledby="top-title" className="detail-section">
             <div className="section-heading">
               <h2 id="top-title">Productos más vendidos</h2>
@@ -230,7 +308,9 @@ export default function AnalyticsPage() {
                         }}
                       />
                     </span>
-                    <span className="chart-bar-value">{point.unitsSold}</span>
+                    <span className="chart-bar-value">
+                      {point.unitsSold} · {percent(point.unitsShare)}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -122,6 +122,17 @@ export default function AppPage() {
               <span className="kpi-note">Saldos en cero</span>
             </article>
             <article className="kpi-card">
+              <span className="kpi-label">Disponibilidad</span>
+              <span className="kpi-value">
+                {inventory.data.availability === null
+                  ? '—'
+                  : `${(Number(inventory.data.availability) * 100).toFixed(0)} %`}
+              </span>
+              <span className="kpi-note">
+                Del catálogo de {inventory.data.catalogProducts} productos
+              </span>
+            </article>
+            <article className="kpi-card">
               <span className="kpi-label">Costos por revisar</span>
               <span
                 className="kpi-value"
@@ -152,6 +163,50 @@ export default function AppPage() {
                 )}
               </article>
             )}
+          </div>
+        </section>
+      ) : null}
+
+      {inventory.kind === 'ready' && inventory.data.lowStock.length > 0 ? (
+        <section aria-labelledby="low-stock-title" className="detail-section">
+          <div className="section-heading">
+            <h2 id="low-stock-title">Stock por reponer</h2>
+          </div>
+          {/*
+            Only balances whose product has a minimum above zero appear here: a
+            default of zero means nobody set a threshold, and alerting on those
+            would bury the ones that matter.
+          */}
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Producto</th>
+                  <th scope="col">Bodega</th>
+                  <th scope="col">Existencia</th>
+                  <th scope="col">Mínimo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.data.lowStock.map((alert) => (
+                  <tr key={`${alert.productId}:${alert.warehouseCode}`}>
+                    <td data-label="Producto">
+                      {alert.productCode}
+                      <span>{alert.productName}</span>
+                    </td>
+                    <td data-label="Bodega">{alert.warehouseName}</td>
+                    <td data-label="Existencia" data-numeric="true">
+                      <span className="difference" data-sign="negative">
+                        {alert.quantity}
+                      </span>
+                    </td>
+                    <td data-label="Mínimo" data-numeric="true">
+                      {alert.minimumStock}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       ) : null}

@@ -1,5 +1,7 @@
 import type {
+  ChannelPoint,
   InventoryAnalytics,
+  LowStockAlert,
   SalesAnalytics,
   SalesPeriodPoint,
   SellerPoint,
@@ -17,6 +19,7 @@ import {
   calculateMargin,
   coverageOf,
   periodStart,
+  ratioString,
   type MarginLine,
 } from './analytics-margin.js';
 import type { SalesAnalyticsQueryDto } from './dto/analytics-query.dto.js';
@@ -45,20 +48,28 @@ export class AnalyticsReadService {
   constructor(private readonly database: DatabaseClient) {}
 
   async inventory(includeMoney: boolean): Promise<InventoryAnalytics> {
-    const [warehouses, balances] = await Promise.all([
+    const [warehouses, catalogProducts, balances] = await Promise.all([
       this.database.warehouse.count({ where: { active: true } }),
+      this.database.product.count({ where: { active: true } }),
       this.database.inventoryBalance.findMany({
+        orderBy: [{ product: { code: 'asc' } }],
         select: {
           costReviewRequired: true,
           currentUnitCost: true,
           priceReviewRequired: true,
+          product: {
+            select: { code: true, id: true, minimumStock: true, name: true },
+          },
           productId: true,
           quantity: true,
+          warehouse: { select: { code: true, name: true } },
         },
       }),
     ]);
 
     const products = new Set<string>();
+    const stocked = new Set<string>();
+    const lowStock: LowStockAlert[] = [];
     let outOfStock = 0;
     let costReview = 0;
     let priceReview = 0;
@@ -68,9 +79,27 @@ export class AnalyticsReadService {
     for (const balance of balances) {
       products.add(balance.productId);
       const quantity = balance.quantity.toFixed(4);
-      if (inventoryScaledInteger(quantity) === 0n) outOfStock += 1;
+      const scaled = inventoryScaledInteger(quantity) ?? 0n;
+      if (scaled === 0n) outOfStock += 1;
+      else stocked.add(balance.productId);
       if (balance.costReviewRequired) costReview += 1;
       if (balance.priceReviewRequired) priceReview += 1;
+
+      // A minimum of zero is the default and means nobody set one, so it is not
+      // a threshold to alert on.
+      const minimum = balance.product.minimumStock.toFixed(4);
+      const scaledMinimum = inventoryScaledInteger(minimum) ?? 0n;
+      if (scaledMinimum > 0n && scaled <= scaledMinimum) {
+        lowStock.push({
+          minimumStock: minimum,
+          productCode: balance.product.code,
+          productId: balance.product.id,
+          productName: balance.product.name,
+          quantity,
+          warehouseCode: balance.warehouse.code,
+          warehouseName: balance.warehouse.name,
+        });
+      }
 
       // A cost flagged for review is not a cost: pricing stock with it would
       // report a valuation the business has already said it cannot trust.
@@ -87,8 +116,14 @@ export class AnalyticsReadService {
     }
 
     return {
+      availability:
+        catalogProducts === 0
+          ? null
+          : ratioString(BigInt(stocked.size), BigInt(catalogProducts)),
+      catalogProducts,
       costReviewCount: costReview,
       distinctProducts: products.size,
+      lowStock,
       outOfStockCount: outOfStock,
       priceReviewCount: priceReview,
       totalValue: includeMoney ? centsToMoney(totalValue) : null,
@@ -123,6 +158,8 @@ export class AnalyticsReadService {
       select: {
         businessDate: true,
         id: true,
+        salesChannelText: true,
+        seller: { select: { displayName: true } },
         items: {
           select: {
             lineSubtotal: true,
@@ -144,7 +181,11 @@ export class AnalyticsReadService {
       string,
       { revenue: bigint; sales: number; units: bigint }
     >();
-    const sellers = new Map<string, { revenue: bigint; sales: number }>();
+    const sellers = new Map<
+      string,
+      { name: string; revenue: bigint; sales: number }
+    >();
+    const channels = new Map<string, { revenue: bigint; sales: number }>();
     const products = new Map<
       string,
       { code: string; name: string; revenue: bigint; units: bigint }
@@ -164,10 +205,23 @@ export class AnalyticsReadService {
       period.sales += 1;
 
       const sellerKey = sale.sellerUserId ?? '';
-      const seller = sellers.get(sellerKey) ?? { revenue: 0n, sales: 0 };
+      const seller = sellers.get(sellerKey) ?? {
+        name: sale.seller?.displayName ?? 'Sin vendedor',
+        revenue: 0n,
+        sales: 0,
+      };
       seller.revenue += saleTotal;
       seller.sales += 1;
       sellers.set(sellerKey, seller);
+
+      // A blank channel is reported as unstated rather than dropped: knowing
+      // how many orders arrived through no recorded channel is itself useful.
+      const channelKey =
+        (sale.salesChannelText ?? '').trim() || 'No especificado';
+      const channel = channels.get(channelKey) ?? { revenue: 0n, sales: 0 };
+      channel.revenue += saleTotal;
+      channel.sales += 1;
+      channels.set(channelKey, channel);
 
       for (const item of sale.items) {
         const quantity = inventoryScaledInteger(item.quantity.toFixed(4)) ?? 0n;
@@ -215,6 +269,10 @@ export class AnalyticsReadService {
         unitsSold: inventoryDecimalString(value.units),
       }));
 
+    const totalUnits = [...products.values()].reduce(
+      (sum, value) => sum + value.units,
+      0n,
+    );
     const topProducts: TopProductPoint[] = [...products.entries()]
       .sort(([, left], [, right]) => (right.units > left.units ? 1 : -1))
       .slice(0, 10)
@@ -223,18 +281,51 @@ export class AnalyticsReadService {
         productId,
         productName: value.name,
         revenue: includeMoney ? centsToMoney(value.revenue) : null,
+        unitsShare:
+          totalUnits === 0n
+            ? '0.0000'
+            : (ratioString(value.units, totalUnits) ?? '0.0000'),
         unitsSold: inventoryDecimalString(value.units),
       }));
 
     const bySeller: SellerPoint[] = [...sellers.entries()]
-      .sort(([, left], [, right]) => right.sales - left.sales)
+      .sort(([, left], [, right]) =>
+        right.revenue === left.revenue
+          ? right.sales - left.sales
+          : right.revenue > left.revenue
+            ? 1
+            : -1,
+      )
       .map(([sellerUserId, value]) => ({
+        averageTicket:
+          includeMoney && value.sales > 0
+            ? centsToMoney(value.revenue / BigInt(value.sales))
+            : null,
         revenue: includeMoney ? centsToMoney(value.revenue) : null,
         saleCount: value.sales,
+        sellerName: value.name,
         sellerUserId: sellerUserId === '' ? null : sellerUserId,
       }));
 
+    const byChannel: ChannelPoint[] = [...channels.entries()]
+      .sort(([, left], [, right]) => right.sales - left.sales)
+      .map(([channel, value]) => ({
+        channel,
+        revenue: includeMoney ? centsToMoney(value.revenue) : null,
+        saleCount: value.sales,
+        share:
+          sales.length === 0
+            ? '0.0000'
+            : (ratioString(BigInt(value.sales), BigInt(sales.length)) ??
+              '0.0000'),
+      }));
+
     return {
+      averageTicket:
+        includeMoney && sales.length > 0
+          ? centsToMoney(totalRevenue / BigInt(sales.length))
+          : null,
+      byChannel,
       bySeller,
       cost: includeMoney ? centsToMoney(margin.costCents) : null,
       granularity: input.granularity,

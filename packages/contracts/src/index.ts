@@ -5,7 +5,9 @@ export type {
 } from './finances.js';
 export type {
   AnalyticsPublicErrorCode,
+  ChannelPoint,
   InventoryAnalytics,
+  LowStockAlert,
   MarginCoverage,
   SalesAnalytics,
   SalesPeriodPoint,
