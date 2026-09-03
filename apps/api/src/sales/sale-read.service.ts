@@ -1,9 +1,10 @@
 import type { PaginatedData, SaleView } from '@sgi/contracts';
-import type { DatabaseClient, Prisma } from '@sgi/database';
+import type { DatabaseClient } from '@sgi/database';
 
 import { pageOffset, pageResult } from '../common/pagination.js';
 import type { SaleQueryDto } from './dto/sale-query.dto.js';
 import { mapSale } from './sale-read.mapper.js';
+import { saleSelect } from './sale-select.js';
 
 export class SaleNotFoundError extends Error {
   constructor() {
@@ -11,42 +12,6 @@ export class SaleNotFoundError extends Error {
     this.name = 'SaleNotFoundError';
   }
 }
-
-/**
- * Only read-safe columns are selected. `unitCostSnapshot`, idempotency and
- * request hashes, delivery place, and legacy free text are never selected, so
- * they cannot leak through the read surface (ADR-009, plan §3).
- */
-const saleSelect = {
-  businessDate: true,
-  completedAt: true,
-  createdAt: true,
-  currencyCode: true,
-  departureAt: true,
-  id: true,
-  items: {
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      lineSubtotal: true,
-      product: { select: { code: true, id: true, name: true } },
-      quantity: true,
-      shippingAllocation: true,
-      unitPriceSnapshot: true,
-      warehouse: {
-        select: { active: true, code: true, id: true, name: true },
-      },
-    },
-  },
-  origin: true,
-  paymentStatus: true,
-  saleNumber: true,
-  sellerUserId: true,
-  shippingAmount: true,
-  status: true,
-  subtotal: true,
-  total: true,
-} satisfies Prisma.SaleSelect;
 
 export class SaleReadService {
   constructor(private readonly database: DatabaseClient) {}

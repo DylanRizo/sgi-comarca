@@ -23,6 +23,7 @@ import {
 } from './sale-money.js';
 import { resolveLinePricing } from './sale-pricing.js';
 import { mapSale, type SaleRecord } from './sale-read.mapper.js';
+import { saleSelect } from './sale-select.js';
 import { allocateShipping } from './sale-shipping-allocation.js';
 import { SaleError } from './sale.errors.js';
 
@@ -70,6 +71,17 @@ function transactionConflict(error: unknown): boolean {
 
 function pairKey(productId: string, warehouseId: string): string {
   return `${productId}:${warehouseId}`;
+}
+
+/**
+ * Store free text exactly as the idempotency hash saw it: trimmed, with blank
+ * collapsed to null. If these diverged, a replay of the same intent would
+ * persist a different value than the one its hash was computed from.
+ */
+function operationalText(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 export class CreateSaleService {
@@ -320,11 +332,20 @@ export class CreateSaleService {
         completedAt: input.status === 'COMPLETED' ? occurredAt : null,
         createdByUserId: actorUserId,
         currencyCode: 'NIO',
-        departureAt: occurredAt,
+        // The caller may state when the order actually left; otherwise the
+        // write instant stands, which is what this service did before.
+        departureAt: input.departureAt
+          ? new Date(input.departureAt)
+          : occurredAt,
+        delivererText: operationalText(input.delivererText),
+        deliveryPlace: operationalText(input.deliveryPlace),
         idempotencyKeyHash: hashes.idempotencyKeyHash,
+        observations: operationalText(input.observations),
         origin: 'OPERATIONAL',
+        paymentMethodText: operationalText(input.paymentMethodText),
         paymentStatus: 'PENDING',
         requestHash: hashes.requestHash,
+        salesChannelText: operationalText(input.salesChannelText),
         sellerUserId,
         shippingAmount: centsToMoney(shippingCents),
         status: input.status,
@@ -446,36 +467,7 @@ export class CreateSaleService {
     id: string,
   ): Promise<SaleRecord> {
     const sale = await transaction.sale.findUnique({
-      select: {
-        businessDate: true,
-        completedAt: true,
-        createdAt: true,
-        currencyCode: true,
-        departureAt: true,
-        id: true,
-        items: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: {
-            id: true,
-            lineSubtotal: true,
-            product: { select: { code: true, id: true, name: true } },
-            quantity: true,
-            shippingAllocation: true,
-            unitPriceSnapshot: true,
-            warehouse: {
-              select: { active: true, code: true, id: true, name: true },
-            },
-          },
-        },
-        origin: true,
-        paymentStatus: true,
-        saleNumber: true,
-        sellerUserId: true,
-        shippingAmount: true,
-        status: true,
-        subtotal: true,
-        total: true,
-      },
+      select: saleSelect,
       where: { id },
     });
     if (!sale) throw new SaleError('SALE_CONCURRENCY_CONFLICT');

@@ -4,10 +4,12 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import type { SaleCreationStatus } from '@sgi/contracts';
@@ -62,4 +64,43 @@ export class CreateSaleDto {
 
   @IsIn(creationStatuses)
   status!: SaleCreationStatus;
+
+  /**
+   * Operational logistics. All optional: a counter sale has no courier and a
+   * WhatsApp order may have no address yet.
+   *
+   * The three short texts mirror their VarChar columns so the database is
+   * never the first thing to reject a value. Address and observations are
+   * unbounded TEXT in PostgreSQL, so the caps here are the application's own
+   * choice: an address or a note past these lengths is a mistake, not a
+   * legitimate order.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  salesChannelText?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  delivererText?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  deliveryPlace?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  paymentMethodText?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  observations?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  departureAt?: string;
 }

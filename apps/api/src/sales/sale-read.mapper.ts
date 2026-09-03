@@ -45,6 +45,11 @@ export interface SaleRecord {
   completedAt: Date | null;
   createdAt: Date;
   items: SaleItemRecord[];
+  salesChannelText: string | null;
+  delivererText: string | null;
+  deliveryPlace: string | null;
+  paymentMethodText: string | null;
+  observations: string | null;
 }
 
 /**
@@ -103,12 +108,17 @@ export function mapSale(sale: SaleRecord): SaleView {
     completedAt: sale.completedAt?.toISOString() ?? null,
     createdAt: sale.createdAt.toISOString(),
     currencyCode: sale.currencyCode,
+    delivererText: sale.delivererText,
+    deliveryPlace: sale.deliveryPlace,
     departureAt: sale.departureAt?.toISOString() ?? null,
     id: sale.id,
     items: sale.items.map(saleItemView),
+    observations: sale.observations,
     origin: sale.origin,
+    paymentMethodText: sale.paymentMethodText,
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
+    salesChannelText: sale.salesChannelText,
     sellerUserId: sale.sellerUserId,
     shippingAmount: moneyString(sale.shippingAmount),
     status: sale.status,

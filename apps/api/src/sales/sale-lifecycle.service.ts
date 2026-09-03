@@ -12,6 +12,7 @@ import {
   type SaleLineAuditEntry,
 } from './sale-audit.service.js';
 import { mapSale, type SaleRecord } from './sale-read.mapper.js';
+import { saleSelect } from './sale-select.js';
 import { SaleError } from './sale.errors.js';
 
 type TransactionClient = Omit<
@@ -36,37 +37,6 @@ function transactionConflict(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return ['40001', '40P01', '55P03'].some((code) => message.includes(code));
 }
-
-const saleSelect = {
-  businessDate: true,
-  completedAt: true,
-  createdAt: true,
-  currencyCode: true,
-  departureAt: true,
-  id: true,
-  items: {
-    orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
-    select: {
-      id: true,
-      lineSubtotal: true,
-      product: { select: { code: true, id: true, name: true } },
-      quantity: true,
-      shippingAllocation: true,
-      unitPriceSnapshot: true,
-      warehouse: {
-        select: { active: true, code: true, id: true, name: true },
-      },
-    },
-  },
-  origin: true,
-  paymentStatus: true,
-  saleNumber: true,
-  sellerUserId: true,
-  shippingAmount: true,
-  status: true,
-  subtotal: true,
-  total: true,
-};
 
 /**
  * In-transit confirmation and total cancellation (plan §10 and §11).

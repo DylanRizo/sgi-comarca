@@ -240,6 +240,71 @@ describe('FASE 7B.3 operational sale creation', () => {
     expect(audits).toHaveLength(1);
   });
 
+  it('persists and reads back the operational logistics of a sale', async () => {
+    const sale = await creation.create(sellerId, randomUUID() + randomUUID(), {
+      businessDate: '2026-08-27',
+      delivererText: '  Jean  ',
+      deliveryPlace: 'Altamira, casa 12',
+      items: [
+        { productId: productAId, quantity: '1', warehouseId: warehouseAId },
+      ],
+      observations: 'Entregar despues de las 5',
+      paymentMethodText: 'Efectivo',
+      salesChannelText: 'WhatsApp',
+      status: 'IN_TRANSIT',
+    });
+
+    // Stored trimmed, matching exactly what the idempotency hash saw.
+    expect(sale.delivererText).toBe('Jean');
+    expect(sale.salesChannelText).toBe('WhatsApp');
+    expect(sale.paymentMethodText).toBe('Efectivo');
+    expect(sale.deliveryPlace).toBe('Altamira, casa 12');
+    expect(sale.observations).toBe('Entregar despues de las 5');
+
+    const reread = await reads.get(sale.id);
+    expect(reread.salesChannelText).toBe('WhatsApp');
+    expect(reread.deliveryPlace).toBe('Altamira, casa 12');
+  });
+
+  it('leaves logistics null when the counter omits it', async () => {
+    const sale = await creation.create(sellerId, randomUUID() + randomUUID(), {
+      businessDate: '2026-08-27',
+      delivererText: '   ',
+      items: [
+        { productId: productAId, quantity: '1', warehouseId: warehouseAId },
+      ],
+      status: 'IN_TRANSIT',
+    });
+
+    // Whitespace is not a value: a walk-in sale has no courier.
+    expect(sale.delivererText).toBeNull();
+    expect(sale.salesChannelText).toBeNull();
+    expect(sale.deliveryPlace).toBeNull();
+    expect(sale.observations).toBeNull();
+  });
+
+  it('refuses to replay one key with a rewritten address', async () => {
+    const key = randomUUID() + randomUUID();
+    const base = {
+      businessDate: '2026-08-27',
+      items: [
+        { productId: productAId, quantity: '1', warehouseId: warehouseAId },
+      ],
+      status: 'IN_TRANSIT' as const,
+    };
+    await creation.create(sellerId, key, {
+      ...base,
+      deliveryPlace: 'Altamira, casa 12',
+    });
+
+    await expect(
+      creation.create(sellerId, key, {
+        ...base,
+        deliveryPlace: 'Reparto San Juan',
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
+  });
+
   it('creates a completed sale across warehouses and allocates shipping exactly', async () => {
     const sale = await creation.create(sellerId, randomUUID() + randomUUID(), {
       businessDate: '2026-08-27',

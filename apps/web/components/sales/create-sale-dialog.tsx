@@ -83,6 +83,11 @@ export function CreateSaleDialog({
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<readonly ProductInventoryView[]>([]);
   const [shippingAmount, setShippingAmount] = useState('');
+  const [salesChannelText, setSalesChannelText] = useState('');
+  const [delivererText, setDelivererText] = useState('');
+  const [deliveryPlace, setDeliveryPlace] = useState('');
+  const [paymentMethodText, setPaymentMethodText] = useState('');
+  const [observations, setObservations] = useState('');
   const [status, setStatus] = useState<SaleCreationStatus>('IN_TRANSIT');
   const [submitting, setSubmitting] = useState(false);
   const [warehouses, setWarehouses] = useState<readonly WarehouseSummary[]>([]);
@@ -118,7 +123,17 @@ export function CreateSaleDialog({
   }
 
   const preview = previewSaleDraft(
-    { businessDate, lines, shippingAmount, status },
+    {
+      businessDate,
+      delivererText,
+      deliveryPlace,
+      lines,
+      observations,
+      paymentMethodText,
+      salesChannelText,
+      shippingAmount,
+      status,
+    },
     availableByPair,
     referencePriceByPair,
   );
@@ -232,6 +247,87 @@ export function CreateSaleDialog({
                 />
               </label>
             </div>
+
+            {/*
+              Logistics is separated from the cart on purpose: product, amount
+              and quantity are typed on every sale, while channel and address
+              are context. Mixing them slows down the frequent path.
+            */}
+            <fieldset className="sale-lines">
+              <legend>Entrega y canal</legend>
+              <div className="sale-form-grid">
+                <label className="filter-field">
+                  <span>Canal de venta</span>
+                  <select
+                    onChange={(event) =>
+                      changeIntent(() =>
+                        setSalesChannelText(event.target.value),
+                      )
+                    }
+                    value={salesChannelText}
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="Facebook Marketplace">
+                      Facebook Marketplace
+                    </option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Instagram">Instagram</option>
+                    <option value="TikTok">TikTok</option>
+                    <option value="Presencial/Local">Presencial/Local</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </label>
+                <label className="filter-field">
+                  <span>Método de pago</span>
+                  <select
+                    onChange={(event) =>
+                      changeIntent(() =>
+                        setPaymentMethodText(event.target.value),
+                      )
+                    }
+                    value={paymentMethodText}
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Digital">Digital</option>
+                  </select>
+                </label>
+                <label className="filter-field">
+                  <span>Entregador</span>
+                  <input
+                    maxLength={200}
+                    onChange={(event) =>
+                      changeIntent(() => setDelivererText(event.target.value))
+                    }
+                    placeholder="Quién lo lleva"
+                    value={delivererText}
+                  />
+                </label>
+                <label className="filter-field">
+                  <span>Lugar de entrega</span>
+                  <input
+                    maxLength={500}
+                    onChange={(event) =>
+                      changeIntent(() => setDeliveryPlace(event.target.value))
+                    }
+                    placeholder="Dirección o punto de encuentro"
+                    value={deliveryPlace}
+                  />
+                </label>
+              </div>
+              <label className="filter-field">
+                <span>Observaciones</span>
+                <textarea
+                  maxLength={1000}
+                  onChange={(event) =>
+                    changeIntent(() => setObservations(event.target.value))
+                  }
+                  placeholder="Notas del pedido"
+                  rows={2}
+                  value={observations}
+                />
+              </label>
+            </fieldset>
 
             <fieldset className="sale-lines">
               <legend>Líneas</legend>

@@ -7,7 +7,19 @@ export interface SaleDraftLine {
   warehouseId: string;
 }
 
-export interface SaleDraft {
+/**
+ * Optional logistics the counter captures. Blank means "not known", which is a
+ * normal state for a walk-in sale, so none of these gates a valid draft.
+ */
+export interface SaleDraftLogistics {
+  salesChannelText: string;
+  delivererText: string;
+  deliveryPlace: string;
+  paymentMethodText: string;
+  observations: string;
+}
+
+export interface SaleDraft extends Partial<SaleDraftLogistics> {
   businessDate: string;
   lines: readonly SaleDraftLine[];
   shippingAmount: string;
@@ -80,6 +92,14 @@ function invalid(
  * The reference price per pair, when known, feeds the informational estimate.
  * The client never sends subtotals, totals or cost.
  */
+function optionalText(
+  key: string,
+  value: string | undefined,
+): Record<string, string> {
+  const trimmed = (value ?? '').trim();
+  return trimmed.length === 0 ? {} : { [key]: trimmed };
+}
+
 export function previewSaleDraft(
   draft: SaleDraft,
   availableByPair: ReadonlyMap<string, string>,
@@ -151,6 +171,13 @@ export function previewSaleDraft(
       items,
       status: draft.status,
       ...(shippingCents > 0n ? { shippingAmount: draft.shippingAmount } : {}),
+      // A blank field is omitted rather than sent empty, so the request hash of
+      // "left blank" and "never shown" is the same intent.
+      ...optionalText('salesChannelText', draft.salesChannelText),
+      ...optionalText('delivererText', draft.delivererText),
+      ...optionalText('deliveryPlace', draft.deliveryPlace),
+      ...optionalText('paymentMethodText', draft.paymentMethodText),
+      ...optionalText('observations', draft.observations),
     },
   };
 }

@@ -44,6 +44,19 @@ export interface CreateSaleRequest {
   /** Optional Decimal(18,2) non-negative amount; canonical default `0.00`. */
   shippingAmount?: string;
   status: SaleCreationStatus;
+
+  /**
+   * Operational logistics captured at the counter. FASE 7A created these
+   * columns to preserve legacy text on import; the business also needs them
+   * for new sales, so they are writable here and blank when unknown.
+   */
+  salesChannelText?: string;
+  delivererText?: string;
+  deliveryPlace?: string;
+  paymentMethodText?: string;
+  observations?: string;
+  /** Instant the order left with the courier, when it leaves on creation. */
+  departureAt?: string;
 }
 
 /**
@@ -82,6 +95,17 @@ export interface SaleView {
   departureAt: string | null;
   completedAt: string | null;
   createdAt: string;
+
+  salesChannelText: string | null;
+  delivererText: string | null;
+  paymentMethodText: string | null;
+  observations: string | null;
+  /**
+   * Delivery address. Read here because the courier needs it, but deliberately
+   * absent from every report and CSV export: a single order is operational,
+   * a bulk export of customer addresses is not (FASE 9 plan section 5).
+   */
+  deliveryPlace: string | null;
 }
 
 export type SalesPublicErrorCode =

@@ -98,6 +98,63 @@ describe('canonicalCreateSaleRequest', () => {
     expect(withPrice).not.toBe(withoutPrice);
   });
 
+  it('treats a different delivery address as a different sale', () => {
+    // The whole point of putting logistics in the hash: replaying one key with
+    // the cart unchanged but the address rewritten must be refused, not
+    // silently answered with the original order.
+    expect(
+      createSaleRequestHash(request({ deliveryPlace: 'Reparto San Juan' })),
+    ).not.toBe(
+      createSaleRequestHash(request({ deliveryPlace: 'Altamira, casa 12' })),
+    );
+  });
+
+  it('separates each logistics field from the others', () => {
+    const base = createSaleRequestHash(request());
+    for (const field of [
+      'salesChannelText',
+      'delivererText',
+      'deliveryPlace',
+      'paymentMethodText',
+      'observations',
+    ] as const) {
+      expect(createSaleRequestHash(request({ [field]: 'valor' }))).not.toBe(
+        base,
+      );
+    }
+  });
+
+  it('reads blank, whitespace and omitted as the same intent', () => {
+    // An operator who tabs through a field and leaves a space has not changed
+    // the order, so a retry must not look like a new one.
+    const omitted = createSaleRequestHash(request());
+    expect(createSaleRequestHash(request({ delivererText: '' }))).toBe(omitted);
+    expect(createSaleRequestHash(request({ delivererText: '   ' }))).toBe(
+      omitted,
+    );
+    expect(createSaleRequestHash(request({ delivererText: ' Jean ' }))).toBe(
+      createSaleRequestHash(request({ delivererText: 'Jean' })),
+    );
+  });
+
+  it('canonicalises a departure instant so equivalent offsets agree', () => {
+    expect(
+      createSaleRequestHash(
+        request({ departureAt: '2026-08-27T15:00:00.000Z' }),
+      ),
+    ).toBe(
+      createSaleRequestHash(
+        request({ departureAt: '2026-08-27T09:00:00-06:00' }),
+      ),
+    );
+  });
+
+  it('rejects an unparseable departure instant', () => {
+    expect(() =>
+      canonicalCreateSaleRequest(request({ departureAt: 'ayer por la tarde' })),
+    ).toThrow(SaleError);
+  });
+
   it('produces a lowercase 64-char sha-256', () => {
     expect(createSaleRequestHash(request())).toMatch(/^[0-9a-f]{64}$/u);
   });
