@@ -6,8 +6,11 @@ import { AuthProvider } from '@/providers/auth-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  description: 'Base técnica del nuevo SGI La Comarca.',
-  title: 'SGI La Comarca · Base técnica',
+  description: 'Gestión segura de inventario, ventas y finanzas.',
+  title: {
+    default: 'SGI La Comarca',
+    template: '%s · SGI La Comarca',
+  },
 };
 
 export default function RootLayout({

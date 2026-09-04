@@ -152,7 +152,11 @@ export default function InventoryCountsPage() {
               </label>
             ))}
           </fieldset>
-          {feedback ? <p className="form-feedback">{feedback}</p> : null}
+          {feedback ? (
+            <p className="form-feedback" role="alert">
+              {feedback}
+            </p>
+          ) : null}
           <div className="page-actions">
             <button
               className="primary-button"

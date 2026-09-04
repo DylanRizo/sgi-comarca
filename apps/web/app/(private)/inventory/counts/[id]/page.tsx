@@ -135,7 +135,11 @@ export default function InventoryCountDetailPage({
       </section>
 
       {feedback ? (
-        <p className="form-feedback" data-tone={feedback.tone}>
+        <p
+          className="form-feedback"
+          data-tone={feedback.tone}
+          role={feedback.tone === 'success' ? 'status' : 'alert'}
+        >
           {feedback.text}
         </p>
       ) : null}
