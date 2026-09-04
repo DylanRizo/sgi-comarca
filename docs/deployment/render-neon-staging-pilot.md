@@ -36,9 +36,21 @@ propios se agregan después de comprobar los dominios temporales de plataforma.
   11 asignaciones de rol, 20 permisos por rol, 2 permisos directos y 1 evento
   de auditoría. No creó credenciales, sesiones, invitaciones ni datos de
   negocio.
-- Ningún servicio de Render creado todavía.
-- `render.yaml` preparado con dos servicios gratuitos, despliegue automático
-  desactivado y secretos fuera de Git.
+- Gate 4 autorizado y completado: los servicios
+  `sgi-comarca-api-staging` y `sgi-comarca-web-staging` están `live` en Render
+  Free, región `virginia`, con despliegue automático desactivado y sin base
+  Render ni recursos pagos.
+- El CLI oficial validó `render.yaml`. Como el navegador del dashboard no
+  estaba disponible, los dos servicios equivalentes al manifiesto se crearon
+  directamente con el CLI; no quedó un Blueprint vinculado en Render.
+- La conexión agrupada de Neon está guardada como secreto de Render. Los dos
+  secretos HMAC se generaron localmente en memoria y no se escribieron en Git.
+- El primer build web falló porque un checkout limpio no generaba Prisma antes
+  del typecheck de Next.js. Se añadió `pnpm db:generate` al comando de build web;
+  el segundo despliegue quedó `live`.
+- Las comprobaciones de solo lectura devolvieron 200 en `/api/v1/health`,
+  `/api/v1/ready` y `/login`. No se ejecutaron migraciones, bootstrap,
+  importaciones, invitaciones ni mutaciones de negocio desde Render.
 - Gate 3 autorizado y completado: `codex/staging-pilot` contiene commits
   separados para el fix del bootstrap, la UI revisada y este despliegue.
 
@@ -109,6 +121,15 @@ preexistentes fuera del alcance, incluida la caché no versionada `.agents/`;
 no se reformatearon ni se incluyeron en los commits.
 
 ### Gate 4 — servicios Render
+
+**Completado el 2026-09-04.** El propietario autorizó crear únicamente dos
+servicios Free, configurar sus secretos y desplegar `codex/staging-pilot`, sin
+migraciones, bootstrap, invitaciones ni recursos pagos. La ejecución usó el CLI
+oficial porque el navegador del dashboard no estaba disponible. Se validó el
+manifiesto, se reprodujeron sus dos servicios y se observó el commit
+`3425351de7cea116de941db8f00cd41d20f03701`. El primer build web reveló que
+faltaba generar Prisma en un checkout limpio; el comando vivo y `render.yaml`
+se corrigieron con `pnpm db:generate`, y ambos servicios finalizaron `live`.
 
 1. Crear o acceder a la cuenta gratuita de Render.
 2. Conectar GitHub solo al repositorio `DylanRizo/sgi-comarca`.

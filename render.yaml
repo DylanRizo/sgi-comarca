@@ -6,6 +6,7 @@ services:
     runtime: node
     plan: free
     region: virginia
+    repo: https://github.com/DylanRizo/sgi-comarca
     branch: codex/staging-pilot
     autoDeployTrigger: 'off'
     buildCommand: >-
@@ -14,7 +15,6 @@ services:
       pnpm --filter @sgi/api... build
     startCommand: pnpm --filter @sgi/api start
     healthCheckPath: /api/v1/ready
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_VERSION
         value: '24.13.0'
@@ -50,15 +50,15 @@ services:
     runtime: node
     plan: free
     region: virginia
+    repo: https://github.com/DylanRizo/sgi-comarca
     branch: codex/staging-pilot
     autoDeployTrigger: 'off'
     buildCommand: >-
       corepack enable && corepack prepare pnpm@11.18.0 --activate &&
-      pnpm install --frozen-lockfile --prod=false &&
+      pnpm install --frozen-lockfile --prod=false && pnpm db:generate &&
       pnpm --filter @sgi/web... build
     startCommand: pnpm --filter @sgi/web start
     healthCheckPath: /login
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_VERSION
         value: '24.13.0'

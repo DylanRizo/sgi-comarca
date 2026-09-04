@@ -50,10 +50,24 @@ passed Prisma schema validation, lint 8/8, typecheck 7/7, unit tests 61 files /
 red on 223 pre-existing files outside this gate, including the untracked
 `.agents/` plugin cache; those files were not reformatted or committed.
 
-This remains a time-bound external snapshot, not live truth. No import,
-invitation or Render service has been created. Creating the two Render services
-is the next deployment gate and remains unauthorized. The remaining gates and
-their order are in the
+The owner explicitly authorized the Render-services gate on 2026-09-04. The
+official Render CLI validated the manifest after removing the Free-tier-only
+unsupported shutdown-delay setting and declaring the Git repository. Because
+the dashboard browser was unavailable, the two manifest-equivalent services
+were created directly with the CLI instead of attaching a Blueprint. Both use
+the Free plan in Virginia, track `codex/staging-pilot` with automatic deploys
+off, and deploy commit `3425351`; no Render database or paid resource exists.
+The API uses the pooled Neon connection as a Render secret, and both HMAC
+secrets were generated locally in memory and transmitted only to Render.
+
+The initial web build exposed a clean-checkout defect: it did not generate the
+Prisma client before Next.js typechecking. Adding `pnpm db:generate` to the web
+build command fixed the deploy. Both services are now `live`; read-only HTTPS
+checks returned 200 for API health, API readiness and the web login page. No
+migration, bootstrap, import, invitation or business mutation ran from Render.
+This remains a time-bound external snapshot, not permanent live truth. The full
+HTTPS/cookie/cold-start smoke gate and every activation or data gate remain
+separately controlled in the
 [pilot runbook](../deployment/render-neon-staging-pilot.md).
 
 ## Git state
