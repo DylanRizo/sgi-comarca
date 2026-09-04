@@ -207,6 +207,12 @@ See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
 
 ## Operations
 
+- El piloto gratuito de staging para cuatro usuarios usa dos servicios web de
+  Render Free y PostgreSQL 18 en Neon Free. Es una excepción temporal y no una
+  aprobación de producción. Migraciones, bootstrap, invitaciones, importaciones
+  y operaciones reales conservan gates separados. Ver
+  [ADR-013](../decisions/ADR-013-free-staging-pilot.md).
+
 - Development, staging, and future production are separate environments.
   Credentials and sessions are not copied between them.
 - Real staging writes require a specific human-approved gate, positive target

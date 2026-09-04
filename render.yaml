@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+
+services:
+  - type: web
+    name: sgi-comarca-api-staging
+    runtime: node
+    plan: free
+    region: virginia
+    branch: codex/staging-pilot
+    autoDeployTrigger: 'off'
+    buildCommand: >-
+      corepack enable && corepack prepare pnpm@11.18.0 --activate &&
+      pnpm install --frozen-lockfile --prod=false && pnpm db:generate &&
+      pnpm --filter @sgi/api... build
+    startCommand: pnpm --filter @sgi/api start
+    healthCheckPath: /api/v1/ready
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_VERSION
+        value: '24.13.0'
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: '10000'
+      - key: API_PUBLIC_URL
+        value: https://sgi-comarca-api-staging.onrender.com
+      - key: WEB_ORIGINS
+        value: https://sgi-comarca-web-staging.onrender.com
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      - key: SESSION_COOKIE_NAME
+        value: __Host-sgi_session
+      - key: AUTH_CSRF_HMAC_SECRET_BASE64
+        generateValue: true
+      - key: AUTH_ORIGIN_HMAC_SECRET_BASE64
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOSING_TOLERANCE
+        value: '0.50'
+      - key: CLOSING_REOPENING_WINDOW_DAYS
+        value: '30'
+      - key: SWAGGER_ENABLED
+        value: 'false'
+      - key: LOG_LEVEL
+        value: info
+
+  - type: web
+    name: sgi-comarca-web-staging
+    runtime: node
+    plan: free
+    region: virginia
+    branch: codex/staging-pilot
+    autoDeployTrigger: 'off'
+    buildCommand: >-
+      corepack enable && corepack prepare pnpm@11.18.0 --activate &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @sgi/web... build
+    startCommand: pnpm --filter @sgi/web start
+    healthCheckPath: /login
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_VERSION
+        value: '24.13.0'
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: '1'
+      - key: NEXT_PUBLIC_API_URL
+        value: https://sgi-comarca-api-staging.onrender.com

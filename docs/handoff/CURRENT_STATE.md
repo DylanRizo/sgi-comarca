@@ -1,9 +1,60 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-01.
+Updated: 2026-09-04.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
+
+## Free staging pilot (Render + Neon)
+
+On 2026-09-03 the owner approved the bounded free staging pilot documented in
+[ADR-013](../decisions/ADR-013-free-staging-pilot.md). An isolated Neon project
+named `sgi-comarca-staging` was created in `aws-us-east-1` with PostgreSQL 18.
+The direct read-only fingerprint confirmed database `sgi_comarca_staging`, role
+`sgi_staging_owner`, one default branch named `main`, zero public tables and no
+`_prisma_migrations` table. No connection string, credential or private ID was
+written to the repository.
+
+On 2026-09-04 the owner explicitly authorized the schema-only gate. The target
+was revalidated by project, region, PostgreSQL major, branch, database and role;
+the schema was still empty and all six previous Neon operations were finished.
+The branch `checkpoint-empty-2026-09-04` was created from `main` without its own
+compute. `pnpm db:migrate:deploy` then applied the seven versioned migrations to
+`main`. Direct verification found 35 public tables, seven finished migration
+rows, zero unfinished migrations, zero active Neon operations, and zero rows in
+the inspected bootstrap and operational tables.
+
+The owner then explicitly authorized the structural-bootstrap gate. After a
+second positive target check, the branch
+`checkpoint-pre-bootstrap-2026-09-04` was created from `main` without its own
+compute. Two bootstrap attempts reached Prisma's default five-second
+interactive-transaction timeout and rolled back completely. The focused fix
+sets the bootstrap transaction timeout to 30 seconds while preserving
+`Serializable` isolation; formatting, database-package lint/typecheck and the
+7/7 bootstrap integration cases passed before the retry. The corrected
+`pnpm db:bootstrap` run created exactly 6 roles, 20 permissions, 4 pending
+users, 3 active warehouses, 11 active user-role grants, 20 active
+role-permission grants, 2 active direct user grants and 1 bootstrap audit log.
+Direct verification found no revoked grants, password credentials, sessions,
+invitations, products, inventory balances or movements, sales, financial
+entries, closings or inventory-count sessions, and no active Neon operation.
+
+The owner explicitly authorized the Git publication gate on 2026-09-04. Branch
+`codex/staging-pilot` was created from `main` at `37e97e4`; the bootstrap
+timeout fix, reviewed UI polish, and Render/Neon pilot configuration were kept
+in separate auditable commits and published only to that branch. Validation
+passed Prisma schema validation, lint 8/8, typecheck 7/7, unit tests 61 files /
+249 tests, integration tests 29 files / 318 tests, build 7/7 and Playwright
+42/42. Every file in the gate passes an explicit Prettier check, `git diff
+--check` and the secret scan. The repository-wide `pnpm format:check` remains
+red on 223 pre-existing files outside this gate, including the untracked
+`.agents/` plugin cache; those files were not reformatted or committed.
+
+This remains a time-bound external snapshot, not live truth. No import,
+invitation or Render service has been created. Creating the two Render services
+is the next deployment gate and remains unauthorized. The remaining gates and
+their order are in the
+[pilot runbook](../deployment/render-neon-staging-pilot.md).
 
 ## Git state
 
@@ -12,6 +63,7 @@ never records an authoritative "current" HEAD of its own, because any commit
 that updates the handoff would immediately invalidate such a field.
 
 - Repository: `DylanRizo/sgi-comarca`.
+- Pilot deployment branch: `codex/staging-pilot`, based on `main` at `37e97e4`.
 - Branch: `main`, except the FASE 9 work below, which lives on
   `migration/09-reports` and is not yet merged into `main`.
 - Expected working tree before starting work: clean.

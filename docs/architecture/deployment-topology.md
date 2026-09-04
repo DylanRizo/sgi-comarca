@@ -1,5 +1,11 @@
 # Topología de despliegue
 
+> **Excepción de staging vigente:** el piloto gratuito para cuatro usuarios usa
+> Render Free + Neon Free conforme a
+> [ADR-013](../decisions/ADR-013-free-staging-pilot.md) y al
+> [runbook operativo](../deployment/render-neon-staging-pilot.md). Esta excepción
+> no sustituye la topología de producción descrita abajo.
+
 ## Ambientes
 
 ```mermaid
