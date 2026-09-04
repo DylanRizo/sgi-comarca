@@ -468,6 +468,7 @@ export async function runBootstrap(
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      timeout: 30_000,
     },
   );
 }
