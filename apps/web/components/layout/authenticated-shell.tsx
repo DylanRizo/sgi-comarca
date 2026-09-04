@@ -99,6 +99,40 @@ export function AuthenticatedShell({
   const canReadInventory = state.session.permissions.includes('inventory.read');
   // Hiding a link is presentation only; the backend authorizes every request.
   const canReadSales = state.session.permissions.includes('sales.read');
+  const operationalNavigation = [
+    ...(canReadInventory ? inventoryNavigation : []),
+    ...(canReadSales ? salesNavigation : []),
+  ];
+  const controlNavigation = [...countNavigation, ...financesNavigation].filter(
+    ({ permission }) => state.session.permissions.includes(permission),
+  );
+  const visibleInsightNavigation = insightNavigation.filter(({ permission }) =>
+    state.session.permissions.includes(permission),
+  );
+  const userInitial =
+    Array.from(state.session.displayName.trim())[0]?.toLocaleUpperCase(
+      'es-NI',
+    ) ?? 'U';
+
+  function navigationLink({
+    href,
+    icon,
+    label,
+  }: Readonly<{ href: string; icon: LucideIcon; label: string }>) {
+    const current =
+      pathname === href ||
+      (href !== '/inventory' && pathname.startsWith(`${href}/`));
+    return (
+      <Link
+        aria-current={current ? 'page' : undefined}
+        href={href as Route}
+        key={href}
+      >
+        <NavIcon icon={icon} />
+        {label}
+      </Link>
+    );
+  }
 
   return (
     <div className="application-shell">
@@ -145,60 +179,50 @@ export function AuthenticatedShell({
             <NavIcon icon={House} />
             Inicio
           </Link>
-          {canReadInventory
-            ? inventoryNavigation.map(({ href, icon, label }) => (
-                <Link
-                  aria-current={
-                    pathname === href ||
-                    (href !== '/inventory' && pathname.startsWith(`${href}/`))
-                      ? 'page'
-                      : undefined
-                  }
-                  href={href as Route}
-                  key={href}
-                >
-                  <NavIcon icon={icon} />
-                  {label}
-                </Link>
-              ))
-            : null}
-          {canReadSales
-            ? salesNavigation.map(({ href, icon, label }) => (
-                <Link
-                  aria-current={
-                    pathname === href || pathname.startsWith(`${href}/`)
-                      ? 'page'
-                      : undefined
-                  }
-                  href={href as Route}
-                  key={href}
-                >
-                  <NavIcon icon={icon} />
-                  {label}
-                </Link>
-              ))
-            : null}
-          {[...countNavigation, ...financesNavigation, ...insightNavigation]
-            .filter(({ permission }) =>
-              state.session.permissions.includes(permission),
-            )
-            .map(({ href, icon, label }) => (
-              <Link
-                aria-current={
-                  pathname === href || pathname.startsWith(`${href}/`)
-                    ? 'page'
-                    : undefined
-                }
-                href={href as Route}
-                key={href}
-              >
-                <NavIcon icon={icon} />
-                {label}
-              </Link>
-            ))}
+          {operationalNavigation.length > 0 ? (
+            <div
+              aria-labelledby="operation-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="operation-navigation">Operación</p>
+              {operationalNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {controlNavigation.length > 0 ? (
+            <div
+              aria-labelledby="control-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="control-navigation">Control</p>
+              {controlNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {visibleInsightNavigation.length > 0 ? (
+            <div
+              aria-labelledby="insight-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="insight-navigation">Análisis</p>
+              {visibleInsightNavigation.map(navigationLink)}
+            </div>
+          ) : null}
         </nav>
         <div className="application-user">
-          <span>{state.session.displayName}</span>
+          <div
+            aria-label={`Sesión activa: ${state.session.displayName}`}
+            className="application-user-identity"
+          >
+            <span aria-hidden="true" className="user-avatar">
+              {userInitial}
+            </span>
+            <span>
+              <small>Sesión activa</small>
+              <strong>{state.session.displayName}</strong>
+            </span>
+          </div>
           <LogoutButton />
         </div>
       </header>

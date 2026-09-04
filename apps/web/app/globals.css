@@ -32,6 +32,15 @@
   /* Ink for text on a saturated fill: accent, accent-strong, danger. */
   --ink-on-fill: #ffffff;
 
+  /*
+   * Brand canvas is deliberately deeper than the action accent. It gives the
+   * application shell a recognisable home without making every control loud.
+   */
+  --brand-canvas: #103f2d;
+  --brand-canvas-raised: #18563d;
+  --brand-ink: #f7fff9;
+  --brand-muted: #bed8c9;
+
   --success: #176b45;
   --success-soft: #e7f5ec;
   --warning: #8a5209;
@@ -89,6 +98,11 @@
     /* Dark-mode fills are light, so the ink on them inverts. */
     --ink-on-fill: #0b1310;
 
+    --brand-canvas: #0a281c;
+    --brand-canvas-raised: #123c2b;
+    --brand-ink: #f0fbf4;
+    --brand-muted: #a9c8b7;
+
     --success: #6cc79a;
     --success-soft: #16301f;
     --warning: #e0a950;
@@ -105,6 +119,28 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--border-strong) var(--background);
+  scrollbar-width: thin;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--ink-on-fill);
+}
+
+::-webkit-scrollbar {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--background);
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
 }
 
 body {
@@ -118,6 +154,7 @@ body {
     ),
     var(--background);
   color: var(--text);
+  caret-color: var(--accent);
   font-family: var(--font-sans);
   font-feature-settings: 'cv05' 1;
   -webkit-font-smoothing: antialiased;
@@ -288,7 +325,6 @@ a {
 .dashboard-card {
   width: min(100%, 34rem);
   padding: clamp(1.25rem, 5vw, 2.5rem);
-  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
@@ -312,14 +348,74 @@ a {
 }
 
 .auth-form,
+.auth-flow,
 .field {
   display: grid;
   gap: 0.5rem;
 }
 
-.auth-form {
+.auth-form,
+.auth-flow {
   gap: 1.1rem;
   margin-top: 1.5rem;
+}
+
+.auth-flow .auth-form {
+  margin-top: 0;
+}
+
+.auth-recovery {
+  padding: 1rem;
+  border-inline-start: 0.25rem solid var(--accent);
+  background: var(--surface-muted);
+}
+
+.auth-recovery h2 {
+  margin-bottom: 0.75rem;
+}
+
+.auth-recovery ol {
+  display: grid;
+  gap: 0.55rem;
+  padding-inline-start: 1.25rem;
+  margin: 0;
+}
+
+.auth-recovery p {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.auth-recovery .secondary-link {
+  width: 100%;
+}
+
+.auth-help {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.auth-help summary {
+  padding: 1rem 0 0;
+  color: var(--accent-strong);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.auth-help summary:hover {
+  color: var(--accent);
+}
+
+.auth-help div {
+  padding-top: 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.auth-help p:last-child {
+  margin-bottom: 0;
 }
 
 .field label {
@@ -518,29 +614,33 @@ a {
   gap: 1rem;
   align-items: center;
   padding: 0.85rem clamp(1rem, 4vw, 3rem);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: blur(14px) saturate(1.4);
+  background: var(--brand-canvas);
+  box-shadow: 0 0.35rem 1.4rem rgb(8 35 24 / 18%);
+  color: var(--brand-ink);
 }
 
 .brand-link {
   display: grid;
-  color: var(--text);
+  color: var(--brand-ink);
   font-weight: 700;
   text-decoration: none;
   letter-spacing: -0.01em;
 }
 
 .brand-link span {
-  color: var(--accent-strong);
-  letter-spacing: 0.02em;
+  color: var(--brand-ink);
+  font-size: 1.02rem;
+  letter-spacing: 0.035em;
   text-transform: uppercase;
 }
 
 .brand-link small {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 400;
+  margin-top: 0.18rem;
+  color: var(--brand-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
 }
 
 /*
@@ -555,6 +655,14 @@ a {
   gap: 0.2rem;
 }
 
+.navigation-group {
+  display: contents;
+}
+
+.navigation-group > p {
+  display: none;
+}
+
 /*
  * The toggle only exists below the breakpoint, where the wrapped list would
  * otherwise consume most of a phone screen. Desktop shows the nav outright and
@@ -566,17 +674,17 @@ a {
   gap: 0.4rem;
   align-items: center;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-strong);
+  border: 1px solid color-mix(in srgb, var(--brand-muted) 55%, transparent);
   border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
+  background: color-mix(in srgb, var(--brand-ink) 8%, transparent);
+  color: var(--brand-ink);
   font-size: 0.94rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .nav-toggle:hover {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--brand-ink) 15%, transparent);
 }
 
 .application-nav a {
@@ -587,7 +695,7 @@ a {
   align-items: center;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
-  color: var(--muted);
+  color: var(--brand-muted);
   font-size: 0.94rem;
   font-weight: 600;
   text-decoration: none;
@@ -605,13 +713,14 @@ a {
 }
 
 .application-nav a:hover {
-  background: var(--surface-muted);
-  color: var(--text);
+  background: color-mix(in srgb, var(--brand-ink) 10%, transparent);
+  color: var(--brand-ink);
 }
 
 .application-nav a[aria-current='page'] {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: var(--brand-ink);
+  color: var(--brand-canvas);
+  box-shadow: 0 0.25rem 0.8rem rgb(3 24 15 / 20%);
 }
 
 .application-user {
@@ -621,16 +730,59 @@ a {
   justify-content: space-between;
 }
 
-.application-user > span {
+.application-user-identity {
+  display: flex;
+  min-width: 0;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.application-user-identity > span:last-child {
+  display: grid;
   overflow: hidden;
-  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.application-user-identity small {
+  color: var(--brand-muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.application-user-identity strong {
+  overflow: hidden;
+  font-size: 0.92rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-avatar {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand-muted) 45%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--brand-ink) 11%, transparent);
+  color: var(--brand-ink);
+  font-size: 0.84rem;
+  font-weight: 750;
 }
 
 .application-user .secondary-button {
   min-height: 2.25rem;
   padding: 0.45rem 0.8rem;
+  border-color: color-mix(in srgb, var(--brand-muted) 55%, transparent);
+  background: transparent;
+  color: var(--brand-ink);
+}
+
+.application-user .secondary-button:hover:not(:disabled) {
+  border-color: var(--brand-muted);
+  background: color-mix(in srgb, var(--brand-ink) 10%, transparent);
 }
 
 .application-content {
@@ -646,7 +798,7 @@ a {
 
 .content-page {
   display: grid;
-  gap: 1.5rem;
+  gap: clamp(1.25rem, 2.5vw, 2rem);
 }
 
 .page-heading {
@@ -654,17 +806,21 @@ a {
   flex-direction: column;
   gap: 1rem;
   justify-content: space-between;
-  padding: clamp(1.25rem, 4vw, 2rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  padding: 0.35rem 0 clamp(1.1rem, 2.5vw, 1.65rem);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .page-heading h1 {
   max-width: none;
   margin-bottom: 0.5rem;
-  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-size: clamp(2rem, 4.5vw, 3.15rem);
+  font-weight: 750;
+  letter-spacing: -0.038em;
+  line-height: 0.98;
+}
+
+.page-heading .eyebrow {
+  display: none;
 }
 
 .page-heading p:last-child {
@@ -705,7 +861,7 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 0.35rem 1rem rgb(16 33 24 / 5%);
 }
 
 .filter-field {
@@ -765,7 +921,6 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
 }
 
 .data-table {
@@ -784,8 +939,8 @@ a {
 .data-table th {
   position: sticky;
   top: 0;
-  background: var(--surface-muted);
-  color: var(--muted);
+  background: var(--brand-canvas);
+  color: var(--brand-muted);
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -793,7 +948,11 @@ a {
 }
 
 .data-table tbody tr:hover {
-  background: var(--surface-muted);
+  background: var(--accent-soft);
+}
+
+.data-table tbody tr:nth-child(even):not(:hover) {
+  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
 }
 
 .data-table tr:last-child td {
@@ -1123,9 +1282,24 @@ a {
   gap: 1rem;
 }
 
+.section-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.section-heading::after {
+  height: 1px;
+  background: var(--border);
+  content: '';
+  flex: 1;
+}
+
 .section-heading h2 {
   margin-bottom: 0;
-  font-size: clamp(1.3rem, 3vw, 1.85rem);
+  font-size: clamp(1.25rem, 2.5vw, 1.7rem);
+  font-weight: 750;
+  letter-spacing: -0.025em;
 }
 
 .balance-grid {
@@ -1135,10 +1309,9 @@ a {
 
 .balance-card {
   padding: 1.2rem;
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .balance-card:hover {
@@ -1292,15 +1465,14 @@ a {
   display: grid;
   gap: 0.35rem;
   padding: 1.15rem;
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .kpi-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 
 .kpi-label {
@@ -1312,8 +1484,8 @@ a {
 }
 
 .kpi-value {
-  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
-  font-weight: 700;
+  font-size: clamp(1.85rem, 4vw, 2.55rem);
+  font-weight: 760;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -1585,6 +1757,21 @@ a {
     flex-direction: column;
   }
 
+  .navigation-group {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .navigation-group > p {
+    display: block;
+    margin: 0.8rem 0 0.15rem;
+    color: var(--brand-muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
   .application-nav[data-open='false'] {
     display: none;
   }
@@ -1622,14 +1809,33 @@ a {
     height: 100vh;
     padding: 1.25rem 0.9rem;
     overflow-y: auto;
-    border-right: 1px solid var(--border);
     border-bottom: 0;
+    box-shadow: 0.45rem 0 1.8rem rgb(8 35 24 / 14%);
   }
 
   .application-nav {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.25rem;
+  }
+
+  .navigation-group {
+    display: grid;
     gap: 0.15rem;
+    padding-top: 0.85rem;
+    margin-top: 0.45rem;
+    border-top: 1px solid
+      color-mix(in srgb, var(--brand-muted) 18%, transparent);
+  }
+
+  .navigation-group > p {
+    display: block;
+    margin: 0 0 0.25rem 0.7rem;
+    color: var(--brand-muted);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   .application-nav a {
@@ -1643,10 +1849,7 @@ a {
     gap: 0.6rem;
     margin-top: auto;
     padding-top: 1rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .application-user > span {
-    text-align: left;
+    border-top: 1px solid
+      color-mix(in srgb, var(--brand-muted) 35%, transparent);
   }
 }

@@ -107,6 +107,15 @@ test.describe('BLOQUE 6 authentication interface', () => {
       'No fue posible activar la cuenta',
     );
     await expect(page.locator('.auth-feedback')).toBeFocused();
+    await expect(
+      page.getByRole('heading', { name: 'Cómo continuar' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Volver a iniciar sesión' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Activar cuenta' }),
+    ).toHaveCount(0);
   });
 
   test('keeps a valid invitation usable after password policy rejection', async ({
@@ -150,6 +159,9 @@ test.describe('BLOQUE 6 authentication interface', () => {
     await loginThroughPage(page);
     await expect(page.getByText('dylan', { exact: true })).toBeVisible();
     await expect(page.getByText('sales.create', { exact: true })).toBeVisible();
+    await expect(page.getByText('Operación', { exact: true })).toBeVisible();
+    await expect(page.getByText('Control', { exact: true })).toBeVisible();
+    await expect(page.getByText('Análisis', { exact: true })).toBeVisible();
   });
 
   test('keeps invalid login errors uniform, accessible and focused', async ({
@@ -163,6 +175,19 @@ test.describe('BLOQUE 6 authentication interface', () => {
       'No fue posible iniciar sesión con esos datos.',
     );
     await expect(page.getByLabel('Usuario')).toBeFocused();
+  });
+
+  test('explains the administrator-mediated password recovery path', async ({
+    page,
+  }) => {
+    await page.goto('/login');
+    await page.getByText('¿Olvidaste tu contraseña?').click();
+    await expect(
+      page.getByText(/genere una nueva invitación privada/u),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Nunca compartas tu contraseña actual/u),
+    ).toBeVisible();
   });
 
   test('prevents a double login submission', async ({ page, request }) => {
