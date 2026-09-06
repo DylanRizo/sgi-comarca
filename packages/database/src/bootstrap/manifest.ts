@@ -33,6 +33,18 @@ export const bootstrapRoles = [
 
 export const bootstrapPermissions = [
   {
+    code: 'products.manage',
+    description: 'Crear y editar fichas de productos y categorías.',
+  },
+  {
+    code: 'stock-receipts.create',
+    description: 'Registrar entradas de mercancía.',
+  },
+  {
+    code: 'inventory.valuation.manage',
+    description: 'Completar costos y precios por bodega.',
+  },
+  {
     code: 'users.invitations.create',
     description: 'Crear invitaciones de activación para usuarios.',
   },
@@ -145,6 +157,9 @@ export const bootstrapUserRoles = [
 ] as const;
 
 export const bootstrapRolePermissions = [
+  { roleCode: 'INVENTORY_MANAGER', permissionCode: 'products.manage' },
+  { roleCode: 'INVENTORY_MANAGER', permissionCode: 'stock-receipts.create' },
+  { roleCode: 'FINANCE', permissionCode: 'inventory.valuation.manage' },
   {
     roleCode: 'ADMIN',
     permissionCode: 'users.invitations.create',

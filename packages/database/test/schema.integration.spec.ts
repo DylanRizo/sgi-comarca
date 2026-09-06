@@ -19,6 +19,8 @@ const applicationTables = [
   'import_batches',
   'in_transit_confirmations',
   'inventory_balances',
+  'inventory_commands',
+  'inventory_count_line_revisions',
   'inventory_count_lines',
   'inventory_count_session_warehouses',
   'inventory_count_sessions',
@@ -30,6 +32,7 @@ const applicationTables = [
   'login_throttles',
   'password_credentials',
   'permissions',
+  'product_groups',
   'product_warehouse_valuations',
   'products',
   'reconciliation_issues',
@@ -39,6 +42,8 @@ const applicationTables = [
   'sale_items',
   'sales',
   'sessions',
+  'stock_receipt_items',
+  'stock_receipts',
   'units',
   'user_invitations',
   'user_permissions',
@@ -125,7 +130,7 @@ async function insertSaleFixture(
   return { saleId, saleItemId };
 }
 
-describe('PostgreSQL structure through PHASE 7A', () => {
+describe('current PostgreSQL operational structure', () => {
   beforeAll(async () => {
     await pool.query('SELECT 1');
   });
@@ -134,7 +139,7 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     await pool.end();
   });
 
-  it('has exactly 34 application tables and only the Prisma technical table', async () => {
+  it('has exactly 39 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -150,18 +155,18 @@ describe('PostgreSQL structure through PHASE 7A', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(34);
+    expect(actualApplicationTables).toHaveLength(39);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly 34 non-internal triggers', async () => {
+  it('has the approved functions and exactly 42 non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('check_inventory_count_line_adjustment', 'check_inventory_count_session_approval', 'check_operational_sale_item_ledger', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_inventory_count_line_write', 'guard_inventory_count_session_write', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('check_inventory_count_line_adjustment', 'check_inventory_count_line_revision', 'check_inventory_count_session_approval', 'check_operational_sale_item_ledger', 'check_stock_receipt_has_items', 'check_stock_receipt_item', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_inventory_count_line_update', 'guard_inventory_count_line_write', 'guard_inventory_count_session_write', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -181,8 +186,11 @@ describe('PostgreSQL structure through PHASE 7A', () => {
 
     expect(functions.rows).toEqual([
       { proname: 'check_inventory_count_line_adjustment' },
+      { proname: 'check_inventory_count_line_revision' },
       { proname: 'check_inventory_count_session_approval' },
       { proname: 'check_operational_sale_item_ledger' },
+      { proname: 'check_stock_receipt_has_items' },
+      { proname: 'check_stock_receipt_item' },
       { proname: 'enforce_inventory_transfer_has_items' },
       { proname: 'enforce_inventory_transfer_item_ledger' },
       { proname: 'enforce_operational_sale_documents' },
@@ -191,6 +199,7 @@ describe('PostgreSQL structure through PHASE 7A', () => {
       { proname: 'enforce_session_lifecycle' },
       { proname: 'guard_daily_closing_write' },
       { proname: 'guard_financial_entry_write' },
+      { proname: 'guard_inventory_count_line_update' },
       { proname: 'guard_inventory_count_line_write' },
       { proname: 'guard_inventory_count_session_write' },
       { proname: 'guard_sale_action_insert' },
@@ -233,12 +242,28 @@ describe('PostgreSQL structure through PHASE 7A', () => {
         trigger_name: 'in_transit_confirmations_operational_guard',
       },
       {
+        table_name: 'inventory_commands',
+        trigger_name: 'inventory_commands_immutable',
+      },
+      {
+        table_name: 'inventory_count_lines',
+        trigger_name: 'inventory_count_line_revision_required',
+      },
+      {
+        table_name: 'inventory_count_line_revisions',
+        trigger_name: 'inventory_count_line_revisions_immutable',
+      },
+      {
         table_name: 'inventory_count_lines',
         trigger_name: 'inventory_count_lines_adjustment_coherent',
       },
       {
         table_name: 'inventory_count_lines',
         trigger_name: 'inventory_count_lines_immutable_delete',
+      },
+      {
+        table_name: 'inventory_count_lines',
+        trigger_name: 'inventory_count_lines_update_guard',
       },
       {
         table_name: 'inventory_count_lines',
@@ -319,6 +344,22 @@ describe('PostgreSQL structure through PHASE 7A', () => {
       {
         table_name: 'sessions',
         trigger_name: 'sessions_lifecycle_guard',
+      },
+      {
+        table_name: 'stock_receipt_items',
+        trigger_name: 'stock_receipt_item_coherent',
+      },
+      {
+        table_name: 'stock_receipt_items',
+        trigger_name: 'stock_receipt_items_immutable',
+      },
+      {
+        table_name: 'stock_receipts',
+        trigger_name: 'stock_receipt_requires_items',
+      },
+      {
+        table_name: 'stock_receipts',
+        trigger_name: 'stock_receipts_immutable',
       },
     ]);
   });

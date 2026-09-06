@@ -150,35 +150,38 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  passwordCredential          PasswordCredential?     @relation("PasswordCredentialUser")
-  credentialRevocationsIssued PasswordCredential[]    @relation("PasswordCredentialRevokedBy")
+  passwordCredential          PasswordCredential?          @relation("PasswordCredentialUser")
+  credentialRevocationsIssued PasswordCredential[]         @relation("PasswordCredentialRevokedBy")
   sessions                    Session[]
-  invitations                 UserInvitation[]        @relation("UserInvitationTarget")
-  invitationsCreated          UserInvitation[]        @relation("UserInvitationCreatedBy")
-  invitationsInvalidated      UserInvitation[]        @relation("UserInvitationInvalidatedBy")
-  userRoles                   UserRole[]              @relation("UserRoleUser")
-  roleGrantsIssued            UserRole[]              @relation("UserRoleGrantedBy")
-  roleRevocationsIssued       UserRole[]              @relation("UserRoleRevokedBy")
-  userPermissions             UserPermission[]        @relation("UserPermissionUser")
-  permissionGrantsIssued      UserPermission[]        @relation("UserPermissionGrantedBy")
-  permissionRevocationsIssued UserPermission[]        @relation("UserPermissionRevokedBy")
-  rolePermissionGrantsIssued  RolePermission[]        @relation("RolePermissionGrantedBy")
-  rolePermissionRevocations   RolePermission[]        @relation("RolePermissionRevokedBy")
-  auditLogs                   AuditLog[]              @relation("AuditLogActor")
-  inventoryMovements          InventoryMovement[]     @relation("InventoryMovementActor")
-  inventoryTransfers          InventoryTransfer[]     @relation("InventoryTransferActor")
-  sales                       Sale[]                  @relation("SaleSeller")
-  salesCreated                Sale[]                  @relation("SaleCreator")
-  saleCancellations           SaleCancellation[]      @relation("SaleCancellationActor")
-  inTransitConfirmations      InTransitConfirmation[] @relation("InTransitConfirmationActor")
-  financialEntriesCreated     FinancialEntry[]        @relation("FinancialEntryCreator")
-  financialEntriesResponsible FinancialEntry[]        @relation("FinancialEntryResponsible")
-  dailyClosingsClosed         DailyClosing[]          @relation("DailyClosingActor")
-  dailyClosingReopenings      DailyClosingReopening[] @relation("DailyClosingReopeningActor")
-  resolvedIssues              ReconciliationIssue[]   @relation("ReconciliationIssueResolver")
-  countSessionsCreated        InventoryCountSession[] @relation("InventoryCountSessionCreator")
-  countSessionsApproved       InventoryCountSession[] @relation("InventoryCountSessionApprover")
-  countSessionsCancelled      InventoryCountSession[] @relation("InventoryCountSessionCanceller")
+  invitations                 UserInvitation[]             @relation("UserInvitationTarget")
+  invitationsCreated          UserInvitation[]             @relation("UserInvitationCreatedBy")
+  invitationsInvalidated      UserInvitation[]             @relation("UserInvitationInvalidatedBy")
+  userRoles                   UserRole[]                   @relation("UserRoleUser")
+  roleGrantsIssued            UserRole[]                   @relation("UserRoleGrantedBy")
+  roleRevocationsIssued       UserRole[]                   @relation("UserRoleRevokedBy")
+  userPermissions             UserPermission[]             @relation("UserPermissionUser")
+  permissionGrantsIssued      UserPermission[]             @relation("UserPermissionGrantedBy")
+  permissionRevocationsIssued UserPermission[]             @relation("UserPermissionRevokedBy")
+  rolePermissionGrantsIssued  RolePermission[]             @relation("RolePermissionGrantedBy")
+  rolePermissionRevocations   RolePermission[]             @relation("RolePermissionRevokedBy")
+  auditLogs                   AuditLog[]                   @relation("AuditLogActor")
+  inventoryMovements          InventoryMovement[]          @relation("InventoryMovementActor")
+  inventoryTransfers          InventoryTransfer[]          @relation("InventoryTransferActor")
+  sales                       Sale[]                       @relation("SaleSeller")
+  salesCreated                Sale[]                       @relation("SaleCreator")
+  saleCancellations           SaleCancellation[]           @relation("SaleCancellationActor")
+  inTransitConfirmations      InTransitConfirmation[]      @relation("InTransitConfirmationActor")
+  financialEntriesCreated     FinancialEntry[]             @relation("FinancialEntryCreator")
+  financialEntriesResponsible FinancialEntry[]             @relation("FinancialEntryResponsible")
+  dailyClosingsClosed         DailyClosing[]               @relation("DailyClosingActor")
+  dailyClosingReopenings      DailyClosingReopening[]      @relation("DailyClosingReopeningActor")
+  resolvedIssues              ReconciliationIssue[]        @relation("ReconciliationIssueResolver")
+  countSessionsCreated        InventoryCountSession[]      @relation("InventoryCountSessionCreator")
+  countSessionsApproved       InventoryCountSession[]      @relation("InventoryCountSessionApprover")
+  countSessionsCancelled      InventoryCountSession[]      @relation("InventoryCountSessionCanceller")
+  inventoryCommands           InventoryCommand[]
+  stockReceipts               StockReceipt[]
+  countLineRevisions          InventoryCountLineRevision[]
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -381,6 +384,7 @@ model Warehouse {
   legacyRecords              LegacyRecord[]                   @relation("LegacyRecordWarehouse")
   countSessionScopes         InventoryCountSessionWarehouse[]
   countLines                 InventoryCountLine[]
+  receiptItems               StockReceiptItem[]
 
   @@index([active, name], map: "warehouses_active_name_idx")
   @@map("warehouses")
@@ -407,12 +411,15 @@ model Product {
   name         String   @db.VarChar(200)
   description  String?
   unitId       String?  @map("unit_id") @db.Uuid
+  groupId      String?  @map("group_id") @db.Uuid
   minimumStock Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   unit                       Unit?                       @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  group                      ProductGroup?               @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  receiptItems               StockReceiptItem[]
   inventoryBalances          InventoryBalance[]
   productWarehouseValuations ProductWarehouseValuation[]
   inventoryMovements         InventoryMovement[]
@@ -496,6 +503,7 @@ model InventoryMovement {
   transferItem  InventoryTransferItem? @relation(fields: [transferItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   legacyRecords LegacyRecord[]         @relation("LegacyRecordInventoryMovement")
   countLine     InventoryCountLine?    @relation("InventoryCountLineAdjustment")
+  receiptItem   StockReceiptItem?
 
   @@index([productId, warehouseId, occurredAt], map: "inventory_movements_product_warehouse_time_idx")
   @@index([type, occurredAt], map: "inventory_movements_type_time_idx")
@@ -503,6 +511,60 @@ model InventoryMovement {
   @@index([actorUserId], map: "inventory_movements_actor_idx")
   @@index([transferItemId], map: "inventory_movements_transfer_item_idx")
   @@map("inventory_movements")
+}
+
+model ProductGroup {
+  id       String    @id @default(uuid()) @db.Uuid
+  code     String    @unique @db.VarChar(64)
+  name     String    @db.VarChar(120)
+  active   Boolean   @default(true)
+  products Product[]
+
+  @@map("product_groups")
+}
+
+model InventoryCommand {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  operation   String   @db.VarChar(80)
+  keyHash     String   @map("key_hash") @db.Char(64)
+  requestHash String   @map("request_hash") @db.Char(64)
+  result      Json     @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([actorUserId, operation, keyHash])
+  @@map("inventory_commands")
+}
+
+model StockReceipt {
+  id          String             @id @default(uuid()) @db.Uuid
+  actorUserId String             @map("actor_user_id") @db.Uuid
+  reason      String             @db.VarChar(500)
+  occurredAt  DateTime           @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actor       User               @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  items       StockReceiptItem[]
+
+  @@index([occurredAt, id])
+  @@map("stock_receipts")
+}
+
+model StockReceiptItem {
+  id          String            @id @default(uuid()) @db.Uuid
+  receiptId   String            @map("receipt_id") @db.Uuid
+  productId   String            @map("product_id") @db.Uuid
+  warehouseId String            @map("warehouse_id") @db.Uuid
+  quantity    Decimal           @db.Decimal(18, 4)
+  unitCost    Decimal?          @map("unit_cost") @db.Decimal(18, 2)
+  unitPrice   Decimal?          @map("unit_price") @db.Decimal(18, 2)
+  movementId  String            @unique @map("movement_id") @db.Uuid
+  receipt     StockReceipt      @relation(fields: [receiptId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  movement    InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([receiptId])
+  @@map("stock_receipt_items")
 }
 
 model InventoryTransfer {
@@ -597,16 +659,37 @@ model InventoryCountLine {
   countedAt            DateTime @map("counted_at") @db.Timestamptz(6)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int      @default(1)
 
-  session            InventoryCountSession @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  product            Product               @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  warehouse          Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  adjustmentMovement InventoryMovement?    @relation("InventoryCountLineAdjustment", fields: [adjustmentMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  session            InventoryCountSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product            Product                      @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse          Warehouse                    @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  adjustmentMovement InventoryMovement?           @relation("InventoryCountLineAdjustment", fields: [adjustmentMovementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  revisions          InventoryCountLineRevision[]
 
   @@unique([sessionId, productId, warehouseId], map: "inventory_count_lines_session_product_warehouse_key")
   @@index([sessionId], map: "inventory_count_lines_session_idx")
   @@index([productId, warehouseId], map: "inventory_count_lines_product_warehouse_idx")
   @@map("inventory_count_lines")
+}
+
+model InventoryCountLineRevision {
+  id                      String   @id @default(uuid()) @db.Uuid
+  lineId                  String   @map("line_id") @db.Uuid
+  version                 Int
+  actorUserId             String   @map("actor_user_id") @db.Uuid
+  reason                  String   @db.VarChar(500)
+  previousCountedQuantity Decimal  @map("previous_counted_quantity") @db.Decimal(18, 4)
+  newCountedQuantity      Decimal  @map("new_counted_quantity") @db.Decimal(18, 4)
+  correctedAt             DateTime @map("corrected_at") @db.Timestamptz(6)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  line  InventoryCountLine @relation(fields: [lineId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User               @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([lineId, version], map: "inventory_count_line_revisions_line_version_key")
+  @@index([actorUserId, correctedAt(sort: Desc)], map: "inventory_count_line_revisions_actor_time_idx")
+  @@map("inventory_count_line_revisions")
 }
 
 model Sale {

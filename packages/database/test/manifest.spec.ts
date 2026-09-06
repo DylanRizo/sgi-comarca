@@ -42,6 +42,9 @@ describe('FASE 3B bootstrap manifest', () => {
         'inventory.audit.approve',
         'inventory.audit.create',
         'inventory.read',
+        'inventory.valuation.manage',
+        'products.manage',
+        'stock-receipts.create',
         'reports.read',
         'sales.cancel',
         'sales.confirm_in_transit',
@@ -98,6 +101,9 @@ describe('FASE 3B bootstrap manifest', () => {
         'FINANCE:closings.reopen',
         'FINANCE:finances.manual.create',
         'FINANCE:finances.read',
+        'FINANCE:inventory.valuation.manage',
+        'INVENTORY_MANAGER:products.manage',
+        'INVENTORY_MANAGER:stock-receipts.create',
         'INVENTORY_MANAGER:analytics.read',
         'INVENTORY_MANAGER:inventory.adjust',
         'INVENTORY_MANAGER:inventory.audit.create',
@@ -115,9 +121,9 @@ describe('FASE 3B bootstrap manifest', () => {
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(20);
+    expect(bootstrapPermissions).toHaveLength(23);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(20);
+    expect(bootstrapRolePermissions).toHaveLength(23);
     expect(bootstrapUserPermissions).toHaveLength(2);
   });
 
