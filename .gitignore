@@ -60,3 +60,10 @@ secrets*.json
 *.temp
 *.swp
 *.swo
+
+# Estado local de herramientas de agente (no versionar)
+.agents/
+.codex/
+.impeccable/
+.handoff/
+.claude/settings.local.json
