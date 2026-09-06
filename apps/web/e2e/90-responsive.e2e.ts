@@ -23,6 +23,9 @@ const routes = [
   '/products',
   '/inventory',
   '/inventory/movements',
+  '/inventory/receipts/new',
+  '/inventory/adjustments/new',
+  '/inventory/counts',
   '/sales',
   '/finances',
   '/reports',
@@ -95,7 +98,7 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     await activateAndLogin(request, page);
     const width = page.viewportSize()?.width ?? 0;
     const toggle = page.getByRole('button', { name: 'Menú' });
-    const analytics = page.getByRole('link', { name: 'Analytics' });
+    const analytics = page.getByRole('link', { name: 'Análisis', exact: true });
 
     if (width < collapseWidth) {
       // Collapsed: the toggle is the only entry point, and it must reveal the

@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { createDatabaseClient } from '../../../../packages/database/src/client.js';
+import {
+  createDatabaseClient,
+  type DatabaseClient,
+} from '../../../../packages/database/src/client.js';
+import { prepareOperationalCatalogs } from '../../../../packages/database/src/bootstrap/operational-catalogs.js';
 
 function requireDatabaseUrl(): string {
   const value = process.env.SGI_E2E_DATABASE_URL;
@@ -8,15 +12,36 @@ function requireDatabaseUrl(): string {
   return value;
 }
 
+type TransactionClient = Omit<
+  DatabaseClient,
+  '$connect' | '$disconnect' | '$extends' | '$on' | '$transaction'
+>;
+
 export class AuthenticationDatabase {
   private readonly client = createDatabaseClient(requireDatabaseUrl());
+
+  /**
+   * A developer PostgreSQL shared with the API, the web server and a Turbopack
+   * build starves Prisma's 2 s default wait for a transaction slot, which fails
+   * fixture setup with `Unable to start a transaction in the given time` on a
+   * database that is merely busy. Fixtures are setup rather than assertions, so
+   * they wait instead of failing the suite for a healthy service.
+   */
+  private transaction<T>(
+    body: (transaction: TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.client.$transaction(body, {
+      maxWait: 30_000,
+      timeout: 120_000,
+    });
+  }
 
   async disconnect(): Promise<void> {
     await this.client.$disconnect();
   }
 
   async reset(): Promise<void> {
-    await this.client.$transaction(async (transaction) => {
+    await this.transaction(async (transaction) => {
       // Inventory movements, sales, sale items and lifecycle documents are
       // immutable. Preserve every fixture product referenced by either ledger
       // or sales history and remove only fixtures that were never used. The
@@ -31,6 +56,7 @@ export class AuthenticationDatabase {
           ],
           inventoryMovements: { none: {} },
           saleItems: { none: {} },
+          countLines: { none: {} },
         },
       });
       const productIds = fixtureProducts.map(({ id }) => id);
@@ -67,8 +93,47 @@ export class AuthenticationDatabase {
     });
   }
 
+  async prepareOperationalFixtures(): Promise<void> {
+    await prepareOperationalCatalogs(this.client);
+    const unit = await this.client.unit.findUniqueOrThrow({
+      where: { code: 'UNIDADES' },
+    });
+    const group = await this.client.productGroup.findUniqueOrThrow({
+      where: { code: 'GENERAL' },
+    });
+    await this.client.product.createMany({
+      skipDuplicates: true,
+      data: Array.from({ length: 155 }, (_, index) => ({
+        code: `OPS-SYN-${String(index + 1).padStart(3, '0')}`,
+        name: `Producto de prueba operativa ${index + 1}`,
+        unitId: unit.id,
+        groupId: group.id,
+      })),
+    });
+    const [countedProduct, warehouse] = await Promise.all([
+      this.client.product.findUniqueOrThrow({ where: { code: 'OPS-SYN-155' } }),
+      this.client.warehouse.findUniqueOrThrow({
+        where: { code: 'CASA_DYLAN' },
+      }),
+    ]);
+    await this.client.inventoryBalance.upsert({
+      where: {
+        productId_warehouseId: {
+          productId: countedProduct.id,
+          warehouseId: warehouse.id,
+        },
+      },
+      create: {
+        productId: countedProduct.id,
+        warehouseId: warehouse.id,
+        quantity: '4',
+      },
+      update: { quantity: '4' },
+    });
+  }
+
   async seedInventoryReadFixtures(): Promise<void> {
-    await this.client.$transaction(async (transaction) => {
+    await this.transaction(async (transaction) => {
       // A prior suite's sold or moved product can keep E2E-UNIT alive across
       // resets (products referencing it cannot be deleted), so this reuses
       // the existing row instead of assuming reset() removed it.
@@ -160,14 +225,18 @@ export class AuthenticationDatabase {
    */
   async seedAdjustableProduct(suffix: string): Promise<string> {
     const code = `E2E-A11Y-${suffix.toUpperCase()}`;
-    await this.client.$transaction(async (transaction) => {
+    await this.transaction(async (transaction) => {
       const unit = await transaction.unit.upsert({
         create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
         update: {},
         where: { code: 'E2E-UNIT' },
       });
       const product = await transaction.product.create({
-        data: { code, name: `Producto accesibilidad ${suffix}`, unitId: unit.id },
+        data: {
+          code,
+          name: `Producto accesibilidad ${suffix}`,
+          unitId: unit.id,
+        },
         select: { id: true },
       });
       const warehouse = await transaction.warehouse.findFirstOrThrow({
@@ -294,7 +363,7 @@ export class AuthenticationDatabase {
       select: { id: true },
       where: { loginIdentifier: 'dylan' },
     });
-    await this.client.$transaction(async (transaction) => {
+    await this.transaction(async (transaction) => {
       const current = await transaction.session.findFirstOrThrow({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         where: { revokedAt: null, userId: user.id },
@@ -361,7 +430,7 @@ export class AuthenticationDatabase {
     const normalizedSuffix = suffix.toUpperCase();
     const multiWarehouseCode = `E2E-SALE-${normalizedSuffix}`;
     const nullCostCode = `E2E-SALE-NC-${normalizedSuffix}`;
-    await this.client.$transaction(async (transaction) => {
+    await this.transaction(async (transaction) => {
       const unit = await transaction.unit.upsert({
         create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
         update: {},

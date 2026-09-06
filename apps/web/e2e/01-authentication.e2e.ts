@@ -157,11 +157,24 @@ test.describe('BLOQUE 6 authentication interface', () => {
   }) => {
     await activateThroughApi(request);
     await loginThroughPage(page);
-    await expect(page.getByText('dylan', { exact: true })).toBeVisible();
-    await expect(page.getByText('sales.create', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Bienvenido, Dylan' }),
+    ).toBeVisible();
+    await expect(page.getByText('sales.create', { exact: true })).toHaveCount(
+      0,
+    );
     await expect(page.getByText('Operación', { exact: true })).toBeVisible();
     await expect(page.getByText('Control', { exact: true })).toBeVisible();
-    await expect(page.getByText('Análisis', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Análisis', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Mi cuenta' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Mi cuenta' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Registrar ventas', { exact: true }),
+    ).toBeVisible();
   });
 
   test('keeps invalid login errors uniform, accessible and focused', async ({
@@ -243,12 +256,15 @@ test.describe('BLOQUE 6 authentication interface', () => {
     }) => {
       await activateThroughApi(request);
       await loginThroughPage(page);
-      await expect(page.getByText('dylan', { exact: true })).toBeVisible();
+      // The operational UX change moved session identity and permissions from
+      // Inicio to Cuenta, so the private content this guards now lives there.
+      await page.goto('/account');
+      await expect(page.getByText('Dylan · dylan')).toBeVisible();
       await database.expireLatestSession(expiration);
 
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await expect(page).toHaveURL('/session-expired');
-      await expect(page.getByText('dylan', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('dylan')).toHaveCount(0);
       await expect(page.getByText('sales.create', { exact: true })).toHaveCount(
         0,
       );
@@ -276,6 +292,7 @@ test.describe('BLOQUE 6 authentication interface', () => {
   }) => {
     await activateThroughApi(request);
     await loginThroughPage(page);
+    await page.goto('/account');
     await page.getByRole('link', { name: 'Cambiar contraseña' }).click();
     await page.getByLabel('Contraseña actual').fill(initialPassword);
     await page

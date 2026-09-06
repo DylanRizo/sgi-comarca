@@ -1,16 +1,23 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const requireFromDatabase = createRequire(
+  new URL('../../../packages/database/package.json', import.meta.url),
+);
+const { Client } = requireFromDatabase('pg');
 const apiUrl = 'http://localhost:3101';
 const webUrl = 'http://localhost:3100';
 const sourceDatabaseUrl =
   process.env.DATABASE_URL ??
   'postgresql://sgi_dev:sgi_dev_password@localhost:5433/sgi_comarca_dev?schema=public';
 const sourceUrl = new URL(sourceDatabaseUrl);
-const administratorDatabase = sourceUrl.pathname.slice(1);
-const databaseUser = decodeURIComponent(sourceUrl.username);
+const administratorUrl = new URL(sourceUrl);
+administratorUrl.pathname = '/postgres';
+administratorUrl.searchParams.delete('schema');
 const databaseName = `sgi_e2e_${process.pid}_${randomBytes(4).toString('hex')}`;
 const temporaryUrl = new URL(sourceUrl);
 temporaryUrl.pathname = `/${databaseName}`;
@@ -76,8 +83,15 @@ async function stop(child) {
   }
 }
 
+// A cold `tsx src/main.ts` compiles the whole Nest application before it can
+// answer health, which measured about 104 s on a developer Windows machine
+// while Next.js was building in parallel. The old 60 s budget failed there for
+// a healthy service, so the wait is generous by default and overridable.
+const readyTimeout = Number(process.env.SGI_E2E_READY_TIMEOUT_MS ?? 240_000);
+
 async function waitFor(url, child) {
-  const deadline = Date.now() + 60_000;
+  const started = Date.now();
+  const deadline = started + readyTimeout;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
       throw new Error(`Service for ${url} exited before becoming ready.`);
@@ -90,36 +104,76 @@ async function waitFor(url, child) {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Timed out waiting for ${url}.`);
+  throw new Error(
+    `Timed out waiting for ${url} after ${String(
+      Math.round((Date.now() - started) / 1000),
+    )}s. Raise SGI_E2E_READY_TIMEOUT_MS if the service is only slow.`,
+  );
 }
 
-async function psql(sql) {
-  await run(
-    'docker',
-    [
-      'compose',
-      'exec',
-      '-T',
-      'postgres',
-      'psql',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-U',
-      databaseUser,
-      '-d',
-      administratorDatabase,
-    ],
-    { input: sql },
+// `next dev` compiles each route on its first request, which measured 7 s to
+// 68 s per route on a developer Windows machine. Paid inside a test, that
+// latency exhausts Playwright's 20 s expect and 60 s test budgets for a page
+// that is perfectly healthy, so every page is requested once before the suite
+// runs. The private-area guard is a client component, so an unauthenticated
+// GET still renders the route server-side and compiles it.
+async function pageRoutes(directory, segments = []) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const routes = entries.some((entry) => entry.name === 'page.tsx')
+    ? [`/${segments.join('/')}`]
+    : [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
+    const grouped = /^\(.*\)$/u.test(entry.name);
+    const dynamic = /^\[.*\]$/u.test(entry.name);
+    routes.push(
+      ...(await pageRoutes(`${directory}/${entry.name}`, [
+        ...segments,
+        ...(grouped
+          ? []
+          : [dynamic ? '00000000-0000-4000-8000-000000000000' : entry.name]),
+      ])),
+    );
+  }
+  return routes;
+}
+
+async function warmRoutes() {
+  if (process.env.SGI_E2E_WARM === '0') return;
+  const routes = await pageRoutes(`${repositoryRoot}apps/web/app`);
+  const pending = [...routes];
+  const started = Date.now();
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      for (let route = pending.shift(); route; route = pending.shift()) {
+        try {
+          await fetch(`${webUrl}${route === '/' ? '' : route}`);
+        } catch {
+          // A route that cannot be prerendered still gets compiled by the
+          // request, and any real failure surfaces in the test itself.
+        }
+      }
+    }),
+  );
+  console.log(
+    `Compiled ${String(routes.length)} web routes in ${String(
+      Math.round((Date.now() - started) / 1000),
+    )}s.`,
   );
 }
 
 let api;
 let web;
 let createdDatabase = false;
+let administratorConnected = false;
+const administrator = new Client({
+  connectionString: administratorUrl.toString(),
+});
 
 try {
-  await run('docker', ['compose', 'up', '-d', 'postgres']);
-  await psql(`CREATE DATABASE "${databaseName}";\n`);
+  await administrator.connect();
+  administratorConnected = true;
+  await administrator.query(`CREATE DATABASE "${databaseName}"`);
   createdDatabase = true;
 
   const databaseEnvironment = {
@@ -127,6 +181,15 @@ try {
     CI: 'true',
     DATABASE_URL: temporaryUrl.toString(),
   };
+  // API development starts through the workspace package export, whose
+  // runtime entry is dist/. Regenerate and build it so a newly added Prisma
+  // model cannot leave browser tests running an older client.
+  await run('pnpm', ['--filter', '@sgi/database', 'db:generate'], {
+    env: databaseEnvironment,
+  });
+  await run('pnpm', ['--filter', '@sgi/database', 'build'], {
+    env: databaseEnvironment,
+  });
   await run('pnpm', ['--filter', '@sgi/database', 'db:migrate:deploy'], {
     env: databaseEnvironment,
   });
@@ -176,6 +239,7 @@ try {
     waitFor(`${apiUrl}/api/v1/health`, api),
     waitFor(`${webUrl}/login`, web),
   ]);
+  await warmRoutes();
   await run(
     'pnpm',
     [
@@ -192,9 +256,14 @@ try {
   );
 } finally {
   await Promise.all([stop(web), stop(api)]);
-  if (createdDatabase) {
-    await psql(
-      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${databaseName}' AND pid <> pg_backend_pid();\nDROP DATABASE "${databaseName}";\n`,
-    );
+  if (administratorConnected) {
+    if (createdDatabase) {
+      await administrator.query(
+        'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+        [databaseName],
+      );
+      await administrator.query(`DROP DATABASE "${databaseName}"`);
+    }
+    await administrator.end();
   }
 }

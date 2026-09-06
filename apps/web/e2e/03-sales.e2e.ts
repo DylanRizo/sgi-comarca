@@ -46,17 +46,14 @@ async function fillLine(
   }>,
 ): Promise<void> {
   const line = page.locator('.sale-line').nth(index);
-  const productSelect = line.locator('select').nth(0);
-  const productOption = productSelect
-    .locator('option', { hasText: values.productCode })
-    .first();
-  await expect(productOption).toHaveCount(1);
-  const optionValue = await productOption.getAttribute('value');
-  if (!optionValue) {
-    throw new Error(`Product ${values.productCode} is not selectable.`);
-  }
-  await productSelect.selectOption(optionValue);
-  await line.locator('select').nth(1).selectOption({ label: values.warehouse });
+  // The product is chosen by typing its code or description and picking a
+  // match, so the warehouse is now the only select on the line.
+  await line.getByLabel('Producto').fill(values.productCode);
+  await line
+    .getByRole('button', { name: new RegExp(values.productCode, 'u') })
+    .click();
+  await expect(line.getByText(values.productCode).first()).toBeVisible();
+  await line.locator('select').nth(0).selectOption({ label: values.warehouse });
   await line.getByLabel('Cantidad', { exact: true }).fill(values.quantity);
   if (values.unitPrice !== undefined) {
     await line

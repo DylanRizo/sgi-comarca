@@ -45,6 +45,19 @@ async function selectByVisibleText(
   await select.selectOption(value);
 }
 
+/**
+ * Pick the sale line's product by typing its code and choosing the match. The
+ * line no longer offers a product select, so the warehouse is its only one.
+ */
+async function chooseSaleProduct(
+  line: ReturnType<Page['locator']>,
+  code: string,
+): Promise<void> {
+  await line.getByLabel('Producto').fill(code);
+  await line.getByRole('button', { name: new RegExp(code, 'u') }).click();
+  await expect(line.getByText(code).first()).toBeVisible();
+}
+
 test.describe('FASE 8C finances and closings UI flows', () => {
   test.afterAll(async () => {
     await database.disconnect();
@@ -150,9 +163,8 @@ test.describe('FASE 8C finances and closings UI flows', () => {
       .click();
     const saleDialog = page.getByRole('dialog', { name: 'Registrar venta' });
     const line = saleDialog.locator('.sale-line').first();
-    const productSelect = line.locator('select').nth(0);
-    await selectByVisibleText(productSelect, multiWarehouseCode);
-    await line.locator('select').nth(1).selectOption({ label: 'Casa Dylan' });
+    await chooseSaleProduct(line, multiWarehouseCode);
+    await line.locator('select').nth(0).selectOption({ label: 'Casa Dylan' });
     await line.getByLabel('Cantidad', { exact: true }).fill('2');
     // Complete it directly: only a COMPLETED sale counts as finance income.
     await saleDialog.getByLabel('Entrega').selectOption('COMPLETED');
@@ -199,11 +211,8 @@ test.describe('FASE 8C finances and closings UI flows', () => {
     const saleDialog = page.getByRole('dialog', { name: 'Registrar venta' });
     await saleDialog.getByLabel('Fecha').fill(businessDate);
     const line = saleDialog.locator('.sale-line').first();
-    await selectByVisibleText(
-      line.locator('select').nth(0),
-      multiWarehouseCode,
-    );
-    await line.locator('select').nth(1).selectOption({ label: 'Casa Dylan' });
+    await chooseSaleProduct(line, multiWarehouseCode);
+    await line.locator('select').nth(0).selectOption({ label: 'Casa Dylan' });
     await line.getByLabel('Cantidad', { exact: true }).fill('3');
     await saleDialog.getByLabel('Entrega').selectOption('COMPLETED');
     await saleDialog

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
@@ -22,38 +23,57 @@ export interface ManagedTemporaryDatabase {
   dispose(): Promise<void>;
 }
 
-function pnpmInvocation(arguments_: string[]): {
-  executable: string;
-  arguments: string[];
-} {
-  const pnpmScript = process.env.npm_execpath;
-  if (pnpmScript !== undefined) {
-    return {
-      executable: process.execPath,
-      arguments: [pnpmScript, ...arguments_],
-    };
-  }
-  return {
-    executable: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    arguments: arguments_,
-  };
-}
-
-async function runDatabaseCommand(
+async function migrateTemporaryDatabase(
   repositoryRoot: string,
   databaseUrl: string,
-  arguments_: string[],
-  failureCode: string,
 ): Promise<void> {
-  const invocation = pnpmInvocation(arguments_);
+  const databaseRoot = join(repositoryRoot, 'packages', 'database');
+  const prismaCli = join(
+    databaseRoot,
+    'node_modules',
+    'prisma',
+    'build',
+    'index.js',
+  );
   try {
-    await execFileAsync(invocation.executable, invocation.arguments, {
-      cwd: repositoryRoot,
-      env: { ...process.env, DATABASE_URL: databaseUrl, CI: 'true' },
-      maxBuffer: 4 * 1024 * 1024,
-    });
+    await execFileAsync(
+      process.execPath,
+      [
+        prismaCli,
+        'migrate',
+        'deploy',
+        '--config',
+        join(databaseRoot, 'prisma.config.ts'),
+      ],
+      {
+        cwd: databaseRoot,
+        env: { ...process.env, DATABASE_URL: databaseUrl, CI: 'true' },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
   } catch {
-    throw new LegacyImporterError(failureCode, 5);
+    throw new LegacyImporterError('TEMP_DATABASE_MIGRATION_FAILED', 5);
+  }
+}
+
+async function bootstrapTemporaryDatabase(
+  repositoryRoot: string,
+  databaseUrl: string,
+): Promise<void> {
+  const databaseRoot = join(repositoryRoot, 'packages', 'database');
+  const tsxCli = join(databaseRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  try {
+    await execFileAsync(
+      process.execPath,
+      [tsxCli, join(databaseRoot, 'src', 'bootstrap', 'cli.ts')],
+      {
+        cwd: databaseRoot,
+        env: { ...process.env, DATABASE_URL: databaseUrl, CI: 'true' },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
+  } catch {
+    throw new LegacyImporterError('TEMP_DATABASE_BOOTSTRAP_FAILED', 5);
   }
 }
 
@@ -91,27 +111,8 @@ export async function createManagedTemporaryDatabase(
     await administrator.$executeRawUnsafe(`CREATE DATABASE ${quotedName}`);
     created = true;
     await installTemporaryDatabaseFingerprint(administrator, fingerprint);
-    await runDatabaseCommand(
-      repositoryRoot,
-      databaseUrl.toString(),
-      [
-        '--filter',
-        '@sgi/database',
-        'exec',
-        'prisma',
-        'migrate',
-        'deploy',
-        '--config',
-        'prisma.config.ts',
-      ],
-      'TEMP_DATABASE_MIGRATION_FAILED',
-    );
-    await runDatabaseCommand(
-      repositoryRoot,
-      databaseUrl.toString(),
-      ['--filter', '@sgi/database', 'db:bootstrap'],
-      'TEMP_DATABASE_BOOTSTRAP_FAILED',
-    );
+    await migrateTemporaryDatabase(repositoryRoot, databaseUrl.toString());
+    await bootstrapTemporaryDatabase(repositoryRoot, databaseUrl.toString());
     target = createDatabaseClient(databaseUrl.toString());
     await assertTemporaryDatabase(target, fingerprint);
     const [warehouseCount, userCount, roleCount, permissionCount] =
@@ -125,7 +126,7 @@ export async function createManagedTemporaryDatabase(
       warehouseCount !== 3 ||
       userCount !== 4 ||
       roleCount !== 6 ||
-      permissionCount !== 20
+      permissionCount !== 23
     ) {
       throw new LegacyImporterError('TEMP_DATABASE_BOOTSTRAP_INCOMPATIBLE', 5);
     }
