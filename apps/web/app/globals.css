@@ -2138,6 +2138,20 @@ a {
   .application-nav {
     grid-area: nav;
     flex-direction: column;
+    /* The base rule wraps, which in a column container means overflowing into
+       fresh columns instead of growing: on a phone the groups landed on top of
+       each other, with a heading printed over the links of another group. */
+    flex-wrap: nowrap;
+  }
+
+  /* A long menu scrolls inside the panel rather than pushing the session block
+       past the bottom of the screen. dvh follows the browser chrome; the vh
+       declaration above it is the fallback where dvh is unsupported. */
+  .application-nav[data-open='true'] {
+    max-height: calc(100vh - 9rem);
+    max-height: calc(100dvh - 9rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .navigation-group {
