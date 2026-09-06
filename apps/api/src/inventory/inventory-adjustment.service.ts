@@ -6,6 +6,7 @@ import type { DatabaseClient } from '@sgi/database';
 
 import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 import { InventoryAuditService } from './inventory-audit.service.js';
+import { stockCommand } from './stock-command.js';
 import {
   inventoryDecimalString,
   inventoryScaledInteger,
@@ -119,6 +120,29 @@ export class InventoryAdjustmentService {
       }
       throw error;
     }
+  }
+
+  async adjustIdempotent(
+    actorUserId: string,
+    idempotencyKey: string | undefined,
+    input: InventoryAdjustmentRequest,
+  ): Promise<InventoryAdjustmentResult> {
+    return stockCommand(
+      this.client,
+      actorUserId,
+      'inventory.adjustment',
+      idempotencyKey,
+      input,
+      ['inventory.adjust'],
+      async (transaction) => {
+        const result = await this.adjustInTransaction(
+          transaction,
+          actorUserId,
+          input,
+        );
+        return { ...result };
+      },
+    );
   }
 
   /**

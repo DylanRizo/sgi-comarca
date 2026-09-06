@@ -14,6 +14,8 @@ import { AuthHttpException } from '../auth/http/auth-http.exception.js';
 import { FinancesHttpException } from '../finances/finances-http.exception.js';
 import { InventoryHttpException } from '../inventory/inventory-http.exception.js';
 import { SalesHttpException } from '../sales/sales-http.exception.js';
+import { StockOperationHttpException } from '../stock-receipts/stock-operation-http.exception.js';
+import { InventoryCountHttpException } from '../inventory-counts/inventory-count-http.exception.js';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -35,6 +37,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       exception instanceof AuthHttpException ||
       exception instanceof FinancesHttpException ||
       exception instanceof InventoryHttpException ||
+      exception instanceof StockOperationHttpException ||
+      exception instanceof InventoryCountHttpException ||
       exception instanceof SalesHttpException
         ? exception
         : null;

@@ -94,6 +94,12 @@ export function mapInventoryCountError(error: unknown): never {
           'INVENTORY_COUNT_LINE_ALREADY_CAPTURED',
           'El conteo de ese producto y almacen ya fue capturado.',
         );
+      case 'INVENTORY_COUNT_LINE_NOT_FOUND':
+        throw publicError(
+          HttpStatus.NOT_FOUND,
+          'INVENTORY_COUNT_LINE_NOT_FOUND',
+          'No se encontró la línea de conteo solicitada.',
+        );
       case 'INVENTORY_COUNT_BALANCE_CHANGED':
         throw publicError(
           HttpStatus.CONFLICT,

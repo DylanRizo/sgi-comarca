@@ -15,6 +15,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { UnitsModule } from './units/units.module.js';
 import { WarehousesModule } from './warehouses/warehouses.module.js';
+import { StockReceiptsModule } from './stock-receipts/stock-receipts.module.js';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { WarehousesModule } from './warehouses/warehouses.module.js';
     AuthModule,
     HealthModule,
     ProductsModule,
+    StockReceiptsModule,
     UnitsModule,
     WarehousesModule,
     InventoryModule,

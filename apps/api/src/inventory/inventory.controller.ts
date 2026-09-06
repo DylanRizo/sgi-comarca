@@ -58,6 +58,8 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { InventoryTransferDto } from './dto/inventory-transfer.dto.js';
 import { InventoryHttpException } from './inventory-http.exception.js';
+import { StockOperationError } from './stock-command.js';
+import { mapStockOperationError } from '../stock-receipts/stock-operation-http.exception.js';
 import {
   InventoryMovementNotFoundError,
   InventoryMovementReadService,
@@ -135,6 +137,7 @@ export class InventoryController {
   @Post('adjustments')
   @RequirePermission('inventory.adjust')
   async adjust(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() input: InventoryAdjustmentDto,
     @CurrentUser() current: AuthenticatedRequestContext,
     @Req() request: Request,
@@ -142,11 +145,16 @@ export class InventoryController {
   ): Promise<ApiSuccess<InventoryAdjustmentResult>> {
     try {
       return readSuccess(
-        await this.adjustments.adjust(current.userId, input),
+        await this.adjustments.adjustIdempotent(
+          current.userId,
+          idempotencyKey,
+          input,
+        ),
         request,
         response,
       );
     } catch (error) {
+      if (error instanceof StockOperationError) mapStockOperationError(error);
       mapInventoryAdjustmentError(error);
     }
   }
@@ -203,22 +211,34 @@ export class InventoryController {
   @Get()
   async list(
     @Query(inventoryListQueryPipe) query: InventoryListQueryDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductInventoryView>>> {
-    return readSuccess(await this.inventory.list(query), request, response);
+    return readSuccess(
+      await this.inventory.forActor(
+        current.userId,
+        await this.inventory.list(query),
+      ),
+      request,
+      response,
+    );
   }
 
   @Get('products/:productId')
   async product(
     @Param() params: ProductIdParamDto,
     @Query(productInventoryQueryPipe) query: ProductInventoryQueryDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<ProductInventoryView>> {
     try {
       return readSuccess(
-        await this.inventory.getProduct(params.productId, query),
+        await this.inventory.forActor(
+          current.userId,
+          await this.inventory.getProduct(params.productId, query),
+        ),
         request,
         response,
       );
@@ -231,12 +251,16 @@ export class InventoryController {
   async warehouse(
     @Param() params: WarehouseIdParamDto,
     @Query(inventoryListQueryPipe) query: InventoryListQueryDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductInventoryView>>> {
     try {
       return readSuccess(
-        await this.inventory.listByWarehouse(params.warehouseId, query),
+        await this.inventory.forActor(
+          current.userId,
+          await this.inventory.listByWarehouse(params.warehouseId, query),
+        ),
         request,
         response,
       );

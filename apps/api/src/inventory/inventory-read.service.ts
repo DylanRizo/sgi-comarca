@@ -1,5 +1,6 @@
 import type { PaginatedData, ProductInventoryView } from '@sgi/contracts';
 import type { DatabaseClient } from '@sgi/database';
+import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 
 import type {
   InventoryListQueryDto,
@@ -14,6 +15,31 @@ import {
 
 export class InventoryReadService {
   constructor(private readonly database: DatabaseClient) {}
+
+  async forActor<
+    T extends ProductInventoryView | PaginatedData<ProductInventoryView>,
+  >(actor: string, data: T): Promise<T> {
+    const canReadCost = await new EffectivePermissionsService(
+      this.database,
+    ).hasPermission(actor, 'finances.read');
+    const project = (item: ProductInventoryView): ProductInventoryView => ({
+      ...item,
+      balances: item.balances.map((balance) => ({
+        ...balance,
+        canReadCost,
+        currentUnitCost: canReadCost ? balance.currentUnitCost : null,
+        valuations: balance.valuations.map((valuation) => ({
+          ...valuation,
+          unitCost: canReadCost ? valuation.unitCost : null,
+        })),
+      })),
+    });
+    return (
+      'items' in data
+        ? { ...data, items: data.items.map(project) }
+        : project(data)
+    ) as T;
+  }
 
   async list(
     input: InventoryListQueryDto,

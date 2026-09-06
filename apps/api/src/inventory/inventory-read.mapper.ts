@@ -23,6 +23,7 @@ interface WarehouseRecord {
 }
 
 interface BalanceRecord {
+  version?: number;
   costReviewRequired: boolean;
   currentUnitCost: DecimalValue | null;
   currentUnitPrice: DecimalValue | null;
@@ -118,6 +119,7 @@ export function mapProductInventory(
 
   return {
     balances: product.inventoryBalances.map((balance) => ({
+      ...(balance.version === undefined ? {} : { version: balance.version }),
       costReviewRequired: balance.costReviewRequired,
       currentUnitCost: decimal(balance.currentUnitCost),
       currentUnitPrice: decimal(balance.currentUnitPrice),

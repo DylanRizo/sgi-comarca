@@ -29,7 +29,7 @@ export class ProductReadService {
     };
     const totalItems = await this.database.product.count({ where });
     const products = await this.database.product.findMany({
-      include: { unit: true },
+      include: { unit: true, group: true },
       orderBy: [{ code: 'asc' }, { id: 'asc' }],
       skip: pageOffset(input),
       take: input.pageSize,
@@ -38,6 +38,7 @@ export class ProductReadService {
 
     return pageResult(
       products.map((product) => ({
+        ...(product.group ? { group: product.group } : {}),
         active: product.active,
         code: product.code,
         id: product.id,
@@ -59,12 +60,13 @@ export class ProductReadService {
 
   async get(id: string): Promise<ProductDetail> {
     const product = await this.database.product.findUnique({
-      include: { unit: true },
+      include: { unit: true, group: true },
       where: { id },
     });
     if (!product) throw new ReadModelNotFoundError('product');
 
     return {
+      ...(product.group ? { group: product.group } : {}),
       active: product.active,
       code: product.code,
       createdAt: product.createdAt.toISOString(),
