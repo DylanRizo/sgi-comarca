@@ -212,6 +212,11 @@ See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
   aprobación de producción. Migraciones, bootstrap, invitaciones, importaciones
   y operaciones reales conservan gates separados. Ver
   [ADR-013](../decisions/ADR-013-free-staging-pilot.md).
+- El staging piloto usa `sgi.lacomarcanic.com` para la web y
+  `api-sgi.lacomarcanic.com` para la API. El dominio raíz, `www`, correo y tienda
+  permanecen fuera del alcance; los dominios `onrender.com` siguen habilitados
+  como respaldo. Esto no selecciona un dominio de producción. Ver
+  [ADR-014](../decisions/ADR-014-staging-custom-domains.md).
 
 - Development, staging, and future production are separate environments.
   Credentials and sessions are not copied between them.

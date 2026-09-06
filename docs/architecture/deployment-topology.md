@@ -49,7 +49,13 @@ GitHub Actions ejecutará instalación reproducible, lint, typecheck, pruebas, i
 
 ## Dominio y presupuesto
 
-No existe dominio seleccionado. Staging/producción usarán los dominios de plataforma configurados hasta una decisión. El presupuesto objetivo inicial es USD 15/mes; FASE 12 deberá validar el costo de web, API y PostgreSQL, y documentar cualquier excepción antes de ampliar recursos.
+El staging piloto usa `sgi.lacomarcanic.com` para la web y
+`api-sgi.lacomarcanic.com` para la API conforme a
+[ADR-014](../decisions/ADR-014-staging-custom-domains.md). El dominio raíz,
+`www`, correo y tienda existentes no se modifican. No existe dominio de
+producción seleccionado. El presupuesto objetivo inicial es USD 15/mes; FASE 12
+deberá validar el costo de web, API y PostgreSQL, y documentar cualquier
+excepción antes de ampliar recursos.
 
 ## Datos, backup y rollback
 

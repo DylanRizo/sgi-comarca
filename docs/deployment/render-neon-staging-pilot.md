@@ -11,13 +11,15 @@ conteos reales. La decisión y sus límites están en
 
 ```text
 Navegador
-  -> sgi-comarca-web-staging.onrender.com (Next.js, Render Free)
-  -> sgi-comarca-api-staging.onrender.com (NestJS, Render Free)
+  -> sgi.lacomarcanic.com (Next.js, Render Free)
+  -> api-sgi.lacomarcanic.com (NestJS, Render Free)
   -> sgi-comarca-staging (PostgreSQL 18, Neon Free)
 ```
 
 Render y Neon están ubicados en Virginia / AWS `us-east-1`. Los dominios
-propios se agregan después de comprobar los dominios temporales de plataforma.
+`onrender.com` permanecen habilitados como respaldo operativo. La selección de
+subdominios está aprobada en
+[ADR-014](../decisions/ADR-014-staging-custom-domains.md).
 
 ## Estado verificado al 2026-09-04
 
@@ -51,6 +53,20 @@ propios se agregan después de comprobar los dominios temporales de plataforma.
 - Las comprobaciones de solo lectura devolvieron 200 en `/api/v1/health`,
   `/api/v1/ready` y `/login`. No se ejecutaron migraciones, bootstrap,
   importaciones, invitaciones ni mutaciones de negocio desde Render.
+- Los CNAME `sgi.lacomarcanic.com` y `api-sgi.lacomarcanic.com` están
+  propagados, verificados en Render y con TLS. Ambos servicios desplegaron
+  `5a668ae`; el bundle web usa únicamente la API personalizada y CORS/cookie
+  pasaron el smoke test desde el origen personalizado.
+- Después de más de 15 minutos sin tráfico de prueba, el primer GET respondió
+  200 en 839 ms para `/api/v1/ready` y en 383 ms para `/login`; no se observó
+  una penalización material de arranque frío en esa medición. Ambos despliegues
+  continuaron `live` y los logs revisados no expusieron secretos.
+- Gate 6 autorizado y parcialmente completado: el checkpoint
+  `checkpoint-pre-initial-admin-2026-09-04` se creó sin cómputo propio y la
+  invitación privada inicial se emitió desde el CLI interactivo local. La
+  verificación posterior encontró 1 invitación vigente, 1 ADMIN pendiente,
+  cero ADMIN activos, credenciales y sesiones, 1 evento de auditoría y cero
+  operaciones Neon activas. El token no se escribió en archivos ni en Git.
 - Gate 3 autorizado y completado: `codex/staging-pilot` contiene commits
   separados para el fix del bootstrap, la UI revisada y este despliegue.
 
@@ -160,12 +176,19 @@ cookie; no se aumenta sin evidencia de otro proxy real.
 
 ### Gate 6 — activación inicial
 
-Requiere autorización separada y un canal privado para entregar el token.
+**Parcialmente completado el 2026-09-04.** El propietario autorizó la invitación
+privada. Antes de emitirla se creó
+`checkpoint-pre-initial-admin-2026-09-04` desde `main`, sin cómputo propio. Un
+primer intento terminó sin token ni escritura parcial; la matriz de
+autorización y los conteos se revalidaron antes del intento exitoso. La
+invitación se creó a las 18:13:52 UTC y vence el 2026-09-05 a las 18:13:52 UTC.
+El token se entregó únicamente por el canal privado y no se registró en esta
+guía. La activación y la comprobación de login/logout siguen pendientes.
 
-1. Ejecutar `pnpm auth:bootstrap-admin-invitation` desde un entorno local
-   controlado con la conexión directa en memoria.
-2. No registrar el token. Entregar solo por canal privado una URL con fragmento:
-   `/activate#token=<TOKEN>`.
+1. **Completado:** ejecutar `pnpm auth:bootstrap-admin-invitation` desde un
+   entorno local controlado con la conexión directa en memoria.
+2. **Completado:** no registrar el token y entregar únicamente por canal privado
+   una URL con fragmento `/activate#token=<TOKEN>`.
 3. Activar el primer administrador y verificar login/logout.
 4. Invitar a las otras tres personas mediante el flujo administrativo, sin
    compartir contraseñas.
@@ -178,8 +201,8 @@ Requiere autorización separada y un canal privado para entregar el token.
   semana durante la prueba.
 - Mantener despliegues manuales. Cada nueva versión repite calidad, diff,
   migración aplicable y smoke test.
-- No agregar dominios Hostinger hasta que los dos dominios `onrender.com`
-  funcionen de punta a punta.
+- Los dominios Hostinger se agregaron solo después de validar los dos dominios
+  `onrender.com`; no modificar el dominio raíz, `www`, correo ni la tienda.
 - No importar el XLSX ni usar datos empresariales reales durante este piloto
   sin un gate de importación y reconciliación.
 

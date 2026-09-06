@@ -70,6 +70,36 @@ HTTPS/cookie/cold-start smoke gate and every activation or data gate remain
 separately controlled in the
 [pilot runbook](../deployment/render-neon-staging-pilot.md).
 
+The owner then approved two staging-only custom domains. Hostinger CNAMEs now
+map `sgi.lacomarcanic.com` to the Render web service and
+`api-sgi.lacomarcanic.com` to the Render API service; the root domain, `www`,
+mail and the existing store were not changed. Render reports both domains as
+verified. Both services deployed commit `5a668ae`; HTTPS health, readiness and
+login returned 200, the web bundle references only the custom API origin, CORS
+accepts the custom web origin with credentials, and the session cookie retains
+its host-only, Secure, HttpOnly, SameSite=Lax and root-path attributes. The
+`onrender.com` domains remain enabled as an operational fallback. See
+[ADR-014](../decisions/ADR-014-staging-custom-domains.md).
+
+The first requests after more than 15 minutes without test traffic returned 200
+in 839 ms for API readiness and 383 ms for the login page. Both deployments
+remained `live`, and the post-request log review found no secret values. This is
+one observation, not an availability guarantee for the Free tier.
+
+The owner explicitly authorized the initial private ADMIN invitation on
+2026-09-04. A pre-mutation check confirmed one pending assigned ADMIN, no active
+ADMIN, credentials, sessions or invitations, the exact approved authorization
+matrix and no active Neon operation. The branch
+`checkpoint-pre-initial-admin-2026-09-04` was created from `main` without its
+own compute. One CLI attempt exited before producing a token and left no partial
+write; after a fresh read-only matrix check, the interactive CLI created the
+initial invitation at 18:13:52 UTC, expiring at 18:13:52 UTC on 2026-09-05. The
+post-check found exactly one valid invitation, one pending and zero active
+ADMINs, no credential or session, one matching audit event and no active Neon
+operation. The raw token was delivered only through the private channel and is
+not stored in the repository. Account activation and login/logout verification
+remain pending.
+
 ## Git state
 
 The current repository HEAD is always determined dynamically. This document

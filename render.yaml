@@ -9,6 +9,8 @@ services:
     repo: https://github.com/DylanRizo/sgi-comarca
     branch: codex/staging-pilot
     autoDeployTrigger: 'off'
+    domains:
+      - api-sgi.lacomarcanic.com
     buildCommand: >-
       corepack enable && corepack prepare pnpm@11.18.0 --activate &&
       pnpm install --frozen-lockfile --prod=false && pnpm db:generate &&
@@ -23,9 +25,9 @@ services:
       - key: API_PORT
         value: '10000'
       - key: API_PUBLIC_URL
-        value: https://sgi-comarca-api-staging.onrender.com
+        value: https://api-sgi.lacomarcanic.com
       - key: WEB_ORIGINS
-        value: https://sgi-comarca-web-staging.onrender.com
+        value: https://sgi.lacomarcanic.com,https://sgi-comarca-web-staging.onrender.com
       - key: TRUST_PROXY_HOPS
         value: '1'
       - key: SESSION_COOKIE_NAME
@@ -53,6 +55,8 @@ services:
     repo: https://github.com/DylanRizo/sgi-comarca
     branch: codex/staging-pilot
     autoDeployTrigger: 'off'
+    domains:
+      - sgi.lacomarcanic.com
     buildCommand: >-
       corepack enable && corepack prepare pnpm@11.18.0 --activate &&
       pnpm install --frozen-lockfile --prod=false && pnpm db:generate &&
@@ -67,4 +71,4 @@ services:
       - key: NEXT_TELEMETRY_DISABLED
         value: '1'
       - key: NEXT_PUBLIC_API_URL
-        value: https://sgi-comarca-api-staging.onrender.com
+        value: https://api-sgi.lacomarcanic.com
