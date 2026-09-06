@@ -25,6 +25,7 @@ export interface WarehouseSummary {
 }
 
 export interface ProductSummary {
+  group?: { id: string; code: string; name: string; active: boolean } | null;
   id: string;
   code: string;
   name: string;
@@ -50,6 +51,8 @@ export interface ProductWarehouseValuationView {
 }
 
 export interface InventoryBalanceView {
+  version?: number;
+  canReadCost?: boolean;
   id: string;
   warehouse: WarehouseSummary;
   quantity: string;

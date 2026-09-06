@@ -50,9 +50,11 @@ export {
   inventoryCountSessionStatuses,
   type CancelInventoryCountSessionRequest,
   type CaptureInventoryCountLineRequest,
+  type CorrectInventoryCountLineRequest,
   type CreateInventoryCountSessionRequest,
   type InventoryCountActor,
   type InventoryCountLineView,
+  type InventoryCountLineRevisionView,
   type InventoryCountPendingItem,
   type InventoryCountPublicErrorCode,
   type InventoryCountSessionStatus,
@@ -112,3 +114,16 @@ export type {
   AdminInvitationData,
   UserAdministrationPublicErrorCode,
 } from './user-administration.js';
+export type {
+  ProductGroupView,
+  ProductInput,
+  ReceiptInput,
+  CreateProductInput,
+  EditProductInput,
+  ReceiptView,
+  ProductCreatedView,
+  ProductCatalogs,
+  PendingValuation,
+  ValuationInput,
+  StockOperationErrorCode,
+} from './stock-operations.js';
