@@ -18,6 +18,7 @@ import {
   type SaleDraftLine,
 } from '@/lib/sales/create-sale-draft';
 import { useAuth } from '@/providers/auth-provider';
+import { SaleProductField } from './sale-product-field';
 import { useModalDialog } from '@/lib/use-modal-dialog';
 
 function createSaleError(error: unknown): string {
@@ -26,10 +27,10 @@ function createSaleError(error: unknown): string {
       return 'El stock cambió y ya no alcanza. Actualiza los datos antes de intentarlo de nuevo.';
     }
     if (error.code === 'SALE_BALANCE_NOT_FOUND') {
-      return 'Algún producto no tiene saldo en el almacén elegido. Corrige esa línea.';
+      return 'Algún producto no tiene saldo en la bodega elegida. Corrige esa línea.';
     }
     if (error.code === 'SALE_COST_MISSING') {
-      return 'Un producto no tiene costo registrado en ese almacén. Regístralo antes de vender.';
+      return 'Un producto no tiene costo registrado en esa bodega. Regístralo antes de vender.';
     }
     if (error.code === 'SALE_PRICE_MISSING') {
       return 'Un producto no tiene precio de referencia. Escribe un precio en esa línea.';
@@ -206,7 +207,7 @@ export function CreateSaleDialog({
         </header>
 
         {loading ? (
-          <p>Cargando productos y almacenes…</p>
+          <p>Cargando productos y bodegas…</p>
         ) : (
           <form onSubmit={submit}>
             <div className="sale-form-grid">
@@ -337,24 +338,14 @@ export function CreateSaleDialog({
                 const reference = referencePriceByPair.get(pair) ?? null;
                 return (
                   <div className="sale-line" key={index}>
+                    <SaleProductField
+                      formatQuantity={formatQuantity}
+                      inventory={products}
+                      onSelect={(productId) => updateLine(index, { productId })}
+                      value={line.productId}
+                    />
                     <label>
-                      <span>Producto</span>
-                      <select
-                        onChange={(event) =>
-                          updateLine(index, { productId: event.target.value })
-                        }
-                        value={line.productId}
-                      >
-                        <option value="">Selecciona…</option>
-                        {products.map(({ product }) => (
-                          <option key={product.id} value={product.id}>
-                            {product.code} · {product.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span>Almacén</span>
+                      <span>Bodega</span>
                       <select
                         onChange={(event) =>
                           updateLine(index, { warehouseId: event.target.value })
@@ -394,8 +385,8 @@ export function CreateSaleDialog({
                       {line.productId && line.warehouseId
                         ? stock
                           ? 'Disponible: ' + formatQuantity(stock)
-                          : 'Sin saldo en ese almacén'
-                        : 'Selecciona producto y almacén'}
+                          : 'Sin saldo en esa bodega'
+                        : 'Selecciona producto y bodega'}
                     </p>
                     {lines.length > 1 ? (
                       <button

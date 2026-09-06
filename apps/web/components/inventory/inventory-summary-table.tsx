@@ -25,7 +25,7 @@ export function InventorySummaryTable({
             <th scope="col">Producto</th>
             <th scope="col">Unidad</th>
             <th scope="col">Stock total</th>
-            <th scope="col">Desglose por almacén</th>
+            <th scope="col">Desglose por bodega</th>
             <th scope="col">Detalle</th>
             {canAdjust ? <th scope="col">Acciones</th> : null}
           </tr>

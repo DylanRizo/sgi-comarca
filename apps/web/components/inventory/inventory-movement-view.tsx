@@ -8,6 +8,9 @@ import type {
   WarehouseSummary,
 } from '@sgi/contracts';
 import { type FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
+import type { Route } from 'next';
+import { InventoryTransferDialog } from './inventory-transfer-dialog';
 
 import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
@@ -20,16 +23,35 @@ import { formatObservedAt, formatQuantity } from '@/lib/inventory/presentation';
 import { useAuth } from '@/providers/auth-provider';
 
 const visibleMovementTypes = [
+  'INITIAL_BALANCE',
+  'LEGACY',
+  'RECEIPT',
   'ADJUSTMENT',
   'TRANSFER_OUT',
   'TRANSFER_IN',
+  'SALE',
+  'SALE_CANCELLATION',
 ] as const satisfies readonly InventoryMovementType[];
 
 function movementLabel(type: InventoryMovementType): string {
+  if (type === 'INITIAL_BALANCE') return 'Saldo inicial';
+  if (type === 'LEGACY') return 'Registro heredado';
+  if (type === 'RECEIPT') return 'Entrada';
   if (type === 'TRANSFER_OUT') return 'Transferencia · salida';
   if (type === 'TRANSFER_IN') return 'Transferencia · entrada';
   if (type === 'ADJUSTMENT') return 'Ajuste';
-  return type;
+  if (type === 'SALE') return 'Venta';
+  if (type === 'SALE_CANCELLATION') return 'Cancelación de venta';
+  return 'Movimiento';
+}
+
+function sourceHref(movement: InventoryMovement): Route | null {
+  if (!movement.sourceId) return null;
+  if (movement.sourceType === 'STOCK_RECEIPT')
+    return `/inventory/receipts/${movement.sourceId}` as Route;
+  if (movement.sourceType === 'SALE')
+    return `/sales/${movement.sourceId}` as Route;
+  return null;
 }
 
 interface MovementState {
@@ -55,7 +77,10 @@ const emptyDraft: MovementDraft = {
 };
 
 export function InventoryMovementView() {
-  const { refreshSession } = useAuth();
+  const { refreshSession, state: auth } = useAuth();
+  const permissions =
+    auth.kind === 'authenticated' ? auth.session.permissions : [];
+  const [transferOpen, setTransferOpen] = useState(false);
   const [draft, setDraft] = useState<MovementDraft>(emptyDraft);
   const [filters, setFilters] = useState<InventoryMovementQuery>({});
   const [error, setError] = useState<unknown>(null);
@@ -114,11 +139,9 @@ export function InventoryMovementView() {
     <main className="content-page" id="main-content">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Ledger inmutable</p>
           <h1>Movimientos de inventario</h1>
           <p>
-            Ajustes y ambos lados de cada transferencia, ordenados del más
-            reciente al más antiguo.
+            Realiza las operaciones diarias y consulta su historial completo.
           </p>
         </div>
         {state ? (
@@ -127,6 +150,44 @@ export function InventoryMovementView() {
           </span>
         ) : null}
       </header>
+      <section aria-labelledby="operation-title" className="detail-section">
+        <h2 id="operation-title">¿Qué necesitas hacer?</h2>
+        <div className="operation-toolbar">
+          {permissions.includes('stock-receipts.create') ? (
+            <Link
+              className="primary-button"
+              href={'/inventory/receipts/new' as Route}
+            >
+              Registrar entrada
+            </Link>
+          ) : null}
+          {permissions.includes('transfers.create') ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setTransferOpen(true)}
+            >
+              Transferir
+            </button>
+          ) : null}
+          {permissions.includes('inventory.adjust') ? (
+            <Link
+              className="secondary-button"
+              href={'/inventory/adjustments/new' as Route}
+            >
+              Ajustar existencias
+            </Link>
+          ) : null}
+          {permissions.includes('sales.create') ? (
+            <Link
+              className="secondary-button"
+              href={'/sales?create=1' as Route}
+            >
+              Registrar venta
+            </Link>
+          ) : null}
+        </div>
+      </section>
 
       <form className="filter-bar movement-filters" onSubmit={submit}>
         <label className="filter-field">
@@ -149,7 +210,7 @@ export function InventoryMovementView() {
           </select>
         </label>
         <label className="filter-field">
-          <span>Almacén</span>
+          <span>Bodega</span>
           <select
             onChange={(event) =>
               setDraft((current) => ({
@@ -159,7 +220,7 @@ export function InventoryMovementView() {
             }
             value={draft.warehouseId}
           >
-            <option value="">Todos los almacenes</option>
+            <option value="">Todas las bodegas</option>
             {state?.warehouses.map((warehouse) => (
               <option key={warehouse.id} value={warehouse.id}>
                 {warehouse.name} ({warehouse.code})
@@ -237,8 +298,18 @@ export function InventoryMovementView() {
           <p>{errorPresentation.message}</p>
         </ReadState>
       ) : state?.movements.items.length === 0 ? (
-        <ReadState title="Sin movimientos">
-          <p>No hay movimientos que coincidan con los filtros.</p>
+        <ReadState
+          title={
+            Object.keys(filters).length === 0
+              ? 'Todavía no hay movimientos'
+              : 'Sin movimientos'
+          }
+        >
+          <p>
+            {Object.keys(filters).length === 0
+              ? 'Registra una entrada, una transferencia, un ajuste o una venta y su historial aparecerá aquí.'
+              : 'No hay movimientos que coincidan con los filtros.'}
+          </p>
         </ReadState>
       ) : state ? (
         <>
@@ -249,7 +320,7 @@ export function InventoryMovementView() {
                   <th>Fecha</th>
                   <th>Producto</th>
                   <th>Tipo</th>
-                  <th>Almacén</th>
+                  <th>Bodega</th>
                   <th>Delta</th>
                   <th>Saldo</th>
                   <th>Actor / origen</th>
@@ -271,7 +342,7 @@ export function InventoryMovementView() {
                         {movementLabel(movement.type)}
                       </span>
                     </td>
-                    <td data-label="Almacén">{movement.warehouse.code}</td>
+                    <td data-label="Bodega">{movement.warehouse.code}</td>
                     <td data-label="Delta">
                       <strong>{formatQuantity(movement.quantityDelta)}</strong>
                     </td>
@@ -279,9 +350,20 @@ export function InventoryMovementView() {
                       {formatQuantity(movement.balanceBefore)} →{' '}
                       {formatQuantity(movement.balanceAfter)}
                     </td>
-                    <td data-label="Actor / origen">
+                    <td data-label="Responsable / origen">
                       {movement.actor?.displayName ?? 'Sistema'}
-                      <span>{movement.sourceType ?? 'Sin referencia'}</span>
+                      <span>
+                        {sourceHref(movement) ? (
+                          <Link
+                            className="table-link"
+                            href={sourceHref(movement)!}
+                          >
+                            Ver documento de origen
+                          </Link>
+                        ) : (
+                          (movement.sourceType ?? 'Sin referencia')
+                        )}
+                      </span>
                     </td>
                     <td data-label="Transferencia">
                       {movement.transfer ? (
@@ -306,6 +388,16 @@ export function InventoryMovementView() {
             pagination={state.movements.pagination}
           />
         </>
+      ) : null}
+      {transferOpen ? (
+        <InventoryTransferDialog
+          onCancel={() => setTransferOpen(false)}
+          onSuccess={() => {
+            setTransferOpen(false);
+            setLoading(true);
+            setReload((value) => value + 1);
+          }}
+        />
       ) : null}
     </main>
   );

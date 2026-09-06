@@ -55,10 +55,15 @@ async function allInventory(signal?: AbortSignal) {
 }
 
 export const inventoryApi = {
-  adjust: (input: InventoryAdjustmentRequest, csrfToken: string) =>
+  adjust: (
+    input: InventoryAdjustmentRequest,
+    csrfToken: string,
+    idempotencyKey: string,
+  ) =>
     apiRequest<InventoryAdjustmentResult>('/api/v1/inventory/adjustments', {
       body: input,
       csrfToken,
+      idempotencyKey,
       method: 'POST',
     }),
   inventory: (query: InventoryQuery, signal?: AbortSignal) => {

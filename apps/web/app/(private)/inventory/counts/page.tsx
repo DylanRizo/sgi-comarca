@@ -1,235 +1,267 @@
 'use client';
-
 import type {
+  InventoryCountSessionStatus,
   InventoryCountSessionSummary,
+  PaginatedData,
   WarehouseSummary,
 } from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, type FormEvent } from 'react';
+import { FormField } from '@/components/ui/form-field';
+import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { inventoryApi } from '@/lib/http/inventory-api';
 import { inventoryCountsApi } from '@/lib/http/inventory-counts-api';
+import { useStockMutation } from '@/lib/inventory/use-stock-mutation';
 import { useAuth } from '@/providers/auth-provider';
 
-const statusLabels: Record<string, string> = {
+const labels: Record<InventoryCountSessionStatus, string> = {
+  OPEN: 'En curso',
+  PENDING_APPROVAL: 'Por aprobar',
   APPROVED: 'Aprobado',
   CANCELLED: 'Cancelado',
-  OPEN: 'Abierto',
-  PENDING_APPROVAL: 'Por aprobar',
 };
-
-const statusTones: Record<string, string> = {
-  APPROVED: 'completed',
-  CANCELLED: 'cancelled',
-  OPEN: 'transit',
-  PENDING_APPROVAL: 'transit',
-};
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+function managuaToday() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
 }
-
 export default function InventoryCountsPage() {
-  const { getCsrfToken, state } = useAuth();
-  const [sessions, setSessions] = useState<
-    readonly InventoryCountSessionSummary[] | null
-  >(null);
-  const [warehouses, setWarehouses] = useState<readonly WarehouseSummary[]>([]);
-  const [loadError, setLoadError] = useState(false);
-  const [reload, setReload] = useState(0);
-
-  const [businessDate, setBusinessDate] = useState(today());
-  const [reason, setReason] = useState('');
-  const [selected, setSelected] = useState<readonly string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-
+  const router = useRouter(),
+    { state } = useAuth(),
+    mutation = useStockMutation();
+  const [result, setResult] =
+      useState<PaginatedData<InventoryCountSessionSummary> | null>(null),
+    [warehouses, setWarehouses] = useState<readonly WarehouseSummary[]>([]);
+  const [page, setPage] = useState(1),
+    [status, setStatus] = useState<'' | InventoryCountSessionStatus>(''),
+    [reload, setReload] = useState(0),
+    [loadError, setLoadError] = useState('');
+  const [businessDate, setBusinessDate] = useState(managuaToday),
+    [reason, setReason] = useState(''),
+    [selected, setSelected] = useState<string[]>([]);
+  const permissions =
+    state.kind === 'authenticated' ? state.session.permissions : [];
   useEffect(() => {
     const controller = new AbortController();
-    const scheduledLoad = window.setTimeout(() => {
-      Promise.all([
-        inventoryCountsApi.list({ pageSize: 25 }, controller.signal),
-        inventoryApi.warehouses(controller.signal),
-      ])
-        .then(([page, warehousePage]) => {
-          setSessions(page.items);
+    void Promise.all([
+      inventoryCountsApi.list(
+        { page, pageSize: 25, ...(status ? { status } : {}) },
+        controller.signal,
+      ),
+      inventoryApi.warehouses(controller.signal),
+    ])
+      .then(([counts, warehousePage]) => {
+        if (!controller.signal.aborted) {
+          setResult(counts);
           setWarehouses(warehousePage.items);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setLoadError(true);
-        });
-    }, 0);
-    return () => {
-      window.clearTimeout(scheduledLoad);
-      controller.abort();
-    };
-  }, [reload]);
-
-  if (state.kind !== 'authenticated') return null;
-  const canCreate = state.session.permissions.includes(
-    'inventory.audit.create',
-  );
-
-  async function createSession(event: React.FormEvent) {
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setLoadError('No pudimos cargar los conteos.');
+      });
+    return () => controller.abort();
+  }, [page, status, reload]);
+  function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
-    setFeedback(null);
-    try {
-      const csrfToken = await getCsrfToken();
-      await inventoryCountsApi.create(
-        { businessDate, reason, warehouseIds: [...selected] },
-        csrfToken,
-        crypto.randomUUID() + crypto.randomUUID(),
+    void mutation.execute(async (key, csrf) => {
+      const created = await inventoryCountsApi.create(
+        { businessDate, reason: reason.trim(), warehouseIds: selected },
+        csrf,
+        key,
       );
-      setReason('');
-      setSelected([]);
-      setReload((current) => current + 1);
-    } catch {
-      setFeedback('No fue posible crear la sesión de conteo.');
-    } finally {
-      setSubmitting(false);
-    }
+      router.push(`/inventory/counts/${created.id}` as Route);
+    });
   }
-
   return (
     <main className="content-page" id="main-content">
-      <section className="page-heading">
+      <header className="page-heading">
         <div>
-          <p className="eyebrow">Inventario</p>
           <h1>Conteo físico</h1>
           <p>
-            Cada sesión declara las bodegas que abarca. Un producto sin conteo
-            se reporta como pendiente: nunca se asume en cero.
+            Recorrido guiado: prepara el alcance, cuenta, revisa diferencias y
+            envía a aprobación.
           </p>
         </div>
-      </section>
-
-      {canCreate ? (
-        <form className="sale-actions" onSubmit={createSession}>
-          <h2>Nueva sesión</h2>
-          <div className="sale-form-grid">
-            <label>
-              <span>Fecha</span>
-              <input
-                onChange={(event) => setBusinessDate(event.target.value)}
-                required
-                type="date"
-                value={businessDate}
-              />
-            </label>
-            <label>
-              <span>Motivo</span>
-              <input
-                maxLength={500}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Conteo mensual"
-                required
-                type="text"
-                value={reason}
-              />
-            </label>
-          </div>
-          <fieldset className="sale-lines">
-            <legend>Bodegas incluidas</legend>
-            {warehouses.map((warehouse) => (
-              <label className="checkbox-field" key={warehouse.id}>
+      </header>
+      {permissions.includes('inventory.audit.create') ? (
+        <form className="work-form" onSubmit={create}>
+          <h2>1. Preparar un conteo</h2>
+          <fieldset disabled={mutation.busy || mutation.uncertain}>
+            <div className="form-grid">
+              <FormField label="Fecha local de Managua">
                 <input
-                  checked={selected.includes(warehouse.id)}
-                  onChange={(event) =>
-                    setSelected((current) =>
-                      event.target.checked
-                        ? [...current, warehouse.id]
-                        : current.filter((id) => id !== warehouse.id),
-                    )
-                  }
-                  type="checkbox"
+                  required
+                  type="date"
+                  value={businessDate}
+                  onChange={(event) => setBusinessDate(event.target.value)}
                 />
-                <span>
-                  {warehouse.name} ({warehouse.code})
-                </span>
-              </label>
-            ))}
+              </FormField>
+              <FormField label="Motivo">
+                <input
+                  required
+                  maxLength={500}
+                  placeholder="Conteo mensual o verificación puntual"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </FormField>
+            </div>
+            <fieldset className="work-panel">
+              <legend>Bodegas incluidas</legend>
+              {warehouses.length === 0 ? (
+                <p className="check-field-status">
+                  {loadError
+                    ? 'No pudimos cargar las bodegas.'
+                    : 'Cargando bodegas…'}
+                </p>
+              ) : null}
+              {warehouses.map((warehouse) => (
+                <label className="check-field" key={warehouse.id}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(warehouse.id)}
+                    onChange={(event) =>
+                      setSelected((current) =>
+                        event.target.checked
+                          ? [...current, warehouse.id]
+                          : current.filter((id) => id !== warehouse.id),
+                      )
+                    }
+                  />
+                  <span>{warehouse.name}</span>
+                </label>
+              ))}
+            </fieldset>
           </fieldset>
-          {feedback ? (
-            <p className="form-feedback" role="alert">
-              {feedback}
+          {mutation.error ? (
+            <p role="alert" className="inline-error">
+              {mutation.error}
             </p>
           ) : null}
-          <div className="page-actions">
-            <button
-              className="primary-button"
-              disabled={submitting || selected.length === 0 || !reason.trim()}
-              type="submit"
-            >
-              {submitting ? 'Creando…' : 'Crear sesión'}
-            </button>
-          </div>
+          <button
+            className="primary-button"
+            disabled={mutation.busy || !reason.trim() || selected.length === 0}
+            type="submit"
+          >
+            {mutation.busy
+              ? 'Creando…'
+              : mutation.uncertain
+                ? 'Reintentar'
+                : 'Crear y comenzar a contar'}
+          </button>
         </form>
       ) : null}
-
       <section className="detail-section">
         <div className="section-heading">
-          <h2>Sesiones</h2>
+          <h2>Conteos guardados</h2>
+          <FormField label="Estado">
+            <select
+              value={status}
+              onChange={(event) => {
+                setStatus(
+                  event.target.value as '' | InventoryCountSessionStatus,
+                );
+                setPage(1);
+                setResult(null);
+                setLoadError('');
+              }}
+            >
+              <option value="">Todos</option>
+              {Object.entries(labels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </FormField>
         </div>
         {loadError ? (
-          <p className="read-state" data-tone="error">
-            No fue posible cargar las sesiones de conteo.
+          <p role="alert">
+            {loadError}{' '}
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setLoadError('');
+                setResult(null);
+                setReload((value) => value + 1);
+              }}
+            >
+              Reintentar
+            </button>
           </p>
-        ) : null}
-        {sessions === null && !loadError ? (
-          <p className="read-state">Cargando sesiones…</p>
-        ) : null}
-        {sessions && sessions.length === 0 ? (
-          <p className="read-state">Todavía no hay sesiones de conteo.</p>
-        ) : null}
-        {sessions && sessions.length > 0 ? (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Fecha</th>
-                  <th scope="col">Motivo</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Líneas</th>
-                  <th scope="col">Creada por</th>
-                  <th scope="col">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((session) => (
-                  <tr key={session.id}>
-                    <td data-label="Fecha">{session.businessDate}</td>
-                    <td data-label="Motivo">{session.reason}</td>
-                    <td data-label="Estado">
-                      <span
-                        className="status-badge"
-                        data-tone={statusTones[session.status]}
-                      >
-                        {statusLabels[session.status] ?? session.status}
-                      </span>
-                    </td>
-                    <td data-label="Líneas" data-numeric="true">
-                      {session.lineCount}
-                    </td>
-                    <td data-label="Creada por">
-                      {session.createdBy.displayName}
-                    </td>
-                    <td data-label="Acción">
-                      <Link
-                        className="table-link"
-                        href={`/inventory/counts/${session.id}` as Route}
-                      >
-                        Ver
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : !result ? (
+          <p role="status">Cargando conteos…</p>
+        ) : result.items.length === 0 ? (
+          <div className="work-panel">
+            <h3>
+              {status
+                ? `No hay conteos: ${labels[status]}`
+                : 'Todavía no hay conteos'}
+            </h3>
+            <p>
+              {status
+                ? 'Cambia el filtro para consultar otros estados.'
+                : 'Prepara la primera sesión para comenzar.'}
+            </p>
           </div>
-        ) : null}
+        ) : (
+          <>
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Motivo</th>
+                    <th>Bodegas</th>
+                    <th>Estado</th>
+                    <th>Progreso</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((session) => (
+                    <tr key={session.id}>
+                      <td data-label="Fecha">{session.businessDate}</td>
+                      <td data-label="Motivo">{session.reason}</td>
+                      <td data-label="Bodegas">
+                        {session.warehouses
+                          .map((warehouse) => warehouse.name)
+                          .join(', ')}
+                      </td>
+                      <td data-label="Estado">
+                        <span className="status-badge">
+                          {labels[session.status]}
+                        </span>
+                      </td>
+                      <td data-label="Progreso">{session.lineCount} líneas</td>
+                      <td data-label="Acción">
+                        <Link
+                          className="table-link"
+                          href={`/inventory/counts/${session.id}` as Route}
+                        >
+                          {session.status === 'OPEN' ? 'Continuar' : 'Revisar'}
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationControls
+              pagination={result.pagination}
+              onPage={setPage}
+            />
+          </>
+        )}
       </section>
     </main>
   );

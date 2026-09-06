@@ -4,6 +4,13 @@ import type { SalesAnalytics } from '@sgi/contracts';
 import { useEffect, useState } from 'react';
 
 import { analyticsApi } from '@/lib/http/analytics-api';
+import {
+  ChartEmpty,
+  CoverageMeter,
+  PeriodChart,
+  RankedBars,
+  ShareDonut,
+} from '@/components/analytics/charts';
 import { useAuth } from '@/providers/auth-provider';
 
 type LoadState =
@@ -22,6 +29,16 @@ function formatMoney(value: string | null): string {
 /** A `0`–`1` ratio the API already rounded, rendered for reading. */
 function percent(ratio: string): string {
   return `${(Number(ratio) * 100).toFixed(1)} %`;
+}
+
+/** Axis labels need to be short: C$ 48k reads where C$ 48,320.00 does not. */
+function compactMoney(value: number): string {
+  return new Intl.NumberFormat('es-NI', {
+    currency: 'NIO',
+    style: 'currency',
+    notation: value >= 10_000 ? 'compact' : 'standard',
+    maximumFractionDigits: value >= 10_000 ? 1 : 0,
+  }).format(value);
 }
 
 function formatPercent(ratio: string | null): string {
@@ -72,12 +89,9 @@ export default function AnalyticsPage() {
   if (state.kind !== 'authenticated') return null;
 
   const data = result.kind === 'ready' ? result.data : null;
-  const maxUnits = data
-    ? Math.max(...data.periods.map((point) => Number(point.unitsSold)), 1)
-    : 1;
-  const maxProductUnits = data
-    ? Math.max(...data.topProducts.map((point) => Number(point.unitsSold)), 1)
-    : 1;
+  // Money is null for an actor without `finances.read`, so the charts show the
+  // operational series instead of drawing an axis of dashes.
+  const showsMoney = data?.totalRevenue !== null && data?.totalRevenue !== undefined;
 
   return (
     <main className="content-page" id="main-content">
@@ -201,28 +215,39 @@ export default function AnalyticsPage() {
 
           <section aria-labelledby="periods-title" className="detail-section">
             <div className="section-heading">
-              <h2 id="periods-title">Unidades vendidas por periodo</h2>
+              <h2 id="periods-title">
+                {showsMoney ? 'Ingresos y unidades por periodo' : 'Unidades vendidas por periodo'}
+              </h2>
             </div>
             {data.periods.length === 0 ? (
-              <p className="read-state">Sin ventas completadas en el rango.</p>
+              <ChartEmpty message="Sin ventas completadas en el rango." />
+            ) : showsMoney ? (
+              <PeriodChart
+                bars={data.periods.map((point) => Number(point.revenue))}
+                barLabel="Ingresos"
+                formatBar={compactMoney}
+                formatLine={(value) => `${String(value)} u`}
+                labels={data.periods.map((point) => point.period.slice(5))}
+                line={data.periods.map((point) => Number(point.unitsSold))}
+                lineLabel="Unidades"
+                summary={`Ingresos por periodo, con la línea de unidades vendidas. ${String(data.periods.length)} periodos.`}
+              />
             ) : (
-              <ul className="chart-bars">
-                {data.periods.map((point) => (
-                  <li key={point.period}>
-                    <span>{point.period}</span>
-                    <span className="chart-bar-track">
-                      <span
-                        className="chart-bar-fill"
-                        style={{
-                          width: `${(Number(point.unitsSold) / maxUnits) * 100}%`,
-                        }}
-                      />
-                    </span>
-                    <span className="chart-bar-value">{point.unitsSold}</span>
-                  </li>
-                ))}
-              </ul>
+              <PeriodChart
+                bars={data.periods.map((point) => Number(point.unitsSold))}
+                barLabel="Unidades"
+                formatBar={(value) => String(value)}
+                labels={data.periods.map((point) => point.period.slice(5))}
+                summary={`Unidades vendidas por periodo. ${String(data.periods.length)} periodos.`}
+              />
             )}
+            {data.marginCoverage.totalLines > 0 && showsMoney ? (
+              <CoverageMeter
+                covered={data.marginCoverage.coveredLines}
+                excluded={data.marginCoverage.excludedLines}
+                label="Cobertura del margen"
+              />
+            ) : null}
           </section>
 
           <section aria-labelledby="sellers-title" className="detail-section">
@@ -230,8 +255,22 @@ export default function AnalyticsPage() {
               <h2 id="sellers-title">Vendedores</h2>
             </div>
             {data.bySeller.length === 0 ? (
-              <p className="read-state">Sin ventas completadas en el rango.</p>
+              <ChartEmpty message="Sin ventas completadas en el rango." />
             ) : (
+              <>
+                <RankedBars
+                  format={showsMoney ? compactMoney : (value) => `${String(value)} ventas`}
+                  items={data.bySeller.map((seller) => ({
+                    label: seller.sellerName,
+                    note: `${String(seller.saleCount)} ventas`,
+                    value: showsMoney ? Number(seller.revenue) : seller.saleCount,
+                  }))}
+                  summary={
+                    showsMoney
+                      ? 'Facturación acumulada por vendedor.'
+                      : 'Ventas por vendedor.'
+                  }
+                />
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
@@ -260,6 +299,7 @@ export default function AnalyticsPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </section>
 
@@ -268,24 +308,16 @@ export default function AnalyticsPage() {
               <h2 id="channels-title">Canales de venta</h2>
             </div>
             {data.byChannel.length === 0 ? (
-              <p className="read-state">Sin ventas completadas en el rango.</p>
+              <ChartEmpty message="Sin ventas completadas en el rango." />
             ) : (
-              <ul className="chart-bars">
-                {data.byChannel.map((point) => (
-                  <li key={point.channel}>
-                    <span>{point.channel}</span>
-                    <span className="chart-bar-track">
-                      <span
-                        className="chart-bar-fill"
-                        style={{ width: `${Number(point.share) * 100}%` }}
-                      />
-                    </span>
-                    <span className="chart-bar-value">
-                      {percent(point.share)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <ShareDonut
+                items={data.byChannel.map((point) => ({
+                  label: point.channel,
+                  share: Number(point.share),
+                  value: point.saleCount,
+                }))}
+                summary="Reparto de las ventas por canal de origen."
+              />
             )}
           </section>
 
@@ -294,26 +326,17 @@ export default function AnalyticsPage() {
               <h2 id="top-title">Productos más vendidos</h2>
             </div>
             {data.topProducts.length === 0 ? (
-              <p className="read-state">Sin productos vendidos en el rango.</p>
+              <ChartEmpty message="Sin productos vendidos en el rango." />
             ) : (
-              <ul className="chart-bars">
-                {data.topProducts.map((point) => (
-                  <li key={point.productId}>
-                    <span title={point.productName}>{point.productCode}</span>
-                    <span className="chart-bar-track">
-                      <span
-                        className="chart-bar-fill"
-                        style={{
-                          width: `${(Number(point.unitsSold) / maxProductUnits) * 100}%`,
-                        }}
-                      />
-                    </span>
-                    <span className="chart-bar-value">
-                      {point.unitsSold} · {percent(point.unitsShare)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <RankedBars
+                format={(value) => `${String(value)} u`}
+                items={data.topProducts.map((point) => ({
+                  label: `${point.productCode} · ${point.productName}`,
+                  note: percent(point.unitsShare),
+                  value: Number(point.unitsSold),
+                }))}
+                summary="Productos con más unidades vendidas en el periodo."
+              />
             )}
           </section>
         </>

@@ -81,7 +81,7 @@ export function SaleLifecycleActions({
       {cancelling ? (
         <div className="sale-cancel-panel">
           <p>
-            Cancelar es total y devuelve el inventario a cada almacén de origen.
+            Cancelar es total y devuelve el inventario a cada bodega de origen.
             No se puede deshacer.
           </p>
           <label>

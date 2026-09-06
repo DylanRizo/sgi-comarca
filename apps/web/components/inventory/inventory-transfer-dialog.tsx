@@ -25,12 +25,12 @@ function transferError(error: unknown): string {
     if (error.status === 401) return 'La sesión ya no es válida.';
     if (error.status === 403) return 'No tienes permiso para transferir.';
     if (error.status === 404) {
-      return 'El producto, almacén o saldo de origen ya no está disponible.';
+      return 'El producto, la bodega o el saldo de origen ya no está disponible.';
     }
     if (error.status === 409) {
       return 'La transferencia entró en conflicto con otro cambio de inventario. Actualiza los datos.';
     }
-    if (error.status === 400) return 'Revisa almacenes, cantidad y motivo.';
+    if (error.status === 400) return 'Revisa bodegas, cantidad y motivo.';
   }
   return 'No fue posible transferir. No se reintentará automáticamente.';
 }
@@ -166,7 +166,7 @@ export function InventoryTransferDialog({
       >
         <header>
           <div>
-            <p className="eyebrow">Movimiento entre almacenes</p>
+            <p className="eyebrow">Movimiento entre bodegas</p>
             <h2 id="transfer-title">Transferir inventario</h2>
           </div>
           <button
@@ -213,7 +213,7 @@ export function InventoryTransferDialog({
 
           <div className="transfer-fields">
             <label className="filter-field" htmlFor="transferOrigin">
-              <span>Almacén origen</span>
+              <span>Bodega origen</span>
               <select
                 disabled={submitting || !selectedProduct}
                 id="transferOrigin"
@@ -236,7 +236,7 @@ export function InventoryTransferDialog({
               </select>
             </label>
             <label className="filter-field" htmlFor="transferDestination">
-              <span>Almacén destino</span>
+              <span>Bodega destino</span>
               <select
                 disabled={submitting || !selectedProduct}
                 id="transferDestination"

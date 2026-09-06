@@ -21,6 +21,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ThemeControl } from '@/components/layout/theme-control';
 import { useAuth } from '@/providers/auth-provider';
 
 /**
@@ -81,7 +82,7 @@ const insightNavigation = [
   {
     href: '/analytics',
     icon: ChartColumn,
-    label: 'Analytics',
+    label: 'Análisis',
     permission: 'analytics.read',
   },
 ] as const;
@@ -104,7 +105,10 @@ export function AuthenticatedShell({
     ...(canReadSales ? salesNavigation : []),
   ];
   const controlNavigation = [...countNavigation, ...financesNavigation].filter(
-    ({ permission }) => state.session.permissions.includes(permission),
+    ({ permission }) =>
+      state.session.permissions.includes(permission) ||
+      (permission === 'inventory.audit.create' &&
+        state.session.permissions.includes('inventory.audit.approve')),
   );
   const visibleInsightNavigation = insightNavigation.filter(({ permission }) =>
     state.session.permissions.includes(permission),
@@ -210,7 +214,13 @@ export function AuthenticatedShell({
             </div>
           ) : null}
         </nav>
-        <div className="application-user">
+        <div
+          className="application-user"
+          // Below the collapse width this block lives inside the menu panel,
+          // so it follows the same toggle instead of standing permanently on
+          // top of the page.
+          data-open={menuOpen ? 'true' : 'false'}
+        >
           <div
             aria-label={`Sesión activa: ${state.session.displayName}`}
             className="application-user-identity"
@@ -223,6 +233,10 @@ export function AuthenticatedShell({
               <strong>{state.session.displayName}</strong>
             </span>
           </div>
+          <Link className="account-link" href={'/account' as Route}>
+            Mi cuenta
+          </Link>
+          <ThemeControl userId={state.session.userId} />
           <LogoutButton />
         </div>
       </header>

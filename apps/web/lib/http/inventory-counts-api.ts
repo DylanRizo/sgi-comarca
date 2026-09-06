@@ -1,6 +1,7 @@
 import type {
   CancelInventoryCountSessionRequest,
   CaptureInventoryCountLineRequest,
+  CorrectInventoryCountLineRequest,
   CreateInventoryCountSessionRequest,
   InventoryCountSessionStatus,
   InventoryCountSessionSummary,
@@ -42,6 +43,17 @@ export const inventoryCountsApi = {
     apiRequest<InventoryCountSessionView>(
       `${base}/${encodeURIComponent(id)}/lines`,
       { body: input, csrfToken, method: 'POST' },
+    ),
+  correctLine: (
+    id: string,
+    lineId: string,
+    input: CorrectInventoryCountLineRequest,
+    csrfToken: string,
+    idempotencyKey: string,
+  ) =>
+    apiRequest<InventoryCountSessionView>(
+      `${base}/${encodeURIComponent(id)}/lines/${encodeURIComponent(lineId)}`,
+      { body: input, csrfToken, idempotencyKey, method: 'PATCH' },
     ),
   create: (
     input: CreateInventoryCountSessionRequest,

@@ -29,6 +29,17 @@
   --accent-strong: #0f5134;
   --accent-soft: #e7f5ec;
   --accent-ring: #519a7b;
+
+  /* Chart series. Distinguishable in both themes and by luminance, so a
+     colour-blind reader still separates them; never used to carry meaning
+     without a label beside it. */
+  --chart-1: #176b45;
+  --chart-2: #2f8f6a;
+  --chart-3: #6aa84f;
+  --chart-4: #b07d2b;
+  --chart-5: #7a5ea7;
+  --chart-grid: #d8e3db;
+  --chart-axis: #6d8177;
   /* Ink for text on a saturated fill: accent, accent-strong, danger. */
   --ink-on-fill: #ffffff;
 
@@ -76,7 +87,7 @@
  * below hard-codes a colour, so nothing needs a second declaration.
  */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
 
     --background: #0e1512;
@@ -95,6 +106,14 @@
     --accent-strong: #6cc79a;
     --accent-soft: #17301f;
     --accent-ring: #6cc79a;
+
+    --chart-1: #4bab7d;
+    --chart-2: #6cc79a;
+    --chart-3: #9ccb6a;
+    --chart-4: #d8a44f;
+    --chart-5: #b49ae0;
+    --chart-grid: #26332c;
+    --chart-axis: #94a49b;
     /* Dark-mode fills are light, so the ink on them inverts. */
     --ink-on-fill: #0b1310;
 
@@ -114,6 +133,160 @@
     --shadow: 0 2px 6px rgb(0 0 0 / 40%), 0 8px 20px rgb(0 0 0 / 30%);
     --shadow-lg: 0 16px 40px rgb(0 0 0 / 48%);
     --shadow-dialog: 0 28px 72px rgb(0 0 0 / 62%);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #0e1512;
+  --background-tint: #14261d;
+  --surface: #151d19;
+  --surface-muted: #1a2420;
+  --surface-raised: #1b2521;
+  --text: #e8efea;
+  --text-soft: #c2cfc7;
+  --muted: #a7b7ad;
+  --border: #35483d;
+  --border-strong: #72877a;
+  --field-border: #72877a;
+  --accent: #4bab7d;
+  --accent-strong: #6cc79a;
+  --accent-soft: #17301f;
+  --accent-ring: #6cc79a;
+  --chart-1: #4bab7d;
+  --chart-2: #6cc79a;
+  --chart-3: #9ccb6a;
+  --chart-4: #d8a44f;
+  --chart-5: #b49ae0;
+  --chart-grid: #26332c;
+  --chart-axis: #94a49b;
+  --ink-on-fill: #0b1310;
+  --brand-canvas: #0a281c;
+  --brand-canvas-raised: #123c2b;
+  --brand-ink: #f0fbf4;
+  --brand-muted: #a9c8b7;
+  --success: #6cc79a;
+  --success-soft: #16301f;
+  --warning: #e0a950;
+  --warning-soft: #33260f;
+  --danger: #e9796b;
+  --danger-soft: #341916;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  /* Native controls rendered in the browser's blue against the green
+     identity the plan asks to keep. */
+  accent-color: var(--accent);
+}
+
+.theme-control {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--brand-ink);
+  font-size: 0.85rem;
+}
+.theme-control select {
+  min-height: 2.75rem;
+  /* The longest option, "Del dispositivo", clipped inside an 80px box at
+     375px wide. The control keeps its own text readable before it shrinks. */
+  min-width: 9rem;
+  background: var(--brand-canvas);
+  color: var(--brand-ink);
+  border: 1px solid var(--brand-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem;
+  width: 100%;
+}
+.check-field-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.account-link {
+  color: var(--brand-ink);
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+.account-permissions {
+  columns: 2 18rem;
+  padding-left: 1.25rem;
+  line-height: 2;
+}
+.form-field,
+.sale-form-grid > label {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.form-field > span,
+.sale-form-grid > label > span {
+  font-weight: 600;
+}
+.form-field small {
+  color: var(--muted);
+}
+.form-field :is(input, select, textarea),
+.sale-form-grid > label > :is(input, select, textarea),
+.sale-cancel-panel input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+}
+.operation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1rem 0 1.5rem;
+}
+.operation-toolbar a,
+.operation-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+.workflow-steps [aria-current='step'] {
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+.work-form {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 60rem;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.work-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.inline-error {
+  color: var(--danger);
+}
+@media (max-width: 48rem) {
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -725,6 +898,9 @@ a {
 
 .application-user {
   display: flex;
+  /* Below about 380px the identity, account link, appearance control and
+     logout button squeezed each other instead of using a second line. */
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
@@ -813,7 +989,7 @@ a {
 .page-heading h1 {
   max-width: none;
   margin-bottom: 0.5rem;
-  font-size: clamp(2rem, 4.5vw, 3.15rem);
+  font-size: 2rem;
   font-weight: 750;
   letter-spacing: -0.038em;
   line-height: 0.98;
@@ -1388,7 +1564,9 @@ a {
   padding-bottom: 0.9rem;
   border-bottom: 1px solid var(--border);
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  align-items: end;
+  /* The product cell grows once a product is chosen, so the fields align by
+     their labels instead of hanging from the tallest cell's bottom edge. */
+  align-items: start;
 }
 
 .sale-line:last-of-type {
@@ -1399,6 +1577,76 @@ a {
 .sale-line label {
   display: grid;
   gap: 0.3rem;
+}
+
+.sale-line-product {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* The matches float over the form: pushing the other fields down while the
+   operator types made the line jump under the cursor. */
+.sale-line-product .picker-results,
+.sale-line-product .sale-product-empty {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  right: 0;
+  left: 0;
+  max-height: 15rem;
+  padding: 0.35rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 0.25rem 0 0;
+  background: var(--surface-raised, var(--surface));
+  box-shadow: 0 0.6rem 1.4rem rgb(8 35 24 / 28%);
+}
+
+.sale-product-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* A sale line column is about 10rem wide, too narrow for the picker's
+   three-column row, so the dropdown widens past the cell and stacks. */
+.sale-line-product .picker-results {
+  min-width: min(24rem, 78vw);
+}
+
+.sale-line-product .picker-result {
+  grid-template-columns: 1fr;
+  gap: 0.15rem;
+}
+
+.sale-line-product .picker-result span:last-child {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sale-product-caption {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.sale-product-chosen {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.sale-product-stock {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sale-line-product .secondary-button {
+  justify-self: start;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
 }
 
 .sale-line-hint,
@@ -1462,6 +1710,10 @@ a {
 }
 
 .kpi-card {
+  /* The value is sized against the card, not the viewport: a wider screen adds
+     grid columns and makes each card narrower, so C$17,425.00 used to overflow
+     its own card at the widest sizes. */
+  container-type: inline-size;
   display: grid;
   gap: 0.35rem;
   padding: 1.15rem;
@@ -1484,11 +1736,12 @@ a {
 }
 
 .kpi-value {
-  font-size: clamp(1.85rem, 4vw, 2.55rem);
+  font-size: clamp(1.5rem, 15cqi, 2.4rem);
   font-weight: 760;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .kpi-value[data-tone='warning'] {
@@ -1523,6 +1776,136 @@ a {
 .coverage-note[data-complete='true'] {
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+/* Inline SVG charts. Sized by the container, coloured by the theme tokens. */
+.chart-figure {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-gridline {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.chart-axis-line {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+}
+
+.chart-axis-text,
+.chart-row-label,
+.chart-row-value {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart-row-label {
+  fill: var(--text);
+  font-size: 12px;
+}
+
+.chart-row-value {
+  fill: var(--text-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.chart-bar {
+  fill: var(--chart-1);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--chart-4);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.chart-dot {
+  fill: var(--chart-4);
+}
+
+.chart-donut {
+  display: grid;
+  align-items: center;
+  gap: 1.25rem;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+}
+
+.chart-donut svg {
+  width: 100%;
+  height: auto;
+}
+
+.chart-legend {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.chart-legend li {
+  display: grid;
+  align-items: center;
+  gap: 0.6rem;
+  grid-template-columns: 0.75rem 1fr auto;
+}
+
+.chart-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 0.2rem;
+}
+
+.chart-coverage {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chart-coverage-track {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.chart-coverage-track span {
+  display: block;
+  height: 100%;
+  background: var(--chart-2);
+}
+
+.chart-coverage p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.chart-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.analytics-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
+}
+
+@media (width < 40rem) {
+  .chart-donut {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .chart-donut svg {
+    max-width: 12rem;
+  }
 }
 
 .chart-bars {
@@ -1778,6 +2161,99 @@ a {
 
   .application-user {
     grid-area: user;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 0.65rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid
+      color-mix(in srgb, var(--brand-muted) 30%, transparent);
+  }
+
+  /* Closed, the header is just the brand and the toggle: two rows of session
+     controls used to sit above every page and crowd it. */
+  .application-user[data-open='false'] {
+    display: none;
+  }
+
+  .application-user .account-link {
+    padding: 0.35rem 0;
+  }
+
+  .theme-control {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.6rem;
+  }
+}
+
+.work-form > fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.work-form > fieldset:disabled {
+  opacity: 0.72;
+}
+.work-form select:disabled,
+.work-form input:read-only {
+  background: var(--surface-muted);
+}
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  margin-block: 1rem;
+}
+.check-field input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.picker-results {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+.picker-results li + li {
+  border-top: 1px solid var(--border);
+}
+.picker-result {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.6fr) 2fr auto;
+  text-align: left;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 0;
+  cursor: pointer;
+}
+.picker-result:hover,
+.picker-result[aria-pressed='true'] {
+  background: var(--surface-muted);
+  box-shadow: inset 3px 0 var(--accent);
+}
+.picker-result:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.product-picker {
+  margin-bottom: 1.5rem;
+}
+@media (max-width: 40rem) {
+  .picker-result {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+  .operation-toolbar > * {
+    justify-content: center;
   }
 }
 

@@ -48,7 +48,10 @@ function activeValue(filter: ActiveFilter): boolean | undefined {
 }
 
 export function ProductCatalogView() {
-  const { refreshSession } = useAuth();
+  const { refreshSession, state: auth } = useAuth();
+  const canManage =
+    auth.kind === 'authenticated' &&
+    auth.session.permissions.includes('products.manage');
   const [active, setActive] = useState<ActiveFilter>('true');
   const [draftSearch, setDraftSearch] = useState('');
   const [error, setError] = useState<unknown>(null);
@@ -122,12 +125,8 @@ export function ProductCatalogView() {
     <main className="content-page" id="main-content">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Catálogo</p>
           <h1>Productos</h1>
-          <p>
-            Consulta códigos, unidades y existencias. Esta vista no permite
-            modificar el inventario.
-          </p>
+          <p>Crea productos, consulta existencias y registra sus entradas.</p>
         </div>
         {state ? (
           <span className="result-count">
@@ -136,6 +135,19 @@ export function ProductCatalogView() {
         ) : null}
       </header>
 
+      {canManage ? (
+        <div className="operation-toolbar">
+          <Link className="primary-button" href={'/products/new' as Route}>
+            Nuevo producto
+          </Link>
+          <Link
+            className="secondary-button"
+            href={'/inventory/receipts/new' as Route}
+          >
+            Registrar entrada
+          </Link>
+        </div>
+      ) : null}
       <form className="filter-bar" onSubmit={submit}>
         <label className="filter-field">
           <span>Buscar producto</span>
@@ -187,8 +199,36 @@ export function ProductCatalogView() {
           <p>{errorPresentation.message}</p>
         </ReadState>
       ) : rows?.length === 0 ? (
-        <ReadState title="Sin resultados">
-          <p>No hay productos que coincidan con los filtros seleccionados.</p>
+        <ReadState
+          title={
+            !search && active === 'true'
+              ? 'Todavía no hay productos activos'
+              : 'Sin resultados'
+          }
+        >
+          <p>
+            {!search && active === 'true'
+              ? 'Crea la primera ficha para comenzar. Los productos del legacy no se importan automáticamente.'
+              : 'No hay productos que coincidan con los filtros seleccionados.'}
+          </p>
+          {!search && canManage ? (
+            <Link className="table-link" href={'/products/new' as Route}>
+              Crear producto
+            </Link>
+          ) : (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setDraftSearch('');
+                setSearch('');
+                setActive('all');
+                beginRequest(() => setPage(1));
+              }}
+            >
+              Limpiar filtros
+            </button>
+          )}
         </ReadState>
       ) : rows && state ? (
         <>
@@ -200,7 +240,7 @@ export function ProductCatalogView() {
                   <th scope="col">Producto</th>
                   <th scope="col">Unidad</th>
                   <th scope="col">Stock total</th>
-                  <th scope="col">Almacenes con existencia</th>
+                  <th scope="col">Bodegas con existencia</th>
                   <th scope="col">Estado</th>
                   <th scope="col">Detalle</th>
                 </tr>
@@ -216,7 +256,7 @@ export function ProductCatalogView() {
                     <td data-label="Stock total">
                       {formatQuantity(row.totalQuantity)}
                     </td>
-                    <td data-label="Almacenes">{row.warehousesWithStock}</td>
+                    <td data-label="Bodegas">{row.warehousesWithStock}</td>
                     <td data-label="Estado">
                       <span className="status-badge" data-active={row.active}>
                         {row.active ? 'Activo' : 'Inactivo'}

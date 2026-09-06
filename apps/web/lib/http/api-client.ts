@@ -6,6 +6,8 @@ import type {
   InventoryAdjustmentPublicErrorCode,
   InventoryTransferPublicErrorCode,
   SalesPublicErrorCode,
+  StockOperationErrorCode,
+  InventoryCountPublicErrorCode,
 } from '@sgi/contracts';
 
 import { publicApiUrl } from '@/lib/environment';
@@ -14,7 +16,7 @@ export type ApiRequestOptions = {
   body?: unknown;
   csrfToken?: string;
   idempotencyKey?: string;
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH';
   signal?: AbortSignal;
 };
 
@@ -27,6 +29,8 @@ export class ApiHttpError extends Error {
       | InventoryAdjustmentPublicErrorCode
       | InventoryTransferPublicErrorCode
       | SalesPublicErrorCode
+      | StockOperationErrorCode
+      | InventoryCountPublicErrorCode
       | 'HTTP_ERROR',
     message: string,
     readonly requestId?: string,
@@ -117,7 +121,9 @@ export async function apiRequest<T>(
           | FinancesPublicErrorCode
           | InventoryAdjustmentPublicErrorCode
           | InventoryTransferPublicErrorCode
-          | SalesPublicErrorCode,
+          | SalesPublicErrorCode
+          | StockOperationErrorCode
+          | InventoryCountPublicErrorCode,
         parsed.error.message,
         parsed.error.requestId,
       );

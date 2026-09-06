@@ -132,7 +132,7 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
               <thead>
                 <tr>
                   <th>Producto</th>
-                  <th>Almacén</th>
+                  <th>Bodega</th>
                   <th>Cantidad</th>
                   <th>Precio unitario</th>
                   <th>Subtotal</th>
@@ -146,7 +146,7 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
                       <strong>{item.product.code}</strong>
                       <span>{item.product.name}</span>
                     </td>
-                    <td data-label="Almacén">{item.warehouse.name}</td>
+                    <td data-label="Bodega">{item.warehouse.name}</td>
                     <td data-label="Cantidad">
                       {formatQuantity(item.quantity)}
                     </td>
