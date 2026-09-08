@@ -8,6 +8,7 @@ import type {
   SalesPublicErrorCode,
   StockOperationErrorCode,
   InventoryCountPublicErrorCode,
+  UserAdministrationPublicErrorCode,
 } from '@sgi/contracts';
 
 import { publicApiUrl } from '@/lib/environment';
@@ -31,6 +32,7 @@ export class ApiHttpError extends Error {
       | SalesPublicErrorCode
       | StockOperationErrorCode
       | InventoryCountPublicErrorCode
+      | UserAdministrationPublicErrorCode
       | 'HTTP_ERROR',
     message: string,
     readonly requestId?: string,

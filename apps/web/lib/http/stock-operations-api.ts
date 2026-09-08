@@ -20,6 +20,11 @@ const mutation = (
 ) => ({ body, csrfToken, idempotencyKey, method: 'POST' as const });
 export const stockOperationsApi = {
   groups: () => apiRequest<ProductGroupView[]>('/api/v1/product-groups'),
+  createGroup: (name: string, csrf: string, key: string) =>
+    apiRequest<ProductGroupView>(
+      '/api/v1/product-groups',
+      mutation({ name }, csrf, key),
+    ),
   units: () =>
     apiRequest<PaginatedData<UnitSummary>>(
       '/api/v1/units?active=true&page=1&pageSize=100',

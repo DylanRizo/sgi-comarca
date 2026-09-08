@@ -204,6 +204,83 @@ input[type='radio'] {
   font-size: 0.85rem;
 }
 
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.link-button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.user-actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.user-actions-buttons {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.invitation-panel {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.invitation-panel p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.invitation-panel input {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+}
+
+.category-creator {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-top: 0.35rem;
+  background: var(--surface-muted);
+}
+
+.category-creator label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.category-creator input {
+  width: 100%;
+}
+
+.category-creator-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .account-link {
   color: var(--brand-ink);
   text-underline-offset: 0.2em;

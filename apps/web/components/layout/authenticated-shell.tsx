@@ -10,6 +10,7 @@ import {
   House,
   Menu,
   Package,
+  Settings,
   ShoppingCart,
   Wallet,
   X,
@@ -87,6 +88,18 @@ const insightNavigation = [
   },
 ] as const;
 
+// La administración se filtra por permiso, no por rol: ADMIN es un rol
+// estructural sin permisos implícitos, así que gatear por él mostraría el
+// acceso a quien no puede usarlo.
+const administrationNavigation = [
+  {
+    href: '/settings',
+    icon: Settings,
+    label: 'Configuración',
+    permission: 'users.read',
+  },
+] as const;
+
 export function AuthenticatedShell({
   children,
 }: Readonly<{ children: ReactNode }>) {
@@ -112,6 +125,9 @@ export function AuthenticatedShell({
   );
   const visibleInsightNavigation = insightNavigation.filter(({ permission }) =>
     state.session.permissions.includes(permission),
+  );
+  const visibleAdministrationNavigation = administrationNavigation.filter(
+    ({ permission }) => state.session.permissions.includes(permission),
   );
   const userInitial =
     Array.from(state.session.displayName.trim())[0]?.toLocaleUpperCase(
@@ -211,6 +227,16 @@ export function AuthenticatedShell({
             >
               <p id="insight-navigation">Análisis</p>
               {visibleInsightNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {visibleAdministrationNavigation.length > 0 ? (
+            <div
+              aria-labelledby="administration-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="administration-navigation">Administración</p>
+              {visibleAdministrationNavigation.map(navigationLink)}
             </div>
           ) : null}
         </nav>

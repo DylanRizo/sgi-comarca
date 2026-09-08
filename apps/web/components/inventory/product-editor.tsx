@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { FormField } from '@/components/ui/form-field';
+import { CategoryCreator } from './category-creator';
 import { stockOperationsApi } from '@/lib/http/stock-operations-api';
 import { inventoryApi } from '@/lib/http/inventory-api';
 import { useStockMutation } from '@/lib/inventory/use-stock-mutation';
@@ -237,6 +238,16 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
                         </option>
                       ))}
                     </select>
+                    <CategoryCreator
+                      onCreated={(group) => {
+                        setCatalogs((current) =>
+                          current
+                            ? { ...current, groups: [...current.groups, group] }
+                            : current,
+                        );
+                        edit('groupId', group.id);
+                      }}
+                    />
                   </FormField>
                   <FormField label="Stock mínimo">
                     <input
