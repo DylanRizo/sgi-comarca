@@ -53,6 +53,8 @@ describe('FASE 3B bootstrap manifest', () => {
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
+        'users.read',
+        'users.roles.manage',
         'users.sessions.revoke',
         'users.status.manage',
       ].sort(),
@@ -94,6 +96,8 @@ describe('FASE 3B bootstrap manifest', () => {
       [
         'ADMIN:users.credentials.revoke',
         'ADMIN:users.invitations.create',
+        'ADMIN:users.read',
+        'ADMIN:users.roles.manage',
         'ADMIN:users.sessions.revoke',
         'ADMIN:users.status.manage',
         'FINANCE:closings.create',
@@ -121,9 +125,9 @@ describe('FASE 3B bootstrap manifest', () => {
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(23);
+    expect(bootstrapPermissions).toHaveLength(25);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(23);
+    expect(bootstrapRolePermissions).toHaveLength(25);
     expect(bootstrapUserPermissions).toHaveLength(2);
   });
 

@@ -45,6 +45,16 @@ export const bootstrapPermissions = [
     description: 'Completar costos y precios por bodega.',
   },
   {
+    code: 'users.read',
+    description:
+      'Consultar el directorio de usuarios, sus roles y permisos efectivos.',
+  },
+  {
+    code: 'users.roles.manage',
+    description:
+      'Asignar roles y excepciones de permisos a otras personas usuarias.',
+  },
+  {
     code: 'users.invitations.create',
     description: 'Crear invitaciones de activación para usuarios.',
   },
@@ -170,6 +180,8 @@ export const bootstrapRolePermissions = [
   },
   { roleCode: 'ADMIN', permissionCode: 'users.sessions.revoke' },
   { roleCode: 'ADMIN', permissionCode: 'users.status.manage' },
+  { roleCode: 'ADMIN', permissionCode: 'users.read' },
+  { roleCode: 'ADMIN', permissionCode: 'users.roles.manage' },
   { roleCode: 'FINANCE', permissionCode: 'finances.read' },
   { roleCode: 'FINANCE', permissionCode: 'finances.manual.create' },
   { roleCode: 'FINANCE', permissionCode: 'closings.read' },

@@ -126,7 +126,7 @@ export async function createManagedTemporaryDatabase(
       warehouseCount !== 3 ||
       userCount !== 4 ||
       roleCount !== 6 ||
-      permissionCount !== 23
+      permissionCount !== 25
     ) {
       throw new LegacyImporterError('TEMP_DATABASE_BOOTSTRAP_INCOMPATIBLE', 5);
     }

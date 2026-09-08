@@ -332,6 +332,8 @@ describe.sequential('last ADMIN policy', () => {
         [
           'users.credentials.revoke',
           'users.invitations.create',
+          'users.read',
+          'users.roles.manage',
           'users.sessions.revoke',
           'users.status.manage',
         ].sort(),

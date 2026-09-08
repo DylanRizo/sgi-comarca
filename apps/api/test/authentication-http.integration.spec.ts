@@ -500,6 +500,8 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
+        'users.read',
+        'users.roles.manage',
         'users.sessions.revoke',
         'users.status.manage',
       ],

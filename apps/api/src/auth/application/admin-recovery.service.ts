@@ -41,6 +41,8 @@ const approvedPermissionCodes = [
   'transfers.create',
   'users.credentials.revoke',
   'users.invitations.create',
+  'users.read',
+  'users.roles.manage',
   'users.sessions.revoke',
   'users.status.manage',
 ] as const;
@@ -48,6 +50,8 @@ const approvedPermissionCodes = [
 const approvedRolePermissionKeys = [
   'ADMIN:users.credentials.revoke',
   'ADMIN:users.invitations.create',
+  'ADMIN:users.read',
+  'ADMIN:users.roles.manage',
   'ADMIN:users.sessions.revoke',
   'ADMIN:users.status.manage',
   'FINANCE:closings.create',

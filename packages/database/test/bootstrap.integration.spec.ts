@@ -166,9 +166,9 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
     expect(invitationCount).toBe(0);
-    expect(permissions).toHaveLength(23);
+    expect(permissions).toHaveLength(25);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(23);
+    expect(rolePermissions).toHaveLength(25);
     expect(userPermissions).toHaveLength(2);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
@@ -180,7 +180,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 72, phase: '7A-RBAC' },
+      metadata: { createdRecordCount: 76, phase: '7A-RBAC' },
     });
   });
 
@@ -319,7 +319,7 @@ describe.sequential('FASE 3B bootstrap', () => {
 
     expect(restrictedRoleAssignments).toBe(0);
     expect(administrativeRoleAssignments).toBe(1);
-    expect(administrativeRolePermissions).toBe(4);
+    expect(administrativeRolePermissions).toBe(6);
     expect(salesRoleAssignments).toBe(4);
     expect(salesRolePermissions).toBe(5);
     expect(transferGrants).toEqual([1, 0]);
