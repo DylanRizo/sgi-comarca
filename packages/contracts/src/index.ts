@@ -112,7 +112,13 @@ export {
 } from './sales.js';
 export type {
   AdminInvitationData,
+  RoleSummary,
+  UpdateUserPermissionsInput,
+  UpdateUserRolesInput,
   UserAdministrationPublicErrorCode,
+  UserDetail,
+  UserDirectoryEntry,
+  UserPermissionOverride,
 } from './user-administration.js';
 export type {
   ProductGroupView,

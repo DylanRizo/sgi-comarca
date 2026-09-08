@@ -413,6 +413,65 @@ describe.sequential('BLOQUE 7A user administration HTTP endpoints', () => {
     ).toBe(1);
   });
 
+  it('reads the directory, the detail and the roles behind users.read', async () => {
+    const dylan = await admin();
+    const read = (path: string) =>
+      request(app.getHttpServer())
+        .get(path)
+        .set('Host', host)
+        .set('Cookie', dylan.cookie);
+
+    const directory = await read('/api/v1/users?page=1&pageSize=25').expect(200);
+    const entries = directory.body.data.items as {
+      loginIdentifier: string;
+      roles: string[];
+      status: string;
+      hasActiveCredential: boolean;
+      activeSessions: number;
+      hasOpenInvitation: boolean;
+    }[];
+    expect(entries).toHaveLength(4);
+    const self = entries.find((entry) => entry.loginIdentifier === 'dylan');
+    expect(self).toMatchObject({ status: 'ACTIVE', hasActiveCredential: true });
+    expect(self?.roles).toContain('ADMIN');
+    expect(self?.activeSessions).toBeGreaterThan(0);
+
+    const search = await read('/api/v1/users?search=jea&page=1&pageSize=25').expect(
+      200,
+    );
+    expect(search.body.data.items).toHaveLength(1);
+    expect(search.body.data.items[0].loginIdentifier).toBe('jean');
+
+    const detail = await read(`/api/v1/users/${dylanId}`).expect(200);
+    // The detail answers what the person can actually do, which a role name
+    // never states on its own.
+    expect(detail.body.data.effectivePermissions).toContain('users.read');
+    // The manifest grants dylan two permissions directly, outside any role, so
+    // the detail must report them as the overrides they are.
+    expect(detail.body.data.overrides).toEqual([
+      { code: 'inventory.audit.approve', effect: 'GRANT' },
+      { code: 'sales.cancel', effect: 'GRANT' },
+    ]);
+
+    const roles = await read('/api/v1/roles').expect(200);
+    expect(
+      (roles.body.data as { code: string }[]).map(({ code }) => code),
+    ).toEqual(
+      expect.arrayContaining(['ADMIN', 'FINANCE', 'INVENTORY_MANAGER', 'SALES']),
+    );
+  });
+
+  it('refuses the directory to an actor denied users.read', async () => {
+    await addDeny(dylanId, 'users.read');
+    const dylan = await admin();
+    for (const path of ['/api/v1/users', `/api/v1/users/${dylanId}`, '/api/v1/roles'])
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Host', host)
+        .set('Cookie', dylan.cookie)
+        .expect(403);
+  });
+
   it('maps invalid invitation targets, bodies and states without internal detail', async () => {
     const dylan = await admin();
     await command(dylan, '/api/v1/users/not-a-uuid/invitations').expect(400);
