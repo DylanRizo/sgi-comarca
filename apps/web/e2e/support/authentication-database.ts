@@ -267,6 +267,20 @@ export class AuthenticationDatabase {
     return products.length;
   }
 
+  async denyUsersRead(): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({
+        where: { code: 'users.read' },
+      }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
+  }
+
   async denyInventoryRead(): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({
