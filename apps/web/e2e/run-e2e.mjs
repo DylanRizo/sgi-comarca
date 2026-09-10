@@ -190,6 +190,9 @@ try {
   await run('pnpm', ['--filter', '@sgi/database', 'build'], {
     env: databaseEnvironment,
   });
+  await run('pnpm', ['--filter', '@sgi/contracts', 'build'], {
+    env: databaseEnvironment,
+  });
   await run('pnpm', ['--filter', '@sgi/database', 'db:migrate:deploy'], {
     env: databaseEnvironment,
   });
