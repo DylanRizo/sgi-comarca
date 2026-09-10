@@ -5,31 +5,63 @@ Updated: 2026-09-10.
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Alexa real-read integration (local, not deployed)
+## Alexa real-read integration (schema and application deployed; account linking pending)
 
-The owner approved the bounded architecture on 2026-09-09. Branch
-`codex/piloto-alexa-para-inventario` now contains a private Alexa-hosted bridge,
-OAuth 2.0 Authorization Code + PKCE account linking, hash-only revocable
-tokens, a 30-request/minute persistent limit, dedicated bearer authorization,
-safe inventory/sales projections, consent/revocation UI, schema migration and
-tests. The synthetic POC remains available as local adapter fixtures.
+The owner approved the bounded architecture on 2026-09-09 and explicitly
+authorized its staging preflight, migration and deployment on 2026-09-10. The
+private Alexa-hosted bridge, OAuth 2.0 Authorization Code + PKCE account
+linking, hash-only revocable tokens, 30-request/minute persistent limit,
+dedicated bearer authorization, safe inventory/sales projections,
+consent/revocation UI, schema migration and tests are versioned on
+`codex/staging-pilot` through commit `fd22f30`. The synthetic POC remains
+available as local adapter fixtures.
 
-Final local verification on 2026-09-10 passed lint (9/9 tasks), typecheck (8/8
-tasks), 65 files / 282 unit tests, 31 files / 333 PostgreSQL integration tests,
-build (8/8 tasks), Prisma schema validation, the changed-file format gate, diff
-whitespace validation, the secret-pattern scan, and the focused Chromium
-account-linking flow. The browser test found and fixed a real consent defect:
-the initial form read `FormData(form)` without its submitter, so both buttons
-sent `approved: false`; the final implementation derives the decision from the
-actual submit button and the regression test asserts `approved: true` for
-`Vincular Alexa`. The E2E harness now also builds `@sgi/contracts` before
-starting the API so a clean run cannot consume a stale runtime export.
+Final local verification passed lint (9/9 tasks, with only the existing unused
+disable warning), typecheck (8/8 tasks), 65 files / 282 unit tests, 31 files /
+335 PostgreSQL integration tests, build (8/8 tasks), Prisma schema validation
+and the focused Chromium account-linking flow. The browser test found and fixed
+a real consent defect: the initial form read `FormData(form)` without its
+submitter, so both buttons sent `approved: false`; the final implementation
+derives the decision from the actual submit button and the regression test
+asserts `approved: true` for `Vincular Alexa`. The E2E harness now also builds
+`@sgi/contracts` before starting the API so a clean run cannot consume a stale
+runtime export.
 
-No Alexa migration, environment variable, API/web revision or Lambda bridge
-has been deployed to staging, and no real SGI account has been linked. That
-deployment remains an independent operational checkpoint documented in the
-[real connection guide](../integrations/alexa-real-integration.md). No commit or
-push is implied by this working-tree snapshot.
+The staging target was revalidated directly before mutation as database
+`sgi_comarca_staging`, role `sgi_staging_owner`, PostgreSQL 18.6, with nine
+finished migrations, zero unfinished migrations and no Alexa tables. A private
+custom-format pre-migration backup was created and verified with
+`pg_restore --list`. `pnpm db:migrate:deploy` then applied only
+`20260909120000_alexa_account_linking`. A second verified checkpoint was taken
+before the separately approved administration bootstrap; that bootstrap added
+only permissions `users.read` and `users.roles.manage`, their two active ADMIN
+role grants and one audit record. It created no user, credential, invitation,
+warehouse or business row.
+
+The final private post-bootstrap checkpoint is
+`sgi_comarca_staging_post_alexa_admin_bootstrap_20260910T195112Z.dump`
+(233,822 bytes, SHA-256
+`dbb4c010e6b638bec25a5fea2bffe6aab7c1021ceb3c8c2d898a37e18201a3dd`),
+with 437 archive entries accepted by `pg_restore --list`. The post-operation
+read-only check found ten finished migrations, zero unfinished migrations,
+four empty Alexa tables, 25 permissions, 25 active role-permission rows, both
+expected ADMIN grants, and still zero products, inventory balances, inventory
+movements and sales. Subsequent owner login activity accounts for one active
+session and the latest authentication audit record; it is not a deployment
+mutation.
+
+Render API and web deploys for `fd22f30` both reached `live`. HTTPS checks
+returned 200 for API health, API readiness with database `up`, the web root and
+`/alexa/link`. Both services track `codex/staging-pilot` and automatic deploys
+were explicitly enabled after the successful manual smoke gate.
+
+The Alexa integration itself remains disabled because the four Alexa-specific
+Render variables have not been set, the Amazon account-linking redirect URIs
+have not been copied from the developer account, and the Alexa-hosted bridge
+has not been replaced/deployed in the developer console. No real SGI account
+has been linked. Finish those steps only through the checkpointed procedure in
+the [real connection guide](../integrations/alexa-real-integration.md); do not
+invent a vendor ID or expose the generated client secret.
 
 ## Free staging pilot (Render + Neon)
 
