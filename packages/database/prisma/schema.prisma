@@ -23,6 +23,13 @@ enum PermissionEffect {
   @@map("permission_effect")
 }
 
+enum AlexaOAuthTokenKind {
+  ACCESS
+  REFRESH
+
+  @@map("alexa_oauth_token_kind")
+}
+
 enum InventoryMovementType {
   INITIAL_BALANCE
   LEGACY
@@ -182,9 +189,74 @@ model User {
   inventoryCommands           InventoryCommand[]
   stockReceipts               StockReceipt[]
   countLineRevisions          InventoryCountLineRevision[]
+  alexaAccountLinks           AlexaAccountLink[]
 
   @@index([status], map: "users_status_idx")
   @@map("users")
+}
+
+model AlexaAccountLink {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  clientId     String    @map("client_id") @db.VarChar(160)
+  scopes       String[]  @default([])
+  authorizedAt DateTime  @map("authorized_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  authorizationCodes AlexaAuthorizationCode[]
+  tokens             AlexaOAuthToken[]
+  rateLimitWindow    AlexaRateLimitWindow?
+
+  @@unique([userId, clientId], map: "alexa_account_links_user_client_key")
+  @@index([clientId, revokedAt], map: "alexa_account_links_client_revoked_idx")
+  @@map("alexa_account_links")
+}
+
+model AlexaAuthorizationCode {
+  id                  String    @id @default(uuid()) @db.Uuid
+  linkId              String    @map("link_id") @db.Uuid
+  tokenHash           String    @unique(map: "alexa_authorization_codes_token_hash_key") @map("token_hash") @db.Char(64)
+  redirectUri         String    @map("redirect_uri") @db.VarChar(500)
+  codeChallenge       String    @map("code_challenge") @db.VarChar(128)
+  codeChallengeMethod String    @default("S256") @map("code_challenge_method") @db.VarChar(16)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt          DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  link AlexaAccountLink @relation(fields: [linkId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([linkId, expiresAt], map: "alexa_authorization_codes_link_expires_idx")
+  @@map("alexa_authorization_codes")
+}
+
+model AlexaOAuthToken {
+  id               String              @id @default(uuid()) @db.Uuid
+  linkId           String              @map("link_id") @db.Uuid
+  kind             AlexaOAuthTokenKind
+  tokenHash        String              @unique(map: "alexa_oauth_tokens_token_hash_key") @map("token_hash") @db.Char(64)
+  expiresAt        DateTime            @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime?           @map("revoked_at") @db.Timestamptz(6)
+  revocationReason String?             @map("revocation_reason") @db.VarChar(120)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  link AlexaAccountLink @relation(fields: [linkId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([linkId, kind, revokedAt, expiresAt], map: "alexa_oauth_tokens_link_kind_status_idx")
+  @@map("alexa_oauth_tokens")
+}
+
+model AlexaRateLimitWindow {
+  linkId          String   @id @map("link_id") @db.Uuid
+  windowStartedAt DateTime @map("window_started_at") @db.Timestamptz(6)
+  requestCount    Int      @default(0) @map("request_count")
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  link AlexaAccountLink @relation(fields: [linkId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("alexa_rate_limit_windows")
 }
 
 model Role {

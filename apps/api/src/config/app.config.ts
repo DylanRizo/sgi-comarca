@@ -1,8 +1,17 @@
 import { registerAs } from '@nestjs/config';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const developmentDatabaseUrl =
   'postgresql://sgi_dev:sgi_dev_password@localhost:5433/sgi_comarca_dev?schema=public';
+const developmentAlexaClientId = 'sgi-alexa-development';
+const developmentAlexaClientSecret = Buffer.alloc(32, 0x61).toString(
+  'base64url',
+);
+const approvedAlexaRedirectHosts = new Set([
+  'alexa.amazon.co.jp',
+  'layla.amazon.com',
+  'pitangui.amazon.com',
+]);
 
 function parsePort(value: string | undefined): number {
   const port = Number(value ?? '3001');
@@ -133,6 +142,95 @@ function databaseUrl(nodeEnvironment: string): string {
   return developmentDatabaseUrl;
 }
 
+function parseAlexaRedirectUris(
+  value: string | undefined,
+  enabled: boolean,
+  nodeEnvironment: string,
+): readonly string[] {
+  const fallback =
+    nodeEnvironment === 'production'
+      ? ''
+      : 'https://pitangui.amazon.com/api/skill/link/TESTVENDOR';
+  const candidates = (value ?? fallback)
+    .split(',')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+  if (enabled && candidates.length === 0) {
+    throw new Error(
+      'ALEXA_OAUTH_REDIRECT_URIS is required when Alexa integration is enabled.',
+    );
+  }
+
+  return Object.freeze(
+    candidates.map((candidate, index) => {
+      let url: URL;
+      try {
+        url = new URL(candidate);
+      } catch {
+        throw new Error(
+          `ALEXA_OAUTH_REDIRECT_URIS[${index}] must be an absolute URL.`,
+        );
+      }
+      if (
+        url.protocol !== 'https:' ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        !approvedAlexaRedirectHosts.has(url.hostname) ||
+        !/^\/api\/skill\/link\/[A-Za-z0-9]+$/u.test(url.pathname)
+      ) {
+        throw new Error(
+          `ALEXA_OAUTH_REDIRECT_URIS[${index}] must be an exact Alexa HTTPS redirect URI.`,
+        );
+      }
+      return url.toString();
+    }),
+  );
+}
+
+function parseAlexaIntegration(nodeEnvironment: string) {
+  const enabled = parseBoolean(process.env.ALEXA_INTEGRATION_ENABLED);
+  const clientId = (
+    process.env.ALEXA_OAUTH_CLIENT_ID ??
+    (nodeEnvironment === 'production' ? '' : developmentAlexaClientId)
+  ).trim();
+  if (enabled && (!clientId || !/^[A-Za-z0-9._:-]{8,160}$/u.test(clientId))) {
+    throw new Error(
+      'ALEXA_OAUTH_CLIENT_ID must be 8-160 safe characters when Alexa integration is enabled.',
+    );
+  }
+
+  const clientSecretHash = (
+    process.env.ALEXA_OAUTH_CLIENT_SECRET_SHA256 ??
+    (nodeEnvironment === 'production'
+      ? ''
+      : createHash('sha256')
+          .update(developmentAlexaClientSecret, 'utf8')
+          .digest('hex'))
+  ).trim();
+  if (enabled && !/^[a-f0-9]{64}$/u.test(clientSecretHash)) {
+    throw new Error(
+      'ALEXA_OAUTH_CLIENT_SECRET_SHA256 must be a lowercase SHA-256 hash when Alexa integration is enabled.',
+    );
+  }
+
+  return Object.freeze({
+    accessTokenLifetimeSeconds: 15 * 60,
+    clientId,
+    clientSecretHash,
+    enabled,
+    queryLimitPerMinute: 30,
+    redirectUris: parseAlexaRedirectUris(
+      process.env.ALEXA_OAUTH_REDIRECT_URIS,
+      enabled,
+      nodeEnvironment,
+    ),
+    refreshTokenLifetimeSeconds: 30 * 24 * 60 * 60,
+    scopes: Object.freeze(['inventory.read', 'sales.read'] as const),
+  });
+}
+
 /**
  * The daily closing tolerance (DEC-024) and the reopening window (DEC-025) are
  * configurable rather than hard-coded, so they can be adjusted without a code
@@ -187,6 +285,7 @@ export const appConfig = registerAs('app', () => {
   }
 
   return {
+    alexa: parseAlexaIntegration(nodeEnvironment),
     apiPort: parsePort(process.env.API_PORT),
     apiOrigin,
     closingReopeningWindowDays: parseReopeningWindowDays(

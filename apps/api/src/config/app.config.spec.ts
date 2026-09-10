@@ -23,6 +23,37 @@ describe('API security configuration', () => {
     expect(result.secureCookies).toBe(false);
     expect(result.trustProxyHops).toBe(0);
     expect(result.swaggerEnabled).toBe(false);
+    expect(result.alexa.enabled).toBe(false);
+    expect(result.alexa.queryLimitPerMinute).toBe(30);
+  });
+
+  it('requires complete Alexa OAuth configuration when enabled in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://unused';
+    process.env.API_PUBLIC_URL = 'https://api.example.test';
+    process.env.TRUST_PROXY_HOPS = '1';
+    process.env.AUTH_CSRF_HMAC_SECRET_BASE64 = Buffer.alloc(32, 0x41).toString(
+      'base64',
+    );
+    process.env.AUTH_ORIGIN_HMAC_SECRET_BASE64 = Buffer.alloc(
+      32,
+      0x42,
+    ).toString('base64');
+    process.env.ALEXA_INTEGRATION_ENABLED = 'true';
+
+    expect(() => appConfig()).toThrow(/ALEXA_OAUTH_CLIENT_ID/u);
+    process.env.ALEXA_OAUTH_CLIENT_ID = 'sgi-alexa-staging';
+    expect(() => appConfig()).toThrow(/ALEXA_OAUTH_CLIENT_SECRET_SHA256/u);
+    process.env.ALEXA_OAUTH_CLIENT_SECRET_SHA256 = 'a'.repeat(64);
+    expect(() => appConfig()).toThrow(/ALEXA_OAUTH_REDIRECT_URIS/u);
+    process.env.ALEXA_OAUTH_REDIRECT_URIS =
+      'https://pitangui.amazon.com/api/skill/link/TESTVENDOR';
+
+    expect(appConfig().alexa).toMatchObject({
+      clientId: 'sgi-alexa-staging',
+      enabled: true,
+      scopes: ['inventory.read', 'sales.read'],
+    });
   });
 
   it('requires HTTPS, an explicit proxy count, and __Host cookie in production', () => {

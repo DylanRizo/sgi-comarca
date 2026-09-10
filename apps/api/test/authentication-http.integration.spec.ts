@@ -600,7 +600,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
     }
   }, 30_000);
 
-  it('keeps only the approved health and authentication entry routes public', async () => {
+  it('keeps only the approved health, authentication and Alexa token entry routes public', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/health')
       .set('Host', host)
@@ -621,6 +621,11 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       .set('Origin', origin)
       .send({})
       .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/alexa/oauth/token')
+      .set('Host', host)
+      .send({})
+      .expect(400);
 
     await request(app.getHttpServer())
       .get('/api/v1/auth/session')
@@ -629,6 +634,15 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
     await request(app.getHttpServer())
       .get('/api/v1/auth/csrf')
       .set('Host', host)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/v1/alexa/oauth/status')
+      .set('Host', host)
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/v1/alexa/requests')
+      .set('Host', host)
+      .send({})
       .expect(401);
     for (const route of [
       '/api/v1/auth/logout',

@@ -14,6 +14,13 @@ export type {
   SellerPoint,
   TopProductPoint,
 } from './analytics.js';
+export {
+  alexaScopes,
+  type AlexaAuthorizationData,
+  type AlexaAuthorizationRequest,
+  type AlexaLinkStatusData,
+  type AlexaScope,
+} from './alexa.js';
 export type { ApiErrorBody, ApiMeta, ApiSuccess } from './api-response.js';
 export type {
   ActivateAccountRequest,

@@ -9,6 +9,7 @@ import type { Response } from 'express';
 
 import { SessionService } from '../application/session.service.js';
 import { PUBLIC_ROUTE_METADATA } from '../decorators/public-route.decorator.js';
+import { EXTERNAL_BEARER_ROUTE_METADATA } from '../decorators/external-bearer-route.decorator.js';
 import { SessionError } from '../domain/authentication.errors.js';
 import {
   attachAuthenticatedContext,
@@ -33,7 +34,11 @@ export class SessionGuard implements CanActivate {
       this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE_METADATA, [
         context.getHandler(),
         context.getClass(),
-      ])
+      ]) ||
+      this.reflector.getAllAndOverride<boolean>(
+        EXTERNAL_BEARER_ROUTE_METADATA,
+        [context.getHandler(), context.getClass()],
+      )
     ) {
       return true;
     }

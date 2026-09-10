@@ -19,10 +19,7 @@ export class OriginPolicyService {
   }
 
   assertRequestAllowed(request: Request): void {
-    const host = request.header('host')?.toLowerCase();
-    if (host !== this.configuration.expectedHost) {
-      throw AuthHttpException.requestVerificationFailed();
-    }
+    this.assertHostAllowed(request);
 
     const origin = request.header('origin');
     if (!origin) {
@@ -34,6 +31,13 @@ export class OriginPolicyService {
       origin === 'null' ||
       !this.allowedOrigins.has(this.canonicalOrigin(origin))
     ) {
+      throw AuthHttpException.requestVerificationFailed();
+    }
+  }
+
+  assertHostAllowed(request: Request): void {
+    const host = request.header('host')?.toLowerCase();
+    if (host !== this.configuration.expectedHost) {
       throw AuthHttpException.requestVerificationFailed();
     }
   }

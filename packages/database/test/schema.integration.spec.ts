@@ -11,6 +11,10 @@ if (!databaseUrl) {
 }
 
 const applicationTables = [
+  'alexa_account_links',
+  'alexa_authorization_codes',
+  'alexa_oauth_tokens',
+  'alexa_rate_limit_windows',
   'audit_logs',
   'daily_closing_reopenings',
   'daily_closings',
@@ -139,7 +143,7 @@ describe('current PostgreSQL operational structure', () => {
     await pool.end();
   });
 
-  it('has exactly 39 application tables and only the Prisma technical table', async () => {
+  it('has exactly 43 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -155,7 +159,7 @@ describe('current PostgreSQL operational structure', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(39);
+    expect(actualApplicationTables).toHaveLength(43);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 

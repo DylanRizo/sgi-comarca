@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 
 import { EffectivePermissionsService } from '../application/effective-permissions.service.js';
 import { PUBLIC_ROUTE_METADATA } from '../decorators/public-route.decorator.js';
+import { EXTERNAL_BEARER_ROUTE_METADATA } from '../decorators/external-bearer-route.decorator.js';
 import { REQUIRED_PERMISSION_METADATA } from '../decorators/require-permission.decorator.js';
 import {
   authenticatedContext,
@@ -29,7 +30,11 @@ export class PermissionGuard implements CanActivate {
       this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE_METADATA, [
         context.getHandler(),
         context.getClass(),
-      ])
+      ]) ||
+      this.reflector.getAllAndOverride<boolean>(
+        EXTERNAL_BEARER_ROUTE_METADATA,
+        [context.getHandler(), context.getClass()],
+      )
     ) {
       return true;
     }

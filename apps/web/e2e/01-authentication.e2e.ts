@@ -12,6 +12,25 @@ const webUrl = process.env.SGI_E2E_WEB_URL ?? 'http://localhost:3100';
 const initialPassword = 'calm river orchard lantern';
 const changedPassword = 'gentle mountain harbor phrase';
 const database = new AuthenticationDatabase();
+const alexaLinkPath =
+  '/alexa/link?client_id=sgi-alexa-development&redirect_uri=' +
+  encodeURIComponent(
+    'https://pitangui.amazon.com/api/skill/link/SGIALEXADEVELOPMENT',
+  ) +
+  '&response_type=code&state=alexa-state&scope=inventory.read%20sales.read' +
+  '&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGH123456789&code_challenge_method=S256';
+const expectedAlexaLink = new URL(alexaLinkPath, webUrl);
+
+function isAlexaLinkUrl(url: URL): boolean {
+  const expectedParameters = [...expectedAlexaLink.searchParams.entries()];
+  return (
+    url.pathname === expectedAlexaLink.pathname &&
+    [...url.searchParams.entries()].length === expectedParameters.length &&
+    expectedParameters.every(
+      ([name, value]) => url.searchParams.get(name) === value,
+    )
+  );
+}
 
 async function activateThroughApi(request: APIRequestContext): Promise<void> {
   const token = await database.createInvitation();
@@ -175,6 +194,82 @@ test.describe('BLOQUE 6 authentication interface', () => {
     await expect(
       page.getByText('Registrar ventas', { exact: true }),
     ).toBeVisible();
+  });
+
+  test('preserves Alexa account linking through login and limits consent to read-only data', async ({
+    page,
+    request,
+  }) => {
+    await activateThroughApi(request);
+    await page.goto(alexaLinkPath);
+    await expect(page).toHaveURL((url) => {
+      const next = url.searchParams.get('next');
+      return Boolean(
+        url.pathname === '/login' &&
+        next &&
+        isAlexaLinkUrl(new URL(next, webUrl)),
+      );
+    });
+
+    await page.getByLabel('Usuario').fill('dylan');
+    await page.getByLabel('Contraseña').fill(initialPassword);
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+    await expect(page).toHaveURL(isAlexaLinkUrl);
+    await expect(
+      page.getByRole('heading', {
+        name: 'Vincular Inventario Comarca con Alexa',
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Existencias por producto y bodega.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Ventas en tránsito, productos y cantidades.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/No podrá crear ni modificar productos/u),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Tampoco recibirá precios, costos, pagos, clientes/u),
+    ).toBeVisible();
+
+    let authorizationBody: Record<string, unknown> | undefined;
+    await page.route('**/api/v1/alexa/oauth/authorize', async (route) => {
+      authorizationBody = route.request().postDataJSON() as Record<
+        string,
+        unknown
+      >;
+      await route.fulfill({
+        contentType: 'application/json',
+        json: {
+          data: { redirectUrl: `${webUrl}/api-status?alexa=linked` },
+          meta: { requestId: 'alexa-link-e2e' },
+        },
+        status: 200,
+      });
+    });
+    await page.getByRole('button', { name: 'Vincular Alexa' }).click();
+    await expect(page).toHaveURL('/api-status?alexa=linked');
+    expect(authorizationBody).toMatchObject({
+      approved: true,
+      clientId: 'sgi-alexa-development',
+      codeChallengeMethod: 'S256',
+      responseType: 'code',
+      scope: 'inventory.read sales.read',
+      state: 'alexa-state',
+    });
+    expect(Object.keys(authorizationBody ?? {}).sort()).toEqual(
+      [
+        'approved',
+        'clientId',
+        'codeChallenge',
+        'codeChallengeMethod',
+        'redirectUri',
+        'responseType',
+        'scope',
+        'state',
+      ].sort(),
+    );
   });
 
   test('keeps invalid login errors uniform, accessible and focused', async ({

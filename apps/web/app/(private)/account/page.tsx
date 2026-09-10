@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/providers/auth-provider';
+import { AlexaLinkStatus } from '@/components/auth/alexa-link-status';
 
 const labels: Record<string, string> = {
   'inventory.read': 'Consultar productos y existencias',
@@ -62,6 +63,7 @@ export default function AccountPage() {
           ))}
         </ul>
       </section>
+      <AlexaLinkStatus />
       <details className="detail-section">
         <summary>Detalles de la sesión</summary>
         <dl className="session-details">

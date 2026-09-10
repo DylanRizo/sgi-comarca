@@ -9,6 +9,10 @@
     "pnpm": "11.18.0"
   },
   "scripts": {
+    "alexa:simulate": "pnpm --filter @sgi/alexa-adapter simulate",
+    "alexa:simulate:sales": "pnpm --filter @sgi/alexa-adapter simulate:sales",
+    "alexa:simulate:sale": "pnpm --filter @sgi/alexa-adapter simulate:sale",
+    "alexa:test:hosted": "pnpm --filter @sgi/alexa-adapter test:hosted",
     "auth:bootstrap-admin-invitation": "pnpm --filter @sgi/api auth:bootstrap-admin-invitation",
     "auth:recover-admin": "pnpm --filter @sgi/api auth:recover-admin",
     "dev": "pnpm db:generate && turbo run dev --parallel",
