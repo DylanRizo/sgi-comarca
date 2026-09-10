@@ -1,9 +1,35 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-04.
+Updated: 2026-09-10.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
+
+## Alexa real-read integration (local, not deployed)
+
+The owner approved the bounded architecture on 2026-09-09. Branch
+`codex/piloto-alexa-para-inventario` now contains a private Alexa-hosted bridge,
+OAuth 2.0 Authorization Code + PKCE account linking, hash-only revocable
+tokens, a 30-request/minute persistent limit, dedicated bearer authorization,
+safe inventory/sales projections, consent/revocation UI, schema migration and
+tests. The synthetic POC remains available as local adapter fixtures.
+
+Final local verification on 2026-09-10 passed lint (9/9 tasks), typecheck (8/8
+tasks), 65 files / 282 unit tests, 31 files / 333 PostgreSQL integration tests,
+build (8/8 tasks), Prisma schema validation, the changed-file format gate, diff
+whitespace validation, the secret-pattern scan, and the focused Chromium
+account-linking flow. The browser test found and fixed a real consent defect:
+the initial form read `FormData(form)` without its submitter, so both buttons
+sent `approved: false`; the final implementation derives the decision from the
+actual submit button and the regression test asserts `approved: true` for
+`Vincular Alexa`. The E2E harness now also builds `@sgi/contracts` before
+starting the API so a clean run cannot consume a stale runtime export.
+
+No Alexa migration, environment variable, API/web revision or Lambda bridge
+has been deployed to staging, and no real SGI account has been linked. That
+deployment remains an independent operational checkpoint documented in the
+[real connection guide](../integrations/alexa-real-integration.md). No commit or
+push is implied by this working-tree snapshot.
 
 ## Free staging pilot (Render + Neon)
 

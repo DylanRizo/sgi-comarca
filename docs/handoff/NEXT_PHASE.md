@@ -1,5 +1,13 @@
 # Next Gate — primer conteo físico real en staging
 
+En paralelo existe un gate independiente para desplegar y vincular la
+integración Alexa de solo lectura implementada localmente el 2026-09-09. No
+reemplaza ni autoriza el siguiente conteo físico y no permite escrituras de
+negocio. Antes de usarlo se deben verificar staging, respaldar según el runbook,
+aplicar la migración, desplegar API/web, configurar secretos fuera de Git y
+desplegar el puente Development siguiendo
+[`alexa-real-integration.md`](../integrations/alexa-real-integration.md).
+
 El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
 aprobó su estructura por bloques y su separación de lectura financiera. La
 planificación está en

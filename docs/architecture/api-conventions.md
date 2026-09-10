@@ -142,6 +142,22 @@ auditoría; payload distinto devuelve `IDEMPOTENCY_KEY_REUSED`. Cada transferenc
 crea exactamente un `AuditLog` `inventory.transferred` y no crea ni copia
 `ProductWarehouseValuation`.
 
+## Integración Alexa de solo lectura
+
+| Endpoint | Acceso | Resultado |
+|---|---|---|
+| `POST /api/v1/alexa/oauth/authorize` | Sesión, Origin y CSRF | Redirect validado con código de un uso o denegación |
+| `POST /api/v1/alexa/oauth/token` | Público explícito, Host y cliente OAuth | Access/refresh tokens opacos; formato OAuth sin wrapper |
+| `GET /api/v1/alexa/oauth/status` | Sesión | Estado y scopes del vínculo |
+| `POST /api/v1/alexa/oauth/revoke` | Sesión, Origin y CSRF | `204`; revoca vínculo y tokens |
+| `POST /api/v1/alexa/requests` | Bearer Alexa, Host, permisos y rate limit | `ApiSuccess<AlexaResponseEnvelope>` |
+
+El token endpoint acepta `application/x-www-form-urlencoded` o JSON porque
+Alexa envía credenciales servidor-a-servidor. Es la única excepción al wrapper
+normal de éxito/error. El recurso de voz solo acepta `es-MX`, tipos de request
+permitidos y los slots `producto`, `bodega` y `numeroVenta` con tamaños
+acotados. No hay endpoints Alexa de escritura.
+
 ## Endpoints futuros propuestos
 
 La tabla siguiente conserva destinos arquitectónicos para módulos aún no
