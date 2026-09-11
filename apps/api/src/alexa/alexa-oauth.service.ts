@@ -1,4 +1,5 @@
 import type { ConfigType } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import type { DatabaseClient } from '@sgi/database';
 import { createHash, timingSafeEqual } from 'node:crypto';
 
@@ -72,6 +73,7 @@ function equalValue(left: string, right: string): boolean {
 }
 
 export class AlexaOAuthService {
+  private readonly logger = new Logger(AlexaOAuthService.name);
   private readonly permissions: EffectivePermissionsService;
   private readonly tokens = new AuthTokenService();
 
@@ -529,12 +531,23 @@ export class AlexaOAuthService {
   }
 
   private requireAuthorizationRequest(input: AlexaAuthorizationDto): void {
+    const clientIdMatches =
+      input.clientId === this.configuration.alexa.clientId;
+    const redirectUriMatches = this.configuration.alexa.redirectUris.includes(
+      input.redirectUri,
+    );
+    const responseTypeMatches = input.responseType === 'code';
+    const codeChallengeMethodMatches = input.codeChallengeMethod === 'S256';
+
     if (
-      input.clientId !== this.configuration.alexa.clientId ||
-      !this.configuration.alexa.redirectUris.includes(input.redirectUri) ||
-      input.responseType !== 'code' ||
-      input.codeChallengeMethod !== 'S256'
+      !clientIdMatches ||
+      !redirectUriMatches ||
+      !responseTypeMatches ||
+      !codeChallengeMethodMatches
     ) {
+      this.logger.warn(
+        `Alexa authorization request rejected: clientIdMatches=${clientIdMatches}, redirectUriMatches=${redirectUriMatches}, responseTypeMatches=${responseTypeMatches}, codeChallengeMethodMatches=${codeChallengeMethodMatches}.`,
+      );
       throw new AlexaOAuthError('INVALID_REQUEST');
     }
   }
