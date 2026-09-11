@@ -198,6 +198,7 @@ describe.sequential('Alexa account linking and real read bridge', () => {
   });
 
   it('issues one-use PKCE tokens and reads only the voice-safe projection', async () => {
+    const opaqueAlexaState = 's'.repeat(1024);
     const authorization = await request(app.getHttpServer())
       .post('/api/v1/alexa/oauth/authorize')
       .set('Host', host)
@@ -212,13 +213,13 @@ describe.sequential('Alexa account linking and real read bridge', () => {
         redirectUri,
         responseType: 'code',
         scope: 'inventory.read sales.read',
-        state: 'controlled-state',
+        state: opaqueAlexaState,
       })
       .expect(200);
     const redirect = new URL(String(authorization.body.data.redirectUrl));
     const code = redirect.searchParams.get('code');
     expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-    expect(redirect.searchParams.get('state')).toBe('controlled-state');
+    expect(redirect.searchParams.get('state')).toBe(opaqueAlexaState);
 
     const token = await request(app.getHttpServer())
       .post('/api/v1/alexa/oauth/token')

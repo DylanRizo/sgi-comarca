@@ -38,7 +38,7 @@ export class AlexaAuthorizationDto {
 
   @IsString()
   @MinLength(1)
-  @MaxLength(512)
+  @MaxLength(4096)
   state!: string;
 }
 
