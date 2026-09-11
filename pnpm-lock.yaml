@@ -132,6 +132,9 @@ importers:
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
     devDependencies:
       '@playwright/test':
         specifier: 1.62.1

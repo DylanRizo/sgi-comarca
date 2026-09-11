@@ -4,6 +4,8 @@ import {
   type APIRequestContext,
   type Page,
 } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
+import * as XLSX from 'xlsx';
 import { AuthenticationDatabase } from './support/authentication-database.js';
 const apiUrl = process.env.SGI_E2E_API_URL ?? 'http://localhost:3101';
 const webUrl = process.env.SGI_E2E_WEB_URL ?? 'http://localhost:3100';
@@ -126,6 +128,95 @@ test.describe('Operational product and receipt journeys', () => {
       path: info.outputPath('receipt-recovered.png'),
       fullPage: true,
     });
+  });
+  test('previews and imports a physical-count workbook idempotently', async ({
+    page,
+    request,
+  }, info) => {
+    await login(request, page);
+    const workbookPath = info.outputPath('physical-count.xlsx');
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        [
+          'SKU INTUITIVO',
+          'CÓDIGO ANTERIOR',
+          'NOMBRE DEL PRODUCTO',
+          'DESCRIPCIÓN',
+          'PRECIO VENTA (C$)',
+          'COSTO UNITARIO (C$)',
+          'STOCK MÍNIMO',
+          'CASA DYLAN (FÍSICO)',
+          'CASA JEAN (FÍSICO)',
+          'CASA LUDEN (FÍSICO)',
+          'TOTAL EN LA COMARCA',
+          'NOTAS / OBSERVACIONES',
+        ],
+        [
+          'E2E-IMPORT-A',
+          'OLD-A',
+          'Camisa importada con stock',
+          'Azul M',
+          250,
+          100,
+          2,
+          2.5,
+          0,
+          0,
+          1,
+          '',
+        ],
+        [
+          'E2E-IMPORT-B',
+          'OLD-B',
+          'Camisa importada sin stock',
+          'Negra S',
+          200,
+          80,
+          1,
+          0,
+          0,
+          0,
+          0,
+          '',
+        ],
+      ]),
+      'Conteo Fisico Inicial',
+    );
+    await writeFile(
+      workbookPath,
+      XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }),
+    );
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await page.goto('/products/import');
+      await page
+        .getByLabel('Archivo Excel (.xlsx)')
+        .setInputFiles(workbookPath);
+      await expect(
+        page.getByRole('heading', { name: 'Vista previa' }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/2 productos · 2.5 unidades físicas/u),
+      ).toBeVisible();
+      await page
+        .getByRole('button', { name: 'Importar productos y existencias' })
+        .click();
+      await expect(
+        page.getByRole('heading', { name: 'Importación terminada' }),
+      ).toBeVisible();
+      await expect(page.getByText('2 de 2 productos')).toBeVisible();
+    }
+
+    expect(await database.balanceQuantity('E2E-IMPORT-A', 'CASA_DYLAN')).toBe(
+      2.5,
+    );
+    await page.getByRole('link', { name: 'Ver productos' }).click();
+    await page.getByLabel('Buscar producto').fill('E2E-IMPORT-B');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await expect(page.getByText('Camisa importada sin stock')).toBeVisible();
+    await expect(page.locator('td[data-label="Stock total"]')).toHaveText('0');
   });
   test('remembers explicit light and dark appearance after navigation and reload', async ({
     page,

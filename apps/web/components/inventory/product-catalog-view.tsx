@@ -140,6 +140,9 @@ export function ProductCatalogView() {
           <Link className="primary-button" href={'/products/new' as Route}>
             Nuevo producto
           </Link>
+          <Link className="secondary-button" href={'/products/import' as Route}>
+            Importar conteo
+          </Link>
           <Link
             className="secondary-button"
             href={'/inventory/receipts/new' as Route}

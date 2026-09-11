@@ -1,11 +1,11 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-10.
+Updated: 2026-09-11.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Alexa real-read integration (schema and application deployed; account linking pending)
+## Alexa real-read integration (deployed and account linked)
 
 The owner approved the bounded architecture on 2026-09-09 and explicitly
 authorized its staging preflight, migration and deployment on 2026-09-10. The
@@ -55,13 +55,43 @@ returned 200 for API health, API readiness with database `up`, the web root and
 `/alexa/link`. Both services track `codex/staging-pilot` and automatic deploys
 were explicitly enabled after the successful manual smoke gate.
 
-The Alexa integration itself remains disabled because the four Alexa-specific
-Render variables have not been set, the Amazon account-linking redirect URIs
-have not been copied from the developer account, and the Alexa-hosted bridge
-has not been replaced/deployed in the developer console. No real SGI account
-has been linked. Finish those steps only through the checkpointed procedure in
-the [real connection guide](../integrations/alexa-real-integration.md); do not
-invent a vendor ID or expose the generated client secret.
+The Alexa-specific Render configuration, Amazon account-linking configuration
+and Alexa-hosted bridge were subsequently deployed through the approved staging
+procedure. On 2026-09-10 the owner completed the consent flow from the Alexa
+mobile application and received Amazon's account-linked confirmation. The skill
+can therefore use the linked SGI identity for its bounded read-only inventory
+and in-transit sales queries. This is an operational snapshot; revalidate the
+link and the intended staging target before relying on it. Continue to use the
+[real connection guide](../integrations/alexa-real-integration.md) for changes;
+do not expose the generated client secret or copy sessions between
+environments.
+
+## Counted-product workbook import (ready for staging deployment)
+
+The private Products area now includes `/products/import`, a focused importer
+for the initial physical-count workbook. It reads the workbook locally in the
+browser, validates its expected headers and values, ignores catalog rows without
+a warehouse count and computes stock from the warehouse physical-count columns
+instead of trusting a potentially stale footer total. The preview must be
+reviewed before starting the mutation.
+
+The importer reuses the existing protected product and stock-receipt APIs, CSRF
+protection, backend authorization, immutable inventory movements and
+transactional initial receipts. It requires the existing product-management,
+stock-receipt and valuation permissions. Deterministic idempotency keys make an
+exact-file retry safe: the same workbook cannot add its opening stock twice.
+Rows with an explicit zero count create the product without fabricating an
+inventory movement. Missing unit and product-group values use the documented
+SGI defaults `UNIDADES` and `GENERAL`.
+
+The owner's source workbook was preserved outside Git and passed the production
+parser with 28 counted variants, 19 with positive stock, 9 with zero stock and
+62 total physical units. Its displayed footer says 56, but three counted rows
+sum to the six-unit difference; the importer correctly uses the physical
+warehouse cells. No staging product or inventory row has been written by this
+code change: the owner must upload the workbook on the private import page,
+confirm the 28 / 62 reconciliation and explicitly start the import after the
+web deployment reaches `live`.
 
 ## Free staging pilot (Render + Neon)
 
