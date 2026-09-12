@@ -73,8 +73,12 @@ and a non-extending 60-second reuse grace for a just-rotated refresh token.
 Only the technical `ROTATED` reason receives grace; explicit unlinking,
 reauthorization, credential changes/revocation and disabled users remain
 immediate invalidation boundaries. This change requires no schema migration or
-RBAC change. Its staging deployment and final one-time relink must be recorded
-after the quality and live smoke gates pass.
+RBAC change. Commit `1fb6b716ea0e77d67df8fdceee8bd4c19d93d3fc` was deployed
+to the staging API as Render deployment `dep-dainmnojo6nc73fle2v0`; it reached
+`live` and `GET /api/v1/ready` returned `200` with the database `up`. The full
+integration gate passed 31 files and 335 tests. One final unlink/relink in the
+Alexa app remains an owner action so Alexa replaces the tokens issued under the
+old lifecycle.
 
 ## Counted-product workbook import (ready for staging deployment)
 
