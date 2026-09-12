@@ -72,6 +72,18 @@ function equalValue(left: string, right: string): boolean {
   );
 }
 
+function refreshTokenCanRotate(
+  token: { revokedAt: Date | null; revocationReason: string | null },
+  now: Date,
+  reuseGraceSeconds: number,
+): boolean {
+  if (!token.revokedAt) return true;
+  return (
+    token.revocationReason === 'ROTATED' &&
+    token.revokedAt.getTime() + reuseGraceSeconds * 1000 >= now.getTime()
+  );
+}
+
 export class AlexaOAuthService {
   private readonly logger = new Logger(AlexaOAuthService.name);
   private readonly permissions: EffectivePermissionsService;
@@ -428,16 +440,22 @@ export class AlexaOAuthService {
         if (
           !token ||
           token.kind !== 'REFRESH' ||
-          token.revokedAt ||
+          !refreshTokenCanRotate(
+            token,
+            now,
+            this.configuration.alexa.refreshTokenReuseGraceSeconds,
+          ) ||
           token.expiresAt <= now ||
           !this.linkIsUsable(token.link)
         ) {
           throw new AlexaOAuthError('INVALID_GRANT');
         }
-        await transaction.alexaOAuthToken.update({
-          where: { id: token.id },
-          data: { revokedAt: now, revocationReason: 'ROTATED' },
-        });
+        if (!token.revokedAt) {
+          await transaction.alexaOAuthToken.update({
+            where: { id: token.id },
+            data: { revokedAt: now, revocationReason: 'ROTATED' },
+          });
+        }
         await this.persistTokenPair(transaction, token.link, generated, now);
         scopes = token.link.scopes;
         await this.recordAudit(transaction, {
@@ -448,7 +466,11 @@ export class AlexaOAuthService {
           occurredAt: now,
         });
       },
-      { isolationLevel: 'Serializable' },
+      // The row lock serializes refreshes for the same token. READ COMMITTED lets
+      // a waiter observe the first rotation after the lock is released, so it can
+      // use the bounded grace window instead of failing the whole transaction
+      // with a serialization conflict.
+      { isolationLevel: 'ReadCommitted' },
     );
     return this.revealTokenPair(generated, scopes);
   }

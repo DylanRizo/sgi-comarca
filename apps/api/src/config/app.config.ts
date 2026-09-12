@@ -216,7 +216,7 @@ function parseAlexaIntegration(nodeEnvironment: string) {
   }
 
   return Object.freeze({
-    accessTokenLifetimeSeconds: 15 * 60,
+    accessTokenLifetimeSeconds: 60 * 60,
     clientId,
     clientSecretHash,
     enabled,
@@ -226,7 +226,8 @@ function parseAlexaIntegration(nodeEnvironment: string) {
       enabled,
       nodeEnvironment,
     ),
-    refreshTokenLifetimeSeconds: 30 * 24 * 60 * 60,
+    refreshTokenLifetimeSeconds: 180 * 24 * 60 * 60,
+    refreshTokenReuseGraceSeconds: 60,
     scopes: Object.freeze(['inventory.read', 'sales.read'] as const),
   });
 }

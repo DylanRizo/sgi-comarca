@@ -37,6 +37,8 @@ en el código de Alexa ni credenciales Amazon en SGI.
 - Recurso de voz protegido en `POST /api/v1/alexa/requests`.
 - Migración `20260909120000_alexa_account_linking`.
 - Revocación desde `Mi cuenta` del SGI.
+- Tokens de acceso de una hora y tokens de renovación rotatorios de 180 días,
+  con 60 segundos de tolerancia para renovaciones concurrentes de Alexa.
 
 Validación local mínima:
 

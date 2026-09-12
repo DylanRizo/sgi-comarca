@@ -25,6 +25,9 @@ describe('API security configuration', () => {
     expect(result.swaggerEnabled).toBe(false);
     expect(result.alexa.enabled).toBe(false);
     expect(result.alexa.queryLimitPerMinute).toBe(30);
+    expect(result.alexa.accessTokenLifetimeSeconds).toBe(60 * 60);
+    expect(result.alexa.refreshTokenLifetimeSeconds).toBe(180 * 24 * 60 * 60);
+    expect(result.alexa.refreshTokenReuseGraceSeconds).toBe(60);
   });
 
   it('requires complete Alexa OAuth configuration when enabled in production', () => {

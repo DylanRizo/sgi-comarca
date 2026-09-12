@@ -155,9 +155,11 @@ See [authorization-matrix.md](../architecture/authorization-matrix.md) and
   integration for inventory and in-transit sales reads only. This approval
   covers implementation and local verification; staging migration, deployment,
   configuration and account linking remain a separate operational gate.
-- Account linking uses OAuth 2.0 Authorization Code with PKCE S256, exact
-  `inventory.read` and `sales.read` scopes, 15-minute access tokens, rotating
-  30-day refresh tokens and SHA-256-only persistence for codes/tokens.
+- Account linking uses OAuth 2.0 Authorization Code with PKCE S256 and exact
+  `inventory.read` and `sales.read` scopes. The owner-approved renewal fix of
+  2026-09-12 uses one-hour access tokens, rotating 180-day refresh tokens and a
+  non-extending 60-second reuse grace for a just-rotated refresh token;
+  persistence remains SHA-256-only for codes/tokens.
 - The only new public route is `POST /api/v1/alexa/oauth/token`, protected as a
   server-to-server route by exact Host plus OAuth client authentication. Voice
   requests use a dedicated bearer-token guard and revalidate current user,

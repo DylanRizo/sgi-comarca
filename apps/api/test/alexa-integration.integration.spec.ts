@@ -235,7 +235,7 @@ describe.sequential('Alexa account linking and real read bridge', () => {
       })
       .expect(200);
     expect(token.body).toMatchObject({
-      expires_in: 900,
+      expires_in: 3600,
       scope: 'inventory.read sales.read',
       token_type: 'Bearer',
     });
@@ -256,31 +256,39 @@ describe.sequential('Alexa account linking and real read bridge', () => {
       })
       .expect(400);
 
-    const refreshed = await request(app.getHttpServer())
-      .post('/api/v1/alexa/oauth/token')
-      .set('Host', host)
-      .type('form')
-      .send({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: token.body.refresh_token,
-      })
-      .expect(200);
+    const refresh = (refreshToken: unknown) =>
+      request(app.getHttpServer())
+        .post('/api/v1/alexa/oauth/token')
+        .set('Host', host)
+        .type('form')
+        .send({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        });
+    const [refreshed, concurrentRefresh] = await Promise.all([
+      refresh(token.body.refresh_token).expect(200),
+      refresh(token.body.refresh_token).expect(200),
+    ]);
     const accessToken = String(refreshed.body.access_token);
     expect(accessToken).toMatch(/^[A-Za-z0-9_-]{43}$/u);
     expect(refreshed.body.refresh_token).not.toBe(token.body.refresh_token);
-    await request(app.getHttpServer())
-      .post('/api/v1/alexa/oauth/token')
-      .set('Host', host)
-      .type('form')
-      .send({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: token.body.refresh_token,
-      })
-      .expect(400);
+    expect(concurrentRefresh.body.refresh_token).not.toBe(
+      token.body.refresh_token,
+    );
+    expect(concurrentRefresh.body.refresh_token).not.toBe(
+      refreshed.body.refresh_token,
+    );
+
+    const originalRefreshTokenHash = createHash('sha256')
+      .update(String(token.body.refresh_token), 'utf8')
+      .digest('hex');
+    await client.alexaOAuthToken.update({
+      where: { tokenHash: originalRefreshTokenHash },
+      data: { revokedAt: new Date(Date.now() - 61_000) },
+    });
+    await refresh(token.body.refresh_token).expect(400);
 
     const inventory = await request(app.getHttpServer())
       .post('/api/v1/alexa/requests')

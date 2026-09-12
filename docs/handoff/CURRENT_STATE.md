@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-11.
+Updated: 2026-09-12.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -65,6 +65,16 @@ link and the intended staging target before relying on it. Continue to use the
 [real connection guide](../integrations/alexa-real-integration.md) for changes;
 do not expose the generated client secret or copy sessions between
 environments.
+
+On 2026-09-12 the owner reported repeated account-link prompts and authorized
+the bounded renewal fix. The implementation now follows Amazon's token-lifetime
+and rotation guidance: one-hour access tokens, rotating 180-day refresh tokens
+and a non-extending 60-second reuse grace for a just-rotated refresh token.
+Only the technical `ROTATED` reason receives grace; explicit unlinking,
+reauthorization, credential changes/revocation and disabled users remain
+immediate invalidation boundaries. This change requires no schema migration or
+RBAC change. Its staging deployment and final one-time relink must be recorded
+after the quality and live smoke gates pass.
 
 ## Counted-product workbook import (ready for staging deployment)
 
