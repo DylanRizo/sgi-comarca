@@ -62,10 +62,25 @@ balances unchanged. Private custom-format checkpoints, verified with
 | Post-migration | `sgi_comarca_staging_post_integration_keys_20260913T194601Z.dump` | 262,075 bytes | 425 | `f846716789a71af2343c23ba91453bec4160aad2e75741a07841c1623f9ffcdb` |
 
 After the migration the API still returned 200 for health and for readiness
-with the database `up`. The integration code is not deployed yet,
-`INTEGRATION_KEYS_ENABLED` remains unset and no key exists. Merging into
-`codex/staging-pilot`, which triggers the Render deploy, enabling the flag and
-creating the first key remain explicit owner gates.
+with the database `up`.
+
+The owner then authorized deploying the code and enabling the flag. The branch
+was fast-forwarded into `codex/staging-pilot` at `6400449`. Because both Render
+services keep `autoDeployTrigger: 'off'`, the deploys were triggered manually for
+that exact commit: API `dep-dajfvd3m8hqs73859p90` and web
+`dep-dajg0cojo6nc73dnmdhg`, both `live`. With the flag still off, the API
+returned 200 for health and readiness, 401 for the catalog without a key, 503
+for a well-formed but unknown key, 401 for key management without a session,
+and `cache-control: no-store` on the catalog. The web returned 200 for `/login`
+and for `/settings/integrations`.
+
+The owner set `INTEGRATION_KEYS_ENABLED=true` on `sgi-comarca-api-staging` from
+the Render dashboard, which deployed `dep-dajgrs6k1f9s73djm2mg` on the same
+commit (`live`). Afterwards the unknown well-formed key returned 401 instead of
+503, while health, readiness, the keyless catalog and key management kept
+their expected responses. No integration key exists yet. The owner issues the
+first key from **Configuración → Integraciones** and stores it only in the
+Marketplace bot panel.
 
 ## Alexa real-read integration (deployed and account linked)
 
