@@ -34,8 +34,37 @@ only because `core.autocrlf` rewrites its fixture to CRLF, and three unit files,
 the inventory-count lifecycle hook and the persistent-commit TOCTOU case failed
 under load but pass when run on their own.
 
-Nothing from this section has been committed, pushed, migrated or deployed.
-Each of those steps, the staging preflight and backup, enabling the flag and
+The owner authorized committing and pushing the branch on 2026-09-13 as commit
+`0084137`, without merging it into `codex/staging-pilot`.
+
+On 2026-09-13 the owner authorized the staging preflight and then the migration
+with its bootstrap. The owner ran both scripts locally so the Neon connection
+string never left their terminal. The migration was first rehearsed on a local
+restore of the pre-migration backup, where it applied only the new migration
+and the bootstrap created exactly one permission, one role grant and one audit
+record. On staging, the target was positively verified in a read-only session
+as database `sgi_comarca_staging`, role `sgi_staging_owner`, PostgreSQL 18.6,
+with 10 finished migrations, zero unfinished, the Alexa migration as the latest,
+no integration tables, 25 permissions, 25 active role grants, 6 roles, 4 users,
+28 products and 20 inventory balances, all 20 stocked.
+
+`pnpm db:migrate:deploy` applied only `20260912120000_integration_keys`, and
+`pnpm db:bootstrap` created only `integrations.manage`, its active `ADMIN`
+grant and one audit record. The read-only verification afterwards found 11
+finished migrations, zero unfinished, both integration tables present and
+empty, 26 permissions and 26 active grants, with roles, users, products and
+balances unchanged. Private custom-format checkpoints, verified with
+`pg_restore --list` and kept out of Git under `backups/`:
+
+| Checkpoint | File | Size | Archive entries | SHA-256 |
+|---|---|---:|---:|---|
+| Pre-migration | `sgi_comarca_staging_pre_integration_keys_20260913T194421Z.dump` | 256,861 bytes | 415 | `4908743e196d4605959f3b7db1751b8c2fd5a39265a94d270ed1059b34e1ca02` |
+| Post-migration | `sgi_comarca_staging_post_integration_keys_20260913T194601Z.dump` | 262,075 bytes | 425 | `f846716789a71af2343c23ba91453bec4160aad2e75741a07841c1623f9ffcdb` |
+
+After the migration the API still returned 200 for health and for readiness
+with the database `up`. The integration code is not deployed yet,
+`INTEGRATION_KEYS_ENABLED` remains unset and no key exists. Merging into
+`codex/staging-pilot`, which triggers the Render deploy, enabling the flag and
 creating the first key remain explicit owner gates.
 
 ## Alexa real-read integration (deployed and account linked)
