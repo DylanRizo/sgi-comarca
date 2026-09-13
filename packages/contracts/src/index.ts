@@ -21,6 +21,16 @@ export {
   type AlexaLinkStatusData,
   type AlexaScope,
 } from './alexa.js';
+export {
+  integrationKeyScopes,
+  type CreateIntegrationKeyRequest,
+  type CreatedIntegrationKeyData,
+  type IntegrationCatalogItem,
+  type IntegrationKeyScope,
+  type IntegrationKeyStatus,
+  type IntegrationKeySummary,
+  type IntegrationPriceIssue,
+} from './integrations.js';
 export type { ApiErrorBody, ApiMeta, ApiSuccess } from './api-response.js';
 export type {
   ActivateAccountRequest,

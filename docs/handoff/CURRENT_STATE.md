@@ -5,6 +5,39 @@ Updated: 2026-09-12.
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
+## Read-only integration keys (local, not committed or deployed)
+
+On 2026-09-12 the owner approved connecting the Facebook Marketplace bot to the
+SGI through a revocable read-only integration key, publishing only stocked
+products at the SGI sale price and withholding products whose price is mixed
+across warehouses, flagged for review or missing. The design is recorded in
+[ADR-017](../decisions/ADR-017-integration-keys-read-only.md) and the operator
+guide in [the Marketplace bot integration](../integrations/marketplace-bot.md).
+
+The branch `codex/integration-keys-marketplace` (from `codex/staging-pilot`)
+adds migration `20260912120000_integration_keys` with tables
+`integration_keys` and `integration_rate_limit_windows`, the ADMIN-only
+permission `integrations.manage` (26 permissions in the bootstrap manifest),
+hash-only 43-character keys shown once with a mandatory expiry of at most 90
+days, owner-bound revalidation of `inventory.read` on every request, a
+persistent per-minute limit, `GET /api/v1/integrations/catalog` projecting only
+code, name, description, total stocked quantity, sale price and price issue (never
+cost), key management endpoints and the `/settings/integrations` page. Everything
+is gated by `INTEGRATION_KEYS_ENABLED`, off by default.
+
+Local verification passed lint (9/9 tasks, only the existing unused disable
+warning), typecheck (8/8), build (8/8), Prisma schema validation, the 14
+integration-key PostgreSQL tests, the updated schema and bootstrap counts, and
+the focused Chromium settings and integrations suites (5/5). In the full
+sequential run on this Windows machine, the legacy-profiler golden test fails
+only because `core.autocrlf` rewrites its fixture to CRLF, and three unit files,
+the inventory-count lifecycle hook and the persistent-commit TOCTOU case failed
+under load but pass when run on their own.
+
+Nothing from this section has been committed, pushed, migrated or deployed.
+Each of those steps, the staging preflight and backup, enabling the flag and
+creating the first key remain explicit owner gates.
+
 ## Alexa real-read integration (deployed and account linked)
 
 The owner approved the bounded architecture on 2026-09-09 and explicitly

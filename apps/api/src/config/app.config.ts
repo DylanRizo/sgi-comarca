@@ -255,6 +255,19 @@ function parseReopeningWindowDays(value: string | undefined): number {
   return Number(candidate);
 }
 
+/**
+ * Read-only integration keys (ADR-017). Disabled unless explicitly enabled per
+ * environment; revoking and listing keep working while disabled.
+ */
+function parseIntegrationKeys() {
+  return Object.freeze({
+    enabled: parseBoolean(process.env.INTEGRATION_KEYS_ENABLED),
+    maxLifetimeDays: 90,
+    queryLimitPerMinute: 60,
+    scopes: Object.freeze(['inventory.read'] as const),
+  });
+}
+
 export const appConfig = registerAs('app', () => {
   const nodeEnvironment = process.env.NODE_ENV ?? 'development';
   const apiOrigin = parseOrigin(
@@ -301,6 +314,7 @@ export const appConfig = registerAs('app', () => {
     ),
     databaseUrl: databaseUrl(nodeEnvironment),
     expectedHost: apiUrl.host.toLowerCase(),
+    integrationKeys: parseIntegrationKeys(),
     logLevel: process.env.LOG_LEVEL ?? 'info',
     nodeEnvironment,
     originHmacSecret: parseHmacSecret(

@@ -9,6 +9,7 @@ import { appConfig } from './config/app.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { FinancesModule } from './finances/finances.module.js';
 import { HealthModule } from './health/health.module.js';
+import { IntegrationsModule } from './integrations/integrations.module.js';
 import { InventoryCountsModule } from './inventory-counts/inventory-counts.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { ProductsModule } from './products/products.module.js';
@@ -55,6 +56,7 @@ import { StockReceiptsModule } from './stock-receipts/stock-receipts.module.js';
     DatabaseModule,
     AuthModule,
     AlexaModule,
+    IntegrationsModule,
     HealthModule,
     ProductsModule,
     StockReceiptsModule,

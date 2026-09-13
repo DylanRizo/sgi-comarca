@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   House,
+  KeyRound,
   Menu,
   Package,
   Settings,
@@ -97,6 +98,12 @@ const administrationNavigation = [
     icon: Settings,
     label: 'Configuración',
     permission: 'users.read',
+  },
+  {
+    href: '/settings/integrations',
+    icon: KeyRound,
+    label: 'Integraciones',
+    permission: 'integrations.manage',
   },
 ] as const;
 

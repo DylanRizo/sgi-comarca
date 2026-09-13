@@ -281,6 +281,20 @@ export class AuthenticationDatabase {
     });
   }
 
+  async denyIntegrationsManage(): Promise<void> {
+    const [permission, user] = await Promise.all([
+      this.client.permission.findUniqueOrThrow({
+        where: { code: 'integrations.manage' },
+      }),
+      this.client.user.findUniqueOrThrow({
+        where: { loginIdentifier: 'dylan' },
+      }),
+    ]);
+    await this.client.userPermission.create({
+      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    });
+  }
+
   async denyInventoryRead(): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({

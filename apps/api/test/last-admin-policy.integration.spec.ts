@@ -330,6 +330,7 @@ describe.sequential('last ADMIN policy', () => {
 
       expect([...effectivePermissions].sort()).toEqual(
         [
+          'integrations.manage',
           'users.credentials.revoke',
           'users.invitations.create',
           'users.read',

@@ -204,6 +204,8 @@ try {
     ...databaseEnvironment,
     API_PORT: '3101',
     API_PUBLIC_URL: apiUrl,
+    // ADR-017: browser tests issue and revoke integration keys.
+    INTEGRATION_KEYS_ENABLED: 'true',
     AUTH_CSRF_HMAC_SECRET_BASE64: Buffer.alloc(32, 17).toString('base64'),
     AUTH_ORIGIN_HMAC_SECRET_BASE64: Buffer.alloc(32, 23).toString('base64'),
     LOG_LEVEL: 'info',

@@ -485,6 +485,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'closings.reopen',
         'finances.manual.create',
         'finances.read',
+        'integrations.manage',
         'inventory.adjust',
         'inventory.audit.approve',
         'inventory.audit.create',

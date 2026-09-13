@@ -190,6 +190,7 @@ model User {
   stockReceipts               StockReceipt[]
   countLineRevisions          InventoryCountLineRevision[]
   alexaAccountLinks           AlexaAccountLink[]
+  integrationKeys             IntegrationKey[]
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -257,6 +258,39 @@ model AlexaRateLimitWindow {
   link AlexaAccountLink @relation(fields: [linkId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@map("alexa_rate_limit_windows")
+}
+
+/// ADR-017. A read-only key that acts on behalf of its owner. Only the SHA-256
+/// of the secret is stored; the owner's permissions are revalidated per request.
+model IntegrationKey {
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String    @db.VarChar(80)
+  keyPrefix        String    @map("key_prefix") @db.VarChar(8)
+  keyHash          String    @unique(map: "integration_keys_key_hash_key") @map("key_hash") @db.Char(64)
+  scopes           String[]  @default([])
+  ownerUserId      String    @map("owner_user_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revocationReason String?   @map("revocation_reason") @db.VarChar(120)
+
+  owner           User                        @relation(fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  rateLimitWindow IntegrationRateLimitWindow?
+
+  @@index([ownerUserId, revokedAt], map: "integration_keys_owner_revoked_idx")
+  @@map("integration_keys")
+}
+
+model IntegrationRateLimitWindow {
+  keyId           String   @id @map("key_id") @db.Uuid
+  windowStartedAt DateTime @map("window_started_at") @db.Timestamptz(6)
+  requestCount    Int      @default(0) @map("request_count")
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  key IntegrationKey @relation(fields: [keyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("integration_rate_limit_windows")
 }
 
 model Role {

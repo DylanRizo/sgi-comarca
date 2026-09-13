@@ -45,6 +45,11 @@ export const bootstrapPermissions = [
     description: 'Completar costos y precios por bodega.',
   },
   {
+    code: 'integrations.manage',
+    description:
+      'Crear y revocar llaves de integración de solo lectura para programas externos.',
+  },
+  {
     code: 'users.read',
     description:
       'Consultar el directorio de usuarios, sus roles y permisos efectivos.',
@@ -182,6 +187,7 @@ export const bootstrapRolePermissions = [
   { roleCode: 'ADMIN', permissionCode: 'users.status.manage' },
   { roleCode: 'ADMIN', permissionCode: 'users.read' },
   { roleCode: 'ADMIN', permissionCode: 'users.roles.manage' },
+  { roleCode: 'ADMIN', permissionCode: 'integrations.manage' },
   { roleCode: 'FINANCE', permissionCode: 'finances.read' },
   { roleCode: 'FINANCE', permissionCode: 'finances.manual.create' },
   { roleCode: 'FINANCE', permissionCode: 'closings.read' },

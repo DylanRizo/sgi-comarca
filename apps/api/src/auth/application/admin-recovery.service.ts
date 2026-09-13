@@ -26,6 +26,7 @@ const approvedPermissionCodes = [
   'closings.reopen',
   'finances.manual.create',
   'finances.read',
+  'integrations.manage',
   'inventory.adjust',
   'inventory.audit.approve',
   'inventory.audit.create',
@@ -48,6 +49,7 @@ const approvedPermissionCodes = [
 ] as const;
 
 const approvedRolePermissionKeys = [
+  'ADMIN:integrations.manage',
   'ADMIN:users.credentials.revoke',
   'ADMIN:users.invitations.create',
   'ADMIN:users.read',
