@@ -57,6 +57,8 @@ secrets*.json
 
 # Sensitive temporary files
 *.tmp
+*.tmp.mjs
+*.tmp.mts
 *.temp
 *.swp
 *.swo
