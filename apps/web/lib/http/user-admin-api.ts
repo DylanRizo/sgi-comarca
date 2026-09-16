@@ -55,4 +55,9 @@ export const userAdminApi = {
       `/api/v1/users/${encodeURIComponent(userId)}/deactivate`,
       mutation({}, csrf, key),
     ),
+  reactivate: (userId: string, csrf: string, key: string) =>
+    apiRequest<void>(
+      `/api/v1/users/${encodeURIComponent(userId)}/reactivate`,
+      mutation({}, csrf, key),
+    ),
 };

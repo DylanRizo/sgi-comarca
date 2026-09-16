@@ -53,6 +53,7 @@ describe('user administration HTTP boundary', () => {
     expect(required('revokeCredential')).toBe('users.credentials.revoke');
     expect(required('revokeSessions')).toBe('users.sessions.revoke');
     expect(required('deactivateUser')).toBe('users.status.manage');
+    expect(required('reactivateUser')).toBe('users.status.manage');
   });
 
   it('maps controlled domain failures without leaking internal messages', () => {

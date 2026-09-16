@@ -153,6 +153,24 @@ export class UserAdministrationController {
     }
   }
 
+  @Post(':id/reactivate')
+  @RequirePermission('users.status.manage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async reactivateUser(
+    @Param() params: UserIdParamDto,
+    @Body() _input: EmptyAdminCommandDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    try {
+      await this.users.reactivateUser(current.userId, params.id);
+      this.prepareResponse(request, response);
+    } catch (error) {
+      mapUserAdministrationError(error);
+    }
+  }
+
   @Get()
   @RequirePermission('users.read')
   async list(

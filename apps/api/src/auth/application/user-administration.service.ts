@@ -303,6 +303,51 @@ export class UserAdministrationService {
     }
   }
 
+  async reactivateUser(
+    actorUserId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    try {
+      await this.client.$transaction(
+        async (transaction) => {
+          const user = await this.lockUser(transaction, targetUserId);
+          if (user.status === 'ACTIVE') return;
+          if (user.status !== 'DISABLED' || user.activatedAt === null) {
+            throw new UserAdministrationError('ADMIN_USER_STATE_CONFLICT');
+          }
+
+          const credential = await transaction.passwordCredential.findUnique({
+            where: { userId: targetUserId },
+            select: { revokedAt: true },
+          });
+          if (!credential || credential.revokedAt !== null) {
+            throw new UserAdministrationError('ADMIN_USER_STATE_CONFLICT');
+          }
+
+          const now = this.clock.now();
+          await transaction.user.update({
+            where: { id: targetUserId },
+            data: { status: 'ACTIVE' },
+          });
+          await this.audit.record(transaction, {
+            action: 'ADMIN_USER_REACTIVATED',
+            actorUserId,
+            entityId: targetUserId,
+            metadata: { operationType: 'REACTIVATE' },
+            occurredAt: now,
+          });
+        },
+        { isolationLevel: 'Serializable' },
+      );
+    } catch (error) {
+      if (error instanceof UserAdministrationError) throw error;
+      if (isTransactionConflict(error)) {
+        throw new UserAdministrationError('ADMIN_OPERATION_CONFLICT');
+      }
+      throw error;
+    }
+  }
+
   private async acquireInvitationLock(
     transaction: TransactionClient,
     targetUserId: string,

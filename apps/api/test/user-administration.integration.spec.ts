@@ -767,11 +767,40 @@ describe.sequential('BLOQUE 7A user administration HTTP endpoints', () => {
       }),
     ).toBe(auditCount);
 
-    await createInvitation(jeanId);
+    await activate(jeanId, 'jean');
+    const jeanActivated = await client.user.findUniqueOrThrow({
+      where: { id: jeanId },
+      select: { activatedAt: true },
+    });
     await command(dylan, `/api/v1/users/${jeanId}/deactivate`).expect(204);
     expect(
       await client.user.findUniqueOrThrow({ where: { id: jeanId } }),
-    ).toMatchObject({ activatedAt: null, status: 'DISABLED' });
+    ).toMatchObject({
+      activatedAt: jeanActivated.activatedAt,
+      status: 'DISABLED',
+    });
+
+    // A previously activated account keeps its credential and activation
+    // timestamp, so reactivation restores access without issuing a password
+    // reset or reviving old sessions.
+    await command(dylan, `/api/v1/users/${jeanId}/reactivate`).expect(204);
+    expect(
+      await client.user.findUniqueOrThrow({ where: { id: jeanId } }),
+    ).toMatchObject({
+      activatedAt: jeanActivated.activatedAt,
+      status: 'ACTIVE',
+    });
+    expect(
+      await client.auditLog.count({
+        where: { action: 'ADMIN_USER_REACTIVATED', entityId: jeanId },
+      }),
+    ).toBe(1);
+    await command(dylan, `/api/v1/users/${jeanId}/reactivate`).expect(204);
+    expect(
+      await client.auditLog.count({
+        where: { action: 'ADMIN_USER_REACTIVATED', entityId: jeanId },
+      }),
+    ).toBe(1);
   });
 
   it('keeps login/revocation races safe and administrative failures generic', async () => {

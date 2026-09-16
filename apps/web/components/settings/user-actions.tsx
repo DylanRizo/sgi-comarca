@@ -152,6 +152,24 @@ export function UserActions({
             {busy === 'deactivate' ? 'Desactivando…' : 'Desactivar'}
           </button>
         ) : null}
+
+        {permissions.includes('users.status.manage') &&
+        entry.status === 'DISABLED' ? (
+          <button
+            className="link-button"
+            disabled={busy !== ''}
+            onClick={() => {
+              void run(
+                'reactivate',
+                (csrf, key) => userAdminApi.reactivate(entry.id, csrf, key),
+                `${entry.displayName} recuperó el acceso.`,
+              );
+            }}
+            type="button"
+          >
+            {busy === 'reactivate' ? 'Reactivando…' : 'Reactivar'}
+          </button>
+        ) : null}
       </div>
 
       {error ? (
