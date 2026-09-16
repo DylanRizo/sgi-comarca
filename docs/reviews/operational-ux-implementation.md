@@ -2,6 +2,16 @@
 
 Approved plan: ADR-015. Baseline: application `273a316`, documentation HEAD `dd2f844` on `codex/staging-pilot`.
 
+## Later operational status
+
+The checklist below is the implementation-time record. Its final “commit and
+deployment outstanding” note is historical: the operational UX changes were
+committed on `codex/staging-pilot`, deployed before the Alexa and integration
+key releases, and the later 2026-09-13 database fingerprint found 28 products
+and 20 stocked balances. The exact product-import audit/receipt evidence still
+needs to be consolidated before the first formal physical-count gate; do not
+repeat the import to recreate that evidence.
+
 ## Gates
 
 - [ ] 1. Shared controls, account/theme and operational home.

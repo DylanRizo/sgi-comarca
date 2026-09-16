@@ -1,274 +1,90 @@
-# Next Gate — primer conteo físico real en staging
+# Next gates — consolidación, baseline verde y primer conteo controlado
 
-En paralelo existe un gate independiente para desplegar y vincular la
-integración Alexa de solo lectura implementada localmente el 2026-09-09. No
-reemplaza ni autoriza el siguiente conteo físico y no permite escrituras de
-negocio. Antes de usarlo se deben verificar staging, respaldar según el runbook,
-aplicar la migración, desplegar API/web, configurar secretos fuera de Git y
-desplegar el puente Development siguiendo
-[`alexa-real-integration.md`](../integrations/alexa-real-integration.md).
+Updated: 2026-09-16.
 
-El 2026-08-30 el propietario seleccionó **FASE 9** como siguiente fase y
-aprobó su estructura por bloques y su separación de lectura financiera. La
-planificación está en
-[phase-9-audits-reports-plan.md](../reviews/phase-9-audits-reports-plan.md).
-Seleccionar la fase no autoriza implementar: el esquema, el cambio de RBAC y
-el despliegue a staging siguen siendo gates separados.
+Este documento ordena los siguientes gates; no autoriza saltarse ninguno. La
+línea desplegada está en `codex/staging-pilot` (`b61e711`) y permanece 32
+commits por delante de `origin/main` (`37e97e4`). La consolidación se trabaja
+desde `codex/consolidate-staging`.
 
-El 2026-08-30 se completaron y verificaron directamente los bloques **9A —
-esquema de auditoría física** y **9B.1 — aplicación y API**, en la rama
-`migration/09-reports` (todavía sin fusionar a `main`). 9A: commits `2671d5d`
-(fundación) y `b55aef9` (fix de la matriz de autorización break-glass, del
-importador legacy y de una referencia de columna en la migración). 9B.1: el
-módulo `inventory-counts`, sin migración nueva ni cambio de RBAC. Evidencia
-completa en
-[CURRENT_STATE.md § "Current inventory-count application"](CURRENT_STATE.md).
-Sin UI; nada se aplicó a staging.
+## Gate 1 — consolidar la línea desplegada
 
+1. revisar los 32 commits y las 11 migraciones existentes;
+2. preservar los temporales locales sensibles y mantenerlos fuera de Git;
+3. reconciliar `CURRENT_STATE.md`, este archivo y el roadmap;
+4. comprobar que el diff contra `main` no contiene secretos, datos privados ni
+   cambios legacy;
+5. mantener cambios de consolidación separados de nuevas funcionalidades.
 
-FASE 8 está cerrada de punta a punta en el repositorio versionado: 8A el
-esquema, 8B la aplicación y API, 8C la interfaz. Todo fue verificado
-directamente el 2026-08-29 contra PostgreSQL local.
+Estado: `IN_PROGRESS`. La rama de consolidación parte exactamente de
+`b61e711`; los temporales ejecutables `*.tmp.mjs` y `*.tmp.mts` ya están
+ignorados sin ser eliminados.
 
-El 2026-08-30 el propietario autorizó y se ejecutó el despliegue de FASE 7A
-y 8A a staging (esquema y RBAC únicamente). Evidencia completa en
-[CURRENT_STATE.md § "FASE 7A/8A schema deployed to staging"](CURRENT_STATE.md).
-Ninguna venta, asiento o cierre real fue creado en staging; ese despliegue
-no autorizó ninguno de esos, y cada uno sigue siendo un gate separado.
+## Gate 2 — baseline reproducible
 
-Con esto, FASE 7 y FASE 8 están ambas cerradas de punta a punta en el
-repositorio versionado, y su esquema/RBAC ya están desplegados en staging.
-Ningún módulo de negocio queda pendiente de implementación local salvo lo
-que dependa de decisiones humanas todavía abiertas o de importación legacy.
+Debe pasar desde un checkout limpio, con PostgreSQL local identificado
+positivamente y sin apuntar a staging:
 
-Evidencia: [CURRENT_STATE.md](CURRENT_STATE.md),
-[reporte de FASE 8B](../reviews/phase-8b-completion-report.md),
-[reporte de FASE 8C](../reviews/phase-8c-completion-report.md),
-[ADR-010](../decisions/ADR-010-finances-closings-rules.md).
+```bash
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:integration
+pnpm build
+pnpm db:validate
+pnpm test:e2e
+```
 
-## Estado actual
+No se acepta como baseline verde una corrida completa roja aunque los casos
+pasen en aislamiento. Primero se debe distinguir entre defecto de producto,
+aislamiento de fixtures, paralelismo del runner y normalización CRLF; luego se
+corrige la causa sin debilitar aserciones.
 
-- **`PHASE_7A_SCHEMA_COMPLETE`**, **`PHASE_7B_COMPLETE`**,
-  **`PHASE_7C_COMPLETE`**
-- **`PHASE_8A_SCHEMA_COMPLETE`**, **`PHASE_8B_COMPLETE`**,
-  **`PHASE_8C_COMPLETE`**
-- **`PHASE_8_COMPLETE`**
-- **`STAGING_PHASE_7A_8A_SCHEMA_APPLIED`** (2026-08-30; ver CURRENT_STATE.md)
-- **`FIRST_STAGING_SALE_NOT_AUTHORIZED`**
-- **`FIRST_STAGING_FINANCIAL_ENTRY_NOT_AUTHORIZED`**
-- **`FIRST_STAGING_CLOSING_NOT_AUTHORIZED`**
-- **`WAVES_3_PLUS_NOT_STARTED`**
-- **`PHASE_9_PLANNING_COMPLETE`**, **`PHASE_9A_SCHEMA_COMPLETE`**,
-  **`PHASE_9B_1_COMPLETE`**, **`PHASE_9B_2_COMPLETE`**,
-  **`PHASE_9B_3_COMPLETE`**, **`PHASE_9C_COMPLETE`**, **`PHASE_9_COMPLETE`**
-  (on `migration/09-reports`, unmerged)
-- **`STAGING_PHASE_9_SCHEMA_RBAC_APPLIED`** (2026-09-01; ver CURRENT_STATE.md)
-- **`FIRST_STAGING_INVENTORY_COUNT_NOT_AUTHORIZED`**
-- **`PHASE_10_PLANNING_COMPLETE`**, **`PHASE_10A_COMPLETE`**,
-  **`PHASE_10B_PARTIAL`**, **`PHASE_10C_COMPLETE`**, **`PHASE_10_NOT_CLOSED`**
-  (on `migration/10-ui`, unmerged)
-- **`NEXT_GATE = FIRST_STAGING_INVENTORY_COUNT`** (operacional) y
-  **`PHASE_10_IMPLEMENTATION`** (desarrollo); son independientes entre sí
+## Gate 3 — integrar a `main`
 
-Cerrar FASE 8 no autorizó ninguna acción operacional, y desplegar su esquema
-a staging tampoco autorizó ninguna. Seleccionar FASE 9 tampoco autoriza
-implementarla. Cerrar 9A, 9B.1 y 9B.2 no autoriza desplegarlos ni usarlos
-contra staging: ese sigue siendo un gate propio y separado.
+Solo después del Gate 2:
 
-## Bloques cerrados
+1. publicar la rama de consolidación;
+2. abrir un PR hacia `main` para activar CI;
+3. revisar migraciones, RBAC, superficie pública y diff de secretos;
+4. exigir CI verde y ausencia de hallazgos críticos o altos;
+5. fusionar sin reescribir el historial desplegado;
+6. confirmar que `main`, el commit desplegado y el handoff quedan trazables.
 
-### FASE 9A — esquema de auditoría física (completo, sin fusionar a `main`)
+## Gate 4 — primer conteo físico formal en staging
 
-`InventoryCountSession`, `InventoryCountSessionWarehouse` e
-`InventoryCountLine`, con el vínculo inmutable al ajuste generado al aprobar,
-y los cuatro permisos nuevos (`inventory.audit.create`,
-`inventory.audit.approve`, `reports.read`, `analytics.read`) en el manifest
-como grants directos únicamente al administrador — ningún rol los recibe
-todavía. La convención de nombres que evita la colisión con el
-`InventoryAuditService` existente quedó resuelta a favor de
-`InventoryCountSession`/`InventoryCountLine`.
+Es el siguiente gate operacional seleccionado. No debe basarse en la fotografía
+histórica de 144 productos y 357 saldos. La última evidencia registrada de Neon
+contiene 28 productos y 20 saldos; ambos números deben revalidarse directamente
+antes del gate.
 
-### FASE 9B.1 — auditoría física, aplicación y API (completo, sin fusionar)
+Secuencia obligatoria:
 
-El módulo `inventory-counts`: crear sesión con alcance de bodegas, capturar
-conteos, enviar a aprobación, aprobar generando los ajustes atómicos por la
-ruta de FASE 5C, y cancelar. Sin migración nueva y sin cambio de RBAC.
-Verificado directamente el 2026-08-30; detalle y reglas críticas en
-[CURRENT_STATE.md § "Current inventory-count application"](CURRENT_STATE.md).
+1. verificar proyecto, región, rama, base, rol, PostgreSQL y migraciones;
+2. reconciliar el import operativo de 28 variantes / 62 unidades mediante sus
+   recibos, movimientos y auditoría, sin repetirlo;
+3. comprobar que no existe otra sesión de conteo abierta o pendiente;
+4. crear un checkpoint privado y verificarlo con `pg_restore --list`;
+5. seleccionar una sola bodega y un alcance pequeño, registrando saldos antes;
+6. crear, capturar, enviar y aprobar exactamente una sesión desde la UI;
+7. verificar movimientos `ADJUSTMENT`, saldos, vínculos de líneas, auditoría e
+   idempotencia; nunca editar el ledger manualmente;
+8. crear y verificar el checkpoint posterior;
+9. documentar evidencia sanitizada y detenerse. El gate no concede permiso
+   general para conteos posteriores.
 
-Tres decisiones se tomaron explícitamente al implementarlo, y ninguna cierra
-lo que sigue abierto:
+## Gates posteriores independientes
 
-- el mismo actor puede crear y aprobar (sin segregación de funciones todavía);
-- enviar/aprobar/cancelar son idempotentes por efecto, no por clave, porque el
-  esquema de 9A solo tiene columnas de idempotencia para la creación;
-- aprobar exige `inventory.adjust` además de `inventory.audit.approve`, porque
-  delega en la ruta de ajuste que revalida ese permiso.
+- primera venta, confirmación y eventual cancelación controladas;
+- primera entrada financiera manual;
+- primer cierre diario;
+- primera clave de integración para Marketplace y prueba del catálogo;
+- unlink/relink final de Alexa tras el cambio de rotación;
+- Waves 3+ del import legacy, después de resolver DEC-006, DEC-007, DEC-018 y
+  DEC-026 y construir el importador correspondiente;
+- FASE 11 de hardening: observabilidad, seguridad, carga moderada,
+  backup/restore, RPO/RTO y runbooks;
+- rehearsal, UAT y cutover de producción.
 
-**Sigue abierto:** los grants por rol de los cuatro permisos nuevos (§2,
-"Todavía abierto", del plan). Mientras no se decidan, el conteo físico solo es
-utilizable por quien tenga los grants directos. Esa decisión no bloquea 9B.2.
-
-### FASE 9B.2 — reportes (completo, sin fusionar)
-
-Cuatro reportes —inventario, movimientos, ventas y finanzas— con paginación en
-servidor, filtros y exportación CSV. Lectura pura. Sin migración y sin cambio
-de RBAC: los índices existentes ya respaldan cada filtro.
-
-Dos reglas quedaron enforced en el controlador, no libradas al lector: reportar
-es una capacidad y no un permiso de acceso, así que cada ruta exige además el
-permiso de lectura de su dominio; y las columnas de dinero exigen además
-`finances.read`, emitiéndose como null cuando falta para que el CSV conserve
-una sola forma. Un test comprueba que ningún reporte emite `unitCostSnapshot`,
-hashes, lugar de entrega ni texto legacy.
-
-### FASE 9B.3 — analytics (completo, sin fusionar)
-
-KPIs de inventario y de ventas, con margen y utilidad. Sin migración y sin
-cambio de RBAC. El margen cumple DEC-015: un costo ausente o cero —que los
-datos usan como bandera de revisión— excluye su línea de ambos lados de la
-resta, y cada respuesta declara su `marginCoverage`. Un periodo sin ningún
-costo confiable reporta margen nulo, no cero.
-
-### FASE 9C — interfaz (completo, sin fusionar)
-
-Flujo de conteo físico, reportes con filtros y exportación CSV, y vista de
-analytics. La portada dejó de ser una pantalla de diagnóstico de sesión y ahora
-encabeza con el estado del inventario. `globals.css` pasó a ser un sistema de
-tokens con modo oscuro y transiciones que respetan `prefers-reduced-motion`;
-como está escrito contra las clases que las páginas ya usaban, re-estiliza
-todas las pantallas anteriores sin renombrar nada. 32/32 E2E siguen pasando.
-
-Con esto **FASE 9 queda cerrada de punta a punta** en el repositorio versionado.
-
-## FASE 10 seleccionada y planificada — 2026-09-01
-
-El propietario seleccionó **FASE 10 — Unificación UI** como siguiente fase de
-desarrollo. La planificación está en
-[phase-10-ui-plan.md](../reviews/phase-10-ui-plan.md). Planificar no autoriza
-implementar.
-
-Al verificar el estado real se encontró que la pila de interfaz declarada en
-`AGENTS.md` no coincide con el repositorio: shadcn/ui, Lucide, TanStack Query,
-TanStack Table, React Hook Form + Zod y Recharts **no están instaladas**, y la
-UI se apoya en el sistema de tokens propio de 9C (1,503 líneas). La desviación
-nunca se había registrado. El propietario resolvió el alcance en
-[ADR-012](../decisions/ADR-012-ui-stack-deviation.md): FASE 10 cumple su puerta
-y añade **solo Lucide**, sin migrar a shadcn/ui.
-
-Restricción registrada en el plan §3: los cuatro specs E2E existentes **no**
-pueden re-ejecutarse en varios viewports, porque comparten una única base
-efímera y `02-inventory` afirma un conteo global exacto de productos. La puerta
-multi-viewport exige un conjunto de pruebas nuevo, sin aserciones de estado
-global.
-
-### Ejecución de FASE 10 — 2026-09-01
-
-**10A y 10C completos; 10B parcial.** Detalle y evidencia en el
-[plan §9](../reviews/phase-10-ui-plan.md). Cinco commits en `migration/10-ui`,
-sin fusionar. 42/42 E2E en tres proyectos (escritorio, tablet, móvil),
-lint 8/8, typecheck 7/7, build 7/7.
-
-Dos hallazgos que conviene no perder:
-
-- La navegación ocultaba `Analytics` incluso a 1440px por un
-  `overflow-x: auto`, y **las 32 pruebas pasaban con el defecto presente**,
-  porque Playwright resuelve enlaces por rol y nombre y los desplaza al
-  viewport. Solo apareció al mirar capturas de la app en ejecución. Es un
-  recordatorio de que la puerta visual de esta fase no la puede sustituir una
-  aserción funcional.
-- Los cinco diálogos declaraban `aria-modal="true"` sin que nada lo hiciera
-  cumplir: sin foco inicial, sin trampa de Tab, sin Escape. Una declaración
-  falsa es peor que su ausencia, porque un lector de pantalla anuncia un
-  contexto modal inexistente.
-
-El plan §1.1 corrige tres premisas del inventario inicial que resultaron
-falsas: las tablas ya tenían presentación móvil, la indicación de foco ya
-estaba cubierta por una regla global, y el destino del skip link sí existía.
-
-**Falta para cerrar FASE 10:** contraste en claro y oscuro; la decisión de
-propietario sobre **colores y logotipo** (límite «antes de la aceptación
-visual» según el roadmap); y el pulido de la navegación, que a 1440px deja
-`Analytics` sola en la segunda fila.
-
-## Gate seleccionado
-
-### Primer conteo físico real en staging
-
-FASE 9 está fusionada a `main` y su esquema y RBAC están desplegados en
-staging desde el 2026-09-01. Lo que queda es operacional, no de
-implementación: ejecutar exactamente **un** conteo físico controlado, igual
-que se hizo con la primera transferencia en FASE 6.
-
-Ese gate requiere autorización explícita propia y **no está autorizado por el
-despliegue de esquema**. Aprobar un conteo escribe stock por la ruta de ajuste
-de FASE 5C, así que es una mutación operacional real sobre los 357 saldos que
-staging tiene hoy.
-
-Antes de ejecutarlo hay que revalidar el target read-only; el estado descrito
-en `CURRENT_STATE.md` no es verdad live indefinida.
-
-## Pendiente sin bloquear nada
-
-- **Push a `origin/main`.** La fusión se hizo solo en local; `main` está
-  adelante del remoto. Es una decisión aparte.
-- **Segregación de funciones en el conteo.** Hoy el mismo actor puede crear y
-  aprobar. Con la aprobación como grant directo único, en la práctica solo el
-  administrador aprueba, así que el hueco es teórico; endurecerlo sigue siendo
-  una decisión abierta.
-
-## Otros gates candidatos, no seleccionados
-
-### A. Importación legacy de `Ventas` y `Finanzas` (Waves 3+)
-
-El 2026-08-30 el propietario resolvió cuatro de las decisiones que bloqueaban
-este gate mediante
-[ADR-011](../decisions/ADR-011-legacy-sales-import-decisions.md): DEC-012
-(normalización de personas), DEC-013 (canales), DEC-016 (estado de las 404
-líneas de venta) y DEC-017 (hora final vacía). Ninguna de las cuatro cambia el
-esquema ni requiere migración.
-
-Sigue bloqueado por decisiones humanas todavía abiertas en
-[open-decisions.md](../legacy/open-decisions.md): DEC-018 (método de pago
-histórico), DEC-006 (cuatro líneas de venta duplicadas), DEC-007 (siete ventas
-sin movimiento) y DEC-026 (importación CSV legacy). Ninguna regla puede
-inferirse desde la implementación operacional de FASE 7 u 8.
-
-Además, el importador legacy de `Ventas` no existe todavía: `legacySellerText`,
-`delivererText` y `salesChannelText` no están referenciados en ningún `.ts` del
-repositorio. Resolver las decisiones restantes habilita planificarlo; no lo
-implementa ni autoriza escritura alguna.
-
-### B. Deuda técnica menor
-
-No es una fase; son mejoras acotadas que pueden agruparse:
-
-- el arnés E2E ahora numera sus archivos (01-04) para fijar el orden de
-  ejecución; cualquier especificación nueva debe respetar esa numeración o
-  revisar la nota en `playwright.config.ts`;
-- divergencia entre el plan de FASE 7B §13, que preveía `productId` y
-  `warehouseId` en los `details` de los 422, y el filtro global, que siempre
-  devuelve `details` vacío para toda la API;
-- el arranque en frío del API puede exceder el timeout de salud de 60 s del
-  runner E2E; subir ese timeout es una decisión separada;
-- `sales-concurrency.integration.spec.ts` falla de forma intermitente bajo
-  carga paralela de la suite (`SALE_CONCURRENCY_CONFLICT`) y pasa 9/9 en
-  aislamiento. Con 27 archivos de integración desde 9B.1 la contención subió;
-  acotar la concurrencia del runner de integración es una mejora acotada y
-  pendiente.
-
-## Estado operacional que permanece inalterado
-
-- Las 1,069 filas legacy de `Movimientos` siguen sin importar.
-- Las 25 filas clasificadas históricamente como transferencias siguen sin
-  importar.
-- Las ventas legacy continúan diferidas y sin materializar.
-- `WAVES_3_PLUS_NOT_STARTED` continúa vigente.
-- Los movimientos históricos del ledger nunca se editan ni eliminan a mano.
-- Staging tiene ahora el esquema y RBAC de FASE 7A/8A aplicados
-  (2026-08-30), verificado directamente ese día; `sales`, `sale_items`,
-  `sale_cancellations`, `in_transit_confirmations`, `financial_entries`,
-  `financial_categories`, `daily_closings` y `daily_closing_reopenings`
-  siguen todas vacías ahí. Antes de cualquier gate operacional futuro sobre
-  staging debe revalidarse el target read-only; el estado aquí descrito no
-  es verdad live indefinida.
+Cada escritura real conserva su autorización, preflight y checkpoint propios.

@@ -1,11 +1,50 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-12.
+Updated: 2026-09-16.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Read-only integration keys (local, not committed or deployed)
+## Consolidation snapshot — 2026-09-16
+
+The deployable line is `codex/staging-pilot` at `b61e711`, not `main`.
+`origin/main` remains at `37e97e4`; the staging line is 32 commits and 237
+paths ahead. Consolidation work continues on `codex/consolidate-staging`,
+created directly from the deployed line. No business or staging mutation is
+implied by that branch.
+
+Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
+readiness, and the web login page. This confirms public availability only; it
+does not replace a direct database fingerprint before any write.
+
+The last direct database evidence recorded on 2026-09-13 identified Neon
+database `sgi_comarca_staging`, PostgreSQL 18.6, 11 finished migrations, zero
+unfinished migrations, 6 roles, 4 users, 26 permissions, 26 active role
+grants, 28 products, and 20 inventory balances, all 20 with stock. Those
+counts supersede the older 144-product/357-balance Docker staging snapshot
+retained later in this file as historical evidence.
+
+The staging line contains the completed FASE 9 and FASE 10 work already present
+on `main`, plus the operational products/receipts/count-correction release,
+the administration panel, Alexa account linking and refresh-token hardening,
+the counted-product workbook importer, and read-only integration keys. Eleven
+versioned migrations exist through `20260912120000_integration_keys`.
+
+The repository is not yet a production baseline. The latest integration-key
+gate passed lint, typecheck, build, Prisma validation, focused PostgreSQL tests,
+and focused Playwright tests, but the complete local run was not uniformly
+green under Windows load. CI runs on pull requests and pushes to `main`, not on
+ordinary pushes to `codex/staging-pilot`. A clean cross-platform consolidation
+gate is therefore required before merging the deployed line into `main`.
+
+Operational follow-ups remain separately gated: the first formal physical
+count, first sale, first financial entry, first closing, first Marketplace key
+issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
+Waves 3+ of the legacy import remain unimplemented and blocked by the open
+legacy decisions. No older section of this document authorizes any of those
+writes.
+
+## Read-only integration keys (deployed and enabled; first key not recorded)
 
 On 2026-09-12 the owner approved connecting the Facebook Marketplace bot to the
 SGI through a revocable read-only integration key, publishing only stocked
@@ -78,9 +117,9 @@ The owner set `INTEGRATION_KEYS_ENABLED=true` on `sgi-comarca-api-staging` from
 the Render dashboard, which deployed `dep-dajgrs6k1f9s73djm2mg` on the same
 commit (`live`). Afterwards the unknown well-formed key returned 401 instead of
 503, while health, readiness, the keyless catalog and key management kept
-their expected responses. No integration key exists yet. The owner issues the
-first key from **Configuración → Integraciones** and stores it only in the
-Marketplace bot panel.
+their expected responses. As of the last recorded check on 2026-09-13, no
+integration key existed yet. The first issuance must be revalidated before it
+is attempted, shown once, and stored only in the Marketplace bot panel.
 
 ## Alexa real-read integration (deployed and account linked)
 
@@ -157,7 +196,7 @@ integration gate passed 31 files and 335 tests. One final unlink/relink in the
 Alexa app remains an owner action so Alexa replaces the tokens issued under the
 old lifecycle.
 
-## Counted-product workbook import (ready for staging deployment)
+## Counted-product workbook import (deployed; operational evidence to reconcile)
 
 The private Products area now includes `/products/import`, a focused importer
 for the initial physical-count workbook. It reads the workbook locally in the
@@ -179,10 +218,14 @@ The owner's source workbook was preserved outside Git and passed the production
 parser with 28 counted variants, 19 with positive stock, 9 with zero stock and
 62 total physical units. Its displayed footer says 56, but three counted rows
 sum to the six-unit difference; the importer correctly uses the physical
-warehouse cells. No staging product or inventory row has been written by this
-code change: the owner must upload the workbook on the private import page,
-confirm the 28 / 62 reconciliation and explicitly start the import after the
-web deployment reaches `live`.
+warehouse cells. At implementation time no staging product or inventory row
+had been written by this code change. A later direct preflight on 2026-09-13
+found 28 products and 20 stocked balances in Neon, so the operational import
+occurred after that implementation snapshot. Before another import or
+physical-count gate, record the exact import audit/receipt evidence and
+reconcile it with the expected 28 variants / 62 physical units. Do not repeat
+the import merely to recreate missing documentation; deterministic idempotency
+keys remain the safety boundary.
 
 ## Free staging pilot (Render + Neon)
 
@@ -279,7 +322,7 @@ operation. The raw token was delivered only through the private channel and is
 not stored in the repository. Account activation and login/logout verification
 remain pending.
 
-## Git state
+## Historical Git state before the staging-pilot line
 
 The current repository HEAD is always determined dynamically. This document
 never records an authoritative "current" HEAD of its own, because any commit
@@ -357,12 +400,13 @@ file.
 | 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. |
 | 8C | Finances and daily closings UI complete in Spanish over the closed FASE 8B API: a merged finance list (manual entries plus sale income derived at read time, never a persisted or editable entry), category/type/date filters, period totals, manual entry creation, closing list/detail with frozen figures and reopening history, closing creation, and a reopen action gated by permission and by closing status. Verified directly on 2026-08-29: 58 files / 203 unit tests, 32/32 Chromium E2E (24 regression plus 8 new), lint 8/8, typecheck 7/7, build 7/7, format clean, and a manual security review with no findings. Building it exposed and fixed a real cross-suite E2E ordering bug (an exact product count in 02-inventory.e2e.ts depended on file discovery order rather than an explicit one) and a cross-module 403-message bug naming the wrong permission. Not deployed; nothing was written to staging. `PHASE_8C_COMPLETE`. This closes FASE 8 end to end: schema, application/API, and UI. `PHASE_8_COMPLETE`. |
 | 9A | Physical inventory count schema and RBAC foundation complete on `migration/09-reports` (not yet merged into `main`): `InventoryCountSession` (lifecycle `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either non-terminal state, with separate creator/approver/canceller actors and actor-scoped idempotency), `InventoryCountSessionWarehouse` (explicit session scope, so a missing line is distinguishable from a warehouse never meant to be counted, per AT-AUD-02), and `InventoryCountLine` (expected/counted/difference, linked immutably to the generated adjustment via a unique `adjustment_movement_id`). The session never writes stock itself; a deferred constraint trigger requires the linked movement to be an `ADJUSTMENT` matching the line's product, warehouse, and magnitude, so the FASE 5C atomic adjustment path remains the only stock-writing route. Named to avoid colliding with the existing `InventoryAuditService` (audit log), per the plan's §6. RBAC adds `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and `analytics.read` as direct grants to the sole admin only; no role grants any of the four, preserving the still-open role-grant decision in the FASE 9 plan. No API and no UI. Commit `2671d5d` added the foundation; commit `b55aef9` fixed a break-glass authorization-matrix gap (it was checking only `sales.cancel` as the lone direct grant and ignoring the four new ones), a legacy-importer reference, and a migration column reference, and added full integration coverage. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 58 files/204 tests, integration 26 files/262 tests, build 7/7, `format:check` and `db:validate` clean. Not deployed; staging remains on the FASE 7A/8A migration. `PHASE_9A_SCHEMA_COMPLETE`. |
-| 9B.1 | Physical count application and REST API complete on `migration/09-reports` (not yet merged into `main`): the `inventory-counts` module implements session creation, count capture, submission, approval and cancellation over the closed 9A schema. Approval delegates every stock change to the FASE 5C atomic adjustment path inside one transaction, so no second stock-writing route exists; it refuses the whole approval when a balance moved since the count (`INVENTORY_COUNT_BALANCE_CHANGED`) rather than recomputing against the new balance, and reports uncounted in-scope products as `pendingItems` instead of assuming zero (AT-AUD-02). Approving requires `inventory.audit.approve` and `inventory.adjust` on the same actor; reads and cancellation accept either audit capability, since 9A defined no read permission. `RequirePermission` gained additive any-of support (a single code still stores plain string metadata). No migration and no RBAC change were needed. See ["Current inventory-count application"](#current-inventory-count-application-fase-9b1-migration09-reports-only). Verified directly against PostgreSQL 18.4 on 2026-08-30. Not deployed; no UI (that is 9C). `PHASE_9B_1_COMPLETE`. |
+| 9B.1 | Physical count application and REST API complete on `migration/09-reports` (not yet merged into `main`): the `inventory-counts` module implements session creation, count capture, submission, approval and cancellation over the closed 9A schema. Approval delegates every stock change to the FASE 5C atomic adjustment path inside one transaction, so no second stock-writing route exists; it refuses the whole approval when a balance moved since the count (`INVENTORY_COUNT_BALANCE_CHANGED`) rather than recomputing against the new balance, and reports uncounted in-scope products as `pendingItems` instead of assuming zero (AT-AUD-02). Approving requires `inventory.audit.approve` and `inventory.adjust` on the same actor; reads and cancellation accept either audit capability, since 9A defined no read permission. `RequirePermission` gained additive any-of support (a single code still stores plain string metadata). No migration and no RBAC change were needed. See ["Historical FASE 9B.1 closure snapshot"](#historical-fase-9b1-closure-snapshot). Verified directly against PostgreSQL 18.4 on 2026-08-30. Not deployed; no UI (that is 9C). `PHASE_9B_1_COMPLETE`. |
 
-## Current inventory-count application (FASE 9B.1, `migration/09-reports` only)
+## Historical FASE 9B.1 closure snapshot
 
-The `inventory-counts` module turns the 9A schema into an API. It is versioned
-and locally verified only: nothing is deployed and no UI exists (that is 9C).
+The following records the state when 9B.1 first closed. The module, its later
+UI, schema and RBAC have since reached the deployed staging line; the historical
+verification details are retained here without rewriting that earlier gate.
 
 - `POST /api/v1/inventory/counts` creates an `OPEN` session declaring its
   warehouse scope, guarded by `inventory.audit.create`, with a mandatory
@@ -416,7 +460,7 @@ nothing about its locking, validation, audit event or signature changed.
 | 9B.3 | Analytics complete on `migration/09-reports` (unmerged): inventory KPIs (distinct products, stock-outs, cost/price review alerts, total value) and sales analytics (volume by day/week/month, top products, per-seller totals, gross profit and margin). Same two rules as 9B.2: analytics never widens access, so each route also requires its domain's read permission, and every monetary figure additionally requires `finances.read`. Margin follows DEC-015 rather than averaging silently. A cost that is absent, or zero — which the data uses as a review flag — excludes its line from **both** sides of the subtraction, because counting it as free stock would inflate profit, and dividing full revenue by partial cost would report a margin no line earned. Every response carries a `marginCoverage` (covered/excluded/total lines and ratio), and a period with no trustworthy cost reports a null margin rather than zero, since unknown is not the same as none. Inventory valuation applies the identical rule and reports its own coverage. All ratios and money use exact integer arithmetic. Sales aggregation is capped at 366 days and restricted to `COMPLETED` sales, backed by the existing `(status, business_date)` index. Analytics keeps the shared quantity helper's trimmed decimals, unlike reports which pin the scale, because a dashboard reads better with `15` than `15.0000`. No migration and no RBAC change. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 61 files/236 tests, integration 11/11 for the new spec, build 7/7, format and `db:validate` clean. `PHASE_9B_3_COMPLETE`. |
 | 9C | FASE 9 interface complete on `migration/09-reports` (unmerged), closing FASE 9 end to end. Three surfaces: the physical count flow (session list and creation declaring its warehouse scope, count capture, submit, approve, cancel), the four reports with date filters and CSV export, and a sales analytics view. The operational home replaced the session-diagnostics screen: stock health, stock-outs and cost-review alerts now lead, with session facts and permissions kept below for support. Coverage always travels with the figure it qualifies — a margin computed over half the lines renders its covered/total count beside it — and money never renders when the API returns null, so an actor without `finances.read` sees no monetary column anywhere. `globals.css` became a token system (colour, radius, shadow, motion, type) with OS-driven dark mode and transitions honouring `prefers-reduced-motion`; because it is written against the class names the pages already used, every earlier screen was restyled without a rename, and the Playwright suite still selects on the same hooks. Building it exposed two real regressions of its own: dashboard shortcuts duplicated the always-visible header navigation, giving two links one accessible name, and an earlier draft dropped the permissions list the FASE 3B suite asserts on. Both were fixed rather than worked around in the tests. Verified directly on 2026-08-31: lint 8/8, typecheck 7/7, unit 61 files/236 tests, build 7/7, and 32/32 Chromium E2E. Nothing deployed; staging untouched. `PHASE_9C_COMPLETE`, `PHASE_9_COMPLETE`. |
 
-## Current milestone
+## Historical phase milestone before staging-pilot consolidation
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
@@ -459,7 +503,7 @@ deployment, authorizes an operational write. The next gate is described in
 [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
 
-## Current capabilities
+## Core capabilities recorded at the FASE 8/9 closure
 
 Read capabilities implemented:
 
@@ -574,7 +618,7 @@ sales schema, FASE 7B provides the application/API, and FASE 7C provides the
 UI. None of those repository capabilities means staging
 deployment or legacy sales import occurred.
 
-## Current inventory-count schema (FASE 9A, `migration/09-reports` only)
+## Inventory-count schema
 
 - `InventoryCountSession` is the audit session document: lifecycle
   `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either
@@ -592,15 +636,14 @@ deployment or legacy sales import occurred.
 - Named `InventoryCountSession`/`InventoryCountLine` rather than reusing
   "audit" to avoid colliding with the pre-existing `InventoryAuditService`,
   which writes `AuditLog` rows and is unrelated to physical counting.
-- RBAC: `inventory.audit.create`, `inventory.audit.approve`, `reports.read`,
-  and `analytics.read` exist as direct grants to the sole admin only. No
-  role grants any of the four yet; which role(s) should is still an open
-  business decision (see `docs/reviews/phase-9-audits-reports-plan.md` §2).
-- No API and no UI exist yet for this schema, and nothing was applied to
-  staging or any persistent database. This schema lives only on
-  `migration/09-reports`, which has not merged into `main`.
+- RBAC: `inventory.audit.create`, `reports.read`, and `analytics.read` are role
+  grants in the approved matrix; `inventory.audit.approve` remains a direct
+  grant to Dylan and additionally requires `inventory.adjust` at approval.
+- The API and UI implement creation, immutable capture, correction while open,
+  submission, approval and cancellation. The migration and grants are present
+  in Neon staging; the first formal staging count remains an independent gate.
 
-## Last verified staging snapshot
+## Historical Docker staging snapshot — 2026-08-23
 
 This is non-secret operational evidence verified read-only on 2026-08-23,
 immediately after the FASE 6 transfer gate. It is not a substitute for a fresh
@@ -763,13 +806,16 @@ active unique, check, and immutability constraints. No replay request was
 issued against staging; replay behavior remains covered by the
 integration/concurrency suites.
 
-## Current RBAC
+## Current RBAC manifest
 
-- On `main`, the manifest contains 16 permissions and 15 role grants.
-- On `migration/09-reports` (unmerged), it contains 20 permissions, 20 role
-  grants, and 2 direct grants. On 2026-08-31 the owner approved the FASE 9
-  grants, moving counting, reports and analytics onto roles and leaving only
-  `sales.cancel` and `inventory.audit.approve` as direct.
+- The deployed manifest contains 26 permissions, 26 role grants and 2 direct
+  grants. The last direct staging verification on 2026-09-13 matched those
+  permission and role-grant counts.
+- `ADMIN` grants the four original account-management capabilities plus
+  `users.read`, `users.roles.manage`, and `integrations.manage`; it remains an
+  explicit role rather than a superuser bypass.
+- `products.manage` and `stock-receipts.create` belong to
+  `INVENTORY_MANAGER`; `inventory.valuation.manage` belongs to `FINANCE`.
 - `inventory.read → INVENTORY_MANAGER`.
 - `inventory.adjust → INVENTORY_MANAGER`.
 - `transfers.create → INVENTORY_MANAGER`.
@@ -797,18 +843,19 @@ The full matrix is in
 
 ## Current migrations
 
-On `main`, in order:
+On the deployed staging line, in order:
 
 1. `20260804044231_phase_3a_initial_structure`;
 2. `20260804164613_phase_3b_authentication_models`;
 3. `20260806042328_phase_3b_user_permission_effect`;
 4. `20260820170000_phase_6a_transfer_foundation`;
 5. `20260826232758_phase_7a_sales_foundation`;
-6. `20260829144239_phase_8a_finances_closings_foundation`.
-
-On `migration/09-reports` (unmerged), additionally:
-
-7. `20260830181934_phase_9a_inventory_count_foundation`.
+6. `20260829144239_phase_8a_finances_closings_foundation`;
+7. `20260830181934_phase_9a_inventory_count_foundation`;
+8. `20260905041000_operational_products_receipts`;
+9. `20260905062000_inventory_count_corrections`;
+10. `20260909120000_alexa_account_linking`;
+11. `20260912120000_integration_keys`.
 
 ## Current transfer architecture
 

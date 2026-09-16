@@ -15,12 +15,12 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 4 | Importador XLSX/reconciliación — `IN_PROGRESS` (Waves 1–2 committed) | Raw-first; Waves 1–2 importadas y verificadas en staging; Ventas/Movimientos/Cierres diferidos | 2,064/2,064 raw, 14 Unit, 144 Product, 357 balances, 357 valuations, 189 issues; Waves 3+ no iniciadas |
 | 5 histórica | `ABSORBIDA_EN_FASE_3B` | No es una fase futura ni se vuelve a ejecutar | Trazabilidad conservada en el informe de cierre de 3B |
 | 6 | Catálogos e inventario — `COMPLETE` | 6A/6B completas; primera transferencia staging pasó; regresión de sesión concurrente corregida y validada; movimientos legacy no importados | historial, ajustes y transferencias atómicos/auditables; cada escritura staging posterior requiere gate explícito |
-| 7 | Ventas — `NEXT`, `NOT_STARTED`, `NOT_AUTHORIZED` | Estados/pagos históricos y precio/costo operativo; SALES ya fue asignado en 3B; alcance debe reconciliarse en planning | venta, confirmación y cancelación E2E/idempotentes |
-| 8 | Finanzas y cierres | Fórmula, tolerancia, pendientes y política de reapertura detallada | no doble conteo; cierres/roles/zona probados |
-| 9 | Auditoría, reportes y analytics | Dashboard/KPIs canónicos y permisos de aprobación de auditoría | KPIs contra SQL y exportaciones verificadas |
-| 10 | Unificación UI | Colores/logotipo específicos si se aprueban | Playwright desktop/tablet/móvil y accesibilidad |
-| 11 | Hardening | Política operativa y observabilidad | seguridad, rendimiento y carga moderada |
-| 12 | Railway staging | Dominio opcional, costo real, backup/RPO/RTO pendientes | deploy, E2E, backup/restore y presupuesto |
+| 7 | Ventas — `COMPLETE` | Aplicación/API/UI cerradas; import legacy y gates operacionales siguen separados | venta, confirmación y cancelación E2E/idempotentes |
+| 8 | Finanzas y cierres — `COMPLETE` | Reglas de ADR-010 implementadas; primeras operaciones reales siguen gated | no doble conteo; cierres/roles/zona probados |
+| 9 | Auditoría, reportes y analytics — `COMPLETE` | Conteos, reportes, analytics y RBAC implementados; primer conteo real pendiente | KPIs contra SQL y exportaciones verificadas |
+| 10 | Unificación UI — `IMPLEMENTED`, aceptación formal pendiente | Contraste, navegación, Lucide, modales y multi-viewport implementados; identidad visual por confirmar | Playwright desktop/tablet/móvil y accesibilidad |
+| 11 | Hardening — `NEXT` | Consolidar la rama desplegada, observabilidad y política operativa | seguridad, rendimiento, carga moderada y baseline reproducible |
+| 12 | Staging — piloto gratuito activo, no producción | Render + Neon sustituyen temporalmente el Railway previsto; costo real, backup/RPO/RTO pendientes | deploy, E2E, backup/restore y presupuesto |
 | 13 | Rehearsal | Todas las resoluciones críticas y UAT | cero diferencias inexplicadas, importación repetible |
 | 14 | Cutover | Aprobación humana, ventana, retención/rollback | smoke, reconciliación y legacy solo lectura |
 
