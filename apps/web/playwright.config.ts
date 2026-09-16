@@ -34,12 +34,18 @@ export default defineConfig({
     {
       name: 'tablet',
       testMatch: responsiveSuite,
-      use: { ...devices['Desktop Chrome'], viewport: { height: 1024, width: 768 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { height: 1024, width: 768 },
+      },
     },
     {
       name: 'mobile',
       testMatch: responsiveSuite,
-      use: { ...devices['Desktop Chrome'], viewport: { height: 844, width: 390 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { height: 844, width: 390 },
+      },
     },
   ],
   reporter: 'list',

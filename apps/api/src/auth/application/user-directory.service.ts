@@ -43,7 +43,9 @@ export class UserDirectoryService {
     const where = term
       ? {
           OR: [
-            { loginIdentifier: { contains: term, mode: 'insensitive' as const } },
+            {
+              loginIdentifier: { contains: term, mode: 'insensitive' as const },
+            },
             { displayName: { contains: term, mode: 'insensitive' as const } },
           ],
         }
@@ -97,7 +99,9 @@ export class UserDirectoryService {
       passwordCredential: { select: { revokedAt: true } },
       _count: {
         select: {
-          sessions: { where: { revokedAt: null, absoluteExpiresAt: { gt: now } } },
+          sessions: {
+            where: { revokedAt: null, absoluteExpiresAt: { gt: now } },
+          },
           invitations: {
             where: {
               consumedAt: null,

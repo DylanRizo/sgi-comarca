@@ -91,7 +91,8 @@ export default function AnalyticsPage() {
   const data = result.kind === 'ready' ? result.data : null;
   // Money is null for an actor without `finances.read`, so the charts show the
   // operational series instead of drawing an axis of dashes.
-  const showsMoney = data?.totalRevenue !== null && data?.totalRevenue !== undefined;
+  const showsMoney =
+    data?.totalRevenue !== null && data?.totalRevenue !== undefined;
 
   return (
     <main className="content-page" id="main-content">
@@ -216,7 +217,9 @@ export default function AnalyticsPage() {
           <section aria-labelledby="periods-title" className="detail-section">
             <div className="section-heading">
               <h2 id="periods-title">
-                {showsMoney ? 'Ingresos y unidades por periodo' : 'Unidades vendidas por periodo'}
+                {showsMoney
+                  ? 'Ingresos y unidades por periodo'
+                  : 'Unidades vendidas por periodo'}
               </h2>
             </div>
             {data.periods.length === 0 ? (
@@ -259,11 +262,17 @@ export default function AnalyticsPage() {
             ) : (
               <>
                 <RankedBars
-                  format={showsMoney ? compactMoney : (value) => `${String(value)} ventas`}
+                  format={
+                    showsMoney
+                      ? compactMoney
+                      : (value) => `${String(value)} ventas`
+                  }
                   items={data.bySeller.map((seller) => ({
                     label: seller.sellerName,
                     note: `${String(seller.saleCount)} ventas`,
-                    value: showsMoney ? Number(seller.revenue) : seller.saleCount,
+                    value: showsMoney
+                      ? Number(seller.revenue)
+                      : seller.saleCount,
                   }))}
                   summary={
                     showsMoney
@@ -271,34 +280,34 @@ export default function AnalyticsPage() {
                       : 'Ventas por vendedor.'
                   }
                 />
-              <div className="data-table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Vendedor</th>
-                      <th scope="col">Ventas</th>
-                      <th scope="col">Facturado</th>
-                      <th scope="col">Ticket promedio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.bySeller.map((seller) => (
-                      <tr key={seller.sellerUserId ?? 'sin-vendedor'}>
-                        <td data-label="Vendedor">{seller.sellerName}</td>
-                        <td data-label="Ventas" data-numeric="true">
-                          {seller.saleCount}
-                        </td>
-                        <td data-label="Facturado" data-numeric="true">
-                          {formatMoney(seller.revenue)}
-                        </td>
-                        <td data-label="Ticket promedio" data-numeric="true">
-                          {formatMoney(seller.averageTicket)}
-                        </td>
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Vendedor</th>
+                        <th scope="col">Ventas</th>
+                        <th scope="col">Facturado</th>
+                        <th scope="col">Ticket promedio</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.bySeller.map((seller) => (
+                        <tr key={seller.sellerUserId ?? 'sin-vendedor'}>
+                          <td data-label="Vendedor">{seller.sellerName}</td>
+                          <td data-label="Ventas" data-numeric="true">
+                            {seller.saleCount}
+                          </td>
+                          <td data-label="Facturado" data-numeric="true">
+                            {formatMoney(seller.revenue)}
+                          </td>
+                          <td data-label="Ticket promedio" data-numeric="true">
+                            {formatMoney(seller.averageTicket)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
           </section>

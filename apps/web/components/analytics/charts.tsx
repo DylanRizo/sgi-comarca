@@ -18,10 +18,12 @@ function axisTicks(maximum: number, count = 4): readonly number[] {
   const raw = maximum / count;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const step =
-    [1, 2, 2.5, 5, 10].map((factor) => factor * magnitude).find((candidate) => candidate >= raw) ??
-    magnitude * 10;
+    [1, 2, 2.5, 5, 10]
+      .map((factor) => factor * magnitude)
+      .find((candidate) => candidate >= raw) ?? magnitude * 10;
   const ticks: number[] = [];
-  for (let value = 0; value <= maximum + step / 2; value += step) ticks.push(value);
+  for (let value = 0; value <= maximum + step / 2; value += step)
+    ticks.push(value);
   return ticks;
 }
 
@@ -68,7 +70,8 @@ export function PeriodChart({
   const barWidth = Math.max(2, Math.min(38, slot * 0.62));
   const lineMax = line ? Math.max(...line, 0) || 1 : 1;
   const x = (index: number) => left + slot * index + slot / 2;
-  const y = (value: number) => top + plotHeight - (value / scaleMax) * plotHeight;
+  const y = (value: number) =>
+    top + plotHeight - (value / scaleMax) * plotHeight;
   // Labels crowd together beyond a couple of dozen periods, so only every
   // nth is drawn; the tooltip still names each one.
   const labelStep = Math.ceil(bars.length / 12);
@@ -89,7 +92,12 @@ export function PeriodChart({
             y1={y(tick)}
             y2={y(tick)}
           />
-          <text className="chart-axis-text" x={left - 8} y={y(tick) + 4} textAnchor="end">
+          <text
+            className="chart-axis-text"
+            x={left - 8}
+            y={y(tick) + 4}
+            textAnchor="end"
+          >
             {formatBar(tick)}
           </text>
         </g>
@@ -193,7 +201,9 @@ export function RankedBars({
         return (
           <g key={item.label + String(index)}>
             <text className="chart-row-label" x="0" y={y + 15}>
-              {item.label.length > 26 ? `${item.label.slice(0, 25)}…` : item.label}
+              {item.label.length > 26
+                ? `${item.label.slice(0, 25)}…`
+                : item.label}
             </text>
             <rect
               className="chart-bar"
@@ -206,7 +216,11 @@ export function RankedBars({
             >
               <title>{`${item.label}: ${format(item.value)}${item.note ? ` · ${item.note}` : ''}`}</title>
             </rect>
-            <text className="chart-row-value" x={labelWidth + length + 8} y={y + 17}>
+            <text
+              className="chart-row-value"
+              x={labelWidth + length + 8}
+              y={y + 17}
+            >
               {format(item.value)}
             </text>
           </g>

@@ -79,9 +79,9 @@ test.describe('Integration keys', () => {
   }) => {
     await database.denyIntegrationsManage();
     await login(request, page);
-    await expect(
-      page.getByRole('link', { name: 'Integraciones' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Integraciones' })).toHaveCount(
+      0,
+    );
     await page.goto('/settings/integrations');
     await expect(
       page.getByText('requiere el permiso de administración de integraciones'),
