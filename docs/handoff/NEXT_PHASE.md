@@ -65,7 +65,14 @@ Solo después del Gate 2:
 
 ## Gate 4 — primer conteo físico formal en staging
 
-Estado: `NEXT`.
+Estado: `WAITING_FOR_PHYSICAL_OBSERVATION`. El preflight directo de solo
+lectura del 2026-09-17 confirmó el target, las 11 migraciones, 119 productos,
+91 saldos positivos, 267 unidades, cero saldos negativos, dos sesiones
+históricas canceladas sin líneas y ninguna sesión abierta o pendiente. La
+trazabilidad de las 267 unidades quedó reconciliada mediante recibos,
+movimientos y auditoría. No se creó checkpoint ni sesión porque todavía no
+existe una observación física fresca que pueda registrarse sin inventar un
+dato de negocio.
 
 Es el siguiente gate operacional seleccionado. No debe basarse en la fotografía
 histórica de 144 productos y 357 saldos. La última evidencia registrada de Neon

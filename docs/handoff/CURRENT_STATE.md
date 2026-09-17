@@ -15,16 +15,17 @@ cross-workspace typecheck ordering and a Windows-safe E2E launcher. No
 business rule, migration, RBAC grant or staging mutation is part of the
 consolidation delta.
 
-Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
-readiness, and the web login page. This confirms public availability only; it
-does not replace a direct database fingerprint before any write.
+Public read-only checks on 2026-09-17 returned HTTP 200 for API health, API
+readiness, and the web login page. This confirms public availability only and
+was followed by a direct read-only database fingerprint.
 
-The last direct database evidence recorded on 2026-09-13 identified Neon
-database `sgi_comarca_staging`, PostgreSQL 18.6, 11 finished migrations, zero
-unfinished migrations, 6 roles, 4 users, 26 permissions, 26 active role
-grants, 28 products, and 20 inventory balances, all 20 with stock. Those
-counts supersede the older 144-product/357-balance Docker staging snapshot
-retained later in this file as historical evidence.
+The latest direct evidence identifies Neon database `sgi_comarca_staging`,
+role `sgi_staging_owner`, PostgreSQL 18.6 in a read-only transaction, with 11
+finished migrations, zero unfinished migrations, 6 roles, 4 users, 26
+permissions and 26 active role grants. Operational inventory has advanced
+since the 2026-09-13 snapshot: staging now has 119 products, 91 balances, all
+91 positive, 267 total units and zero negative balances. The ledger has 91
+`RECEIPT` movements totalling +268 and one `ADJUSTMENT` of -1.
 
 The staging line contains the completed FASE 9 and FASE 10 work already present
 on `main`, plus the operational products/receipts/count-correction release,
@@ -46,6 +47,16 @@ issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
 Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
+
+The 2026-09-17 count preflight found two historical count sessions, both
+cancelled, both with zero lines, and no `OPEN` or `PENDING_APPROVAL` session.
+Four active users can capture counts and only Dylan can approve one. The
+database is structurally ready for the first formal count, but no fresh
+physical observation was available to the operator. System quantities and the
+historical workbook must not be presented as a new physical observation. No
+count session, backup, adjustment or other staging write was created during
+this preflight; the private pre-write checkpoint remains immediately before
+the first authorized write after a real observation is supplied.
 
 ## Read-only integration keys (deployed and enabled; first key not recorded)
 
@@ -221,14 +232,19 @@ The owner's source workbook was preserved outside Git and passed the production
 parser with 28 counted variants, 19 with positive stock, 9 with zero stock and
 62 total physical units. Its displayed footer says 56, but three counted rows
 sum to the six-unit difference; the importer correctly uses the physical
-warehouse cells. At implementation time no staging product or inventory row
-had been written by this code change. A later direct preflight on 2026-09-13
-found 28 products and 20 stocked balances in Neon, so the operational import
-occurred after that implementation snapshot. Before another import or
-physical-count gate, record the exact import audit/receipt evidence and
-reconcile it with the expected 28 variants / 62 physical units. Do not repeat
-the import merely to recreate missing documentation; deterministic idempotency
-keys remain the safety boundary.
+warehouse cells.
+
+The 2026-09-17 read-only reconciliation closes the earlier evidence gap without
+repeating an import. On 2026-09-11 staging created 28 products and 20 receipt
+items totalling 64 units: 19 initial-workbook receipts account for the 62
+physical units and one separately documented missing item added 2 units. The
+subsequent audited manual adjustment of -1 left 63 units. On 2026-09-16 a
+second operational workbook run created 91 products and 71 positive receipts
+totalling 204 units. Current lineage is therefore 119 products, 91 receipts
+totalling 268 units, one -1 adjustment and a final balance of 267 units. Audit
+counts match 119 `product.created`, 91 `stock.received` and one
+`inventory.adjusted` event. This explains current staging state but is not a
+fresh physical count and does not authorize another import.
 
 ## Free staging pilot (Render + Neon)
 
