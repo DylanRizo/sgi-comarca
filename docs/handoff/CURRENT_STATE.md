@@ -1,17 +1,18 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-16.
+Updated: 2026-09-17.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Consolidation snapshot — 2026-09-16
+## Consolidation snapshot — 2026-09-17
 
-The deployable line is `codex/staging-pilot` at `b61e711`, not `main`.
-`origin/main` remains at `37e97e4`; the staging line is 32 commits and 237
-paths ahead. Consolidation work continues on `codex/consolidate-staging`,
-created directly from the deployed line. No business or staging mutation is
-implied by that branch.
+The deployable line is `codex/staging-pilot` at functional commit `8bf570d`,
+not `main`. `origin/main` is at `c9b4d1c`; the staging line is 3 commits and 19
+paths ahead. Consolidation work continues on `codex/consolidate-staging`, whose
+functional baseline matches the deployed line. A later documentation-only
+commit may legitimately move that branch beyond `8bf570d` without changing the
+deployed application baseline.
 
 Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
 readiness, and the web login page. This confirms public availability only; it
@@ -43,6 +44,34 @@ issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
 Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
+
+## Alexa long-product query deployment — 2026-09-17
+
+The owner authorized publishing and deploying the Alexa query fix after loading
+most of the operational product catalog into the SGI. Commit `8bf570d` improves
+long inventory utterances without embedding the real catalog in Git: it
+collapses an exactly repeated product phrase, removes a spoken `bodega` or
+`almacen` prefix before warehouse lookup, normalizes final spoken size letters
+such as `eme` to `M`, adds representative synthetic long-product samples and
+adds the approved short warehouse names as synonyms. Ambiguous catalog matches
+still elicit clarification instead of guessing.
+
+Local verification passed the 14 Alexa adapter tests, 5 Alexa-hosted bridge
+tests, the complete unit suite (67 files / 293 tests), the complete PostgreSQL
+integration suite (32 files / 349 tests), lint (9/9 tasks, with the existing
+unused-disable warning), typecheck (8/8 tasks), build (8/8 tasks), Prisma
+validation, JSON parsing and `git diff --check`. The three changed Alexa files
+passed focused Prettier validation. The repository-wide `format:check` remains
+red on 184 pre-existing working-tree paths and was not "fixed" by mixing a mass
+format rewrite into this bug fix.
+
+Render deployment `dep-dam46kvcgkoc7389d700` made `8bf570d` live on the staging
+API. A subsequent read-only request to `GET /api/v1/ready` returned HTTP 200,
+`status: ready` and `database: up` at `2026-09-17T19:49:02.307Z`. The Alexa
+Developer Console saved and successfully built Development model version 3 for
+Spanish (MX) at 2026-09-17 13:48 America/Managua, with zero model errors and
+zero warnings. The Lambda bridge, account-linking configuration, RBAC, schema,
+operational database and inventory data were not changed by this deployment.
 
 ## Read-only integration keys (deployed and enabled; first key not recorded)
 
