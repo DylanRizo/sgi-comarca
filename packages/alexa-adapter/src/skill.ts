@@ -28,6 +28,63 @@ export const PRODUCT_SLOT = 'producto';
 export const WAREHOUSE_SLOT = 'bodega';
 export const SALE_NUMBER_SLOT = 'numeroVenta';
 
+const MINIMUM_REPEATED_PHRASE_WORDS = 3;
+const SPOKEN_FINAL_SIZE_CODES = new Map([
+  ['ele', 'L'],
+  ['eme', 'M'],
+  ['ese', 'S'],
+  ['equis', 'X'],
+]);
+const WAREHOUSE_PREFIXES = new Set(['almacen', 'bodega']);
+
+function collapseRepeatedPhrase(value: string): string {
+  const words = value.trim().split(/\s+/u);
+  for (
+    let phraseLength = MINIMUM_REPEATED_PHRASE_WORDS;
+    phraseLength <= Math.floor(words.length / 2);
+    phraseLength += 1
+  ) {
+    if (words.length % phraseLength !== 0) continue;
+    const phrase = words.slice(0, phraseLength);
+    const normalizedPhrase = normalizeSpokenValue(phrase.join(' '));
+    const repetitions = words.length / phraseLength;
+    const everyPhraseMatches = Array.from(
+      { length: repetitions },
+      (_, index) =>
+        normalizeSpokenValue(
+          words
+            .slice(index * phraseLength, (index + 1) * phraseLength)
+            .join(' '),
+        ) === normalizedPhrase,
+    ).every(Boolean);
+    if (everyPhraseMatches) return phrase.join(' ');
+  }
+  return value.trim();
+}
+
+function productLookupValue(value: string): string {
+  const collapsed = collapseRepeatedPhrase(value);
+  const words = collapsed.split(/\s+/u);
+  const finalWord = words.at(-1);
+  const sizeCode = finalWord
+    ? SPOKEN_FINAL_SIZE_CODES.get(normalizeSpokenValue(finalWord))
+    : undefined;
+  if (sizeCode) words[words.length - 1] = sizeCode;
+  return words.join(' ');
+}
+
+function warehouseLookupValue(value: string): string {
+  const collapsed = collapseRepeatedPhrase(value);
+  const words = collapsed.split(/\s+/u);
+  if (
+    words.length > 1 &&
+    WAREHOUSE_PREFIXES.has(normalizeSpokenValue(words[0]!))
+  ) {
+    return words.slice(1).join(' ');
+  }
+  return collapsed;
+}
+
 function plainText(text: string) {
   return { text, type: 'PlainText' as const };
 }
@@ -145,20 +202,23 @@ async function inventoryIntent(
     return elicitSlot(intent, WAREHOUSE_SLOT, '¿En qué bodega?');
   }
 
+  const productQuery = productLookupValue(spokenProduct);
+  const warehouseQuery = warehouseLookupValue(spokenWarehouse);
+
   const product = resolveCatalogCandidate(
-    spokenProduct,
-    await inventory.searchProducts(spokenProduct),
+    productQuery,
+    await inventory.searchProducts(productQuery),
   );
   if (product.kind !== 'found') {
-    return productResolutionResponse(intent, spokenProduct, product);
+    return productResolutionResponse(intent, productQuery, product);
   }
 
   const warehouse = resolveCatalogCandidate(
-    spokenWarehouse,
-    await inventory.searchWarehouses(spokenWarehouse),
+    warehouseQuery,
+    await inventory.searchWarehouses(warehouseQuery),
   );
   if (warehouse.kind !== 'found') {
-    return warehouseResolutionResponse(intent, spokenWarehouse, warehouse);
+    return warehouseResolutionResponse(intent, warehouseQuery, warehouse);
   }
 
   const stock = await inventory.getProductInventory(

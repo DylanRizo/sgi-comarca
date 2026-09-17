@@ -56,6 +56,45 @@ describe('Alexa inventory skill', () => {
     expect(result.response.shouldEndSession).toBe(true);
   });
 
+  it('cleans a repeated product phrase and a spoken warehouse prefix', async () => {
+    const gateway = new DemoInventoryGateway();
+    const productSearch = vi.spyOn(gateway, 'searchProducts');
+    const warehouseSearch = vi.spyOn(gateway, 'searchWarehouses');
+
+    const result = await handleAlexaRequest(
+      event('café molido demo café molido demo', 'bodega Dylan'),
+      gateway,
+    );
+
+    expect(productSearch).toHaveBeenCalledWith('café molido demo');
+    expect(warehouseSearch).toHaveBeenCalledWith('Dylan');
+    expect(speech(result)).toBe(
+      'Hay 12.5 unidades de Café molido demo en Casa Dylan.',
+    );
+  });
+
+  it('normalizes a spoken final size letter without guessing a product', async () => {
+    const gateway: InventoryLookupPort = {
+      getProductInventory: vi.fn(),
+      searchProducts: vi.fn().mockResolvedValue([]),
+      searchWarehouses: vi.fn(),
+    };
+
+    await handleAlexaRequest(
+      event(
+        'camiseta deportiva manga larga blanca eme camiseta deportiva manga larga blanca eme',
+        'Casa Dylan',
+      ),
+      gateway,
+    );
+
+    expect(gateway.searchProducts).toHaveBeenCalledWith(
+      'camiseta deportiva manga larga blanca M',
+    );
+    expect(gateway.searchWarehouses).not.toHaveBeenCalled();
+    expect(gateway.getProductInventory).not.toHaveBeenCalled();
+  });
+
   it('elicits a missing product without querying inventory', async () => {
     const gateway = new DemoInventoryGateway();
     const search = vi.spyOn(gateway, 'searchProducts');
@@ -122,7 +161,7 @@ describe('Alexa inventory skill', () => {
 
     expect(elicitedSlot(result)).toBe('bodega');
     expect(speech(result)).toBe(
-      'No encontré la bodega bodega inexistente. ¿En qué bodega?',
+      'No encontré la bodega inexistente. ¿En qué bodega?',
     );
   });
 

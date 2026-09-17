@@ -11,8 +11,13 @@
           ],
           "samples": [
             "cuánto hay de {producto} en {bodega}",
+            "cuánto hay de {producto} en la bodega {bodega}",
+            "cuánto hay de {producto}",
             "cuántas existencias hay de {producto} en {bodega}",
+            "dime las existencias de {producto} en bodega {bodega}",
+            "dime el stock de {producto} en {bodega}",
             "consulta {producto} en {bodega}",
+            "consulta existencias de {producto}",
             "existencias de {producto} en {bodega}"
           ]
         },
@@ -47,15 +52,28 @@
           "name": "SGI_PRODUCTO",
           "values": [
             { "name": { "value": "café molido demo" } },
-            { "name": { "value": "café molido demo grande" } }
+            { "name": { "value": "café molido demo grande" } },
+            {
+              "name": {
+                "value": "camiseta deportiva manga larga blanca talla mediana"
+              }
+            },
+            {
+              "name": {
+                "value": "pantalón corto deportivo negro talla grande"
+              }
+            },
+            {
+              "name": { "value": "balón de entrenamiento número cinco" }
+            }
           ]
         },
         {
           "name": "SGI_BODEGA",
           "values": [
-            { "name": { "value": "Casa Dylan" } },
-            { "name": { "value": "Casa Luden" } },
-            { "name": { "value": "Casa Jean" } }
+            { "name": { "value": "Casa Dylan", "synonyms": ["Dylan"] } },
+            { "name": { "value": "Casa Luden", "synonyms": ["Luden"] } },
+            { "name": { "value": "Casa Jean", "synonyms": ["Jean"] } }
           ]
         },
         {
