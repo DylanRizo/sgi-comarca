@@ -19,7 +19,7 @@ export function InventorySummaryTable({
 }>) {
   return (
     <div className="data-table-wrap">
-      <table className="data-table">
+      <table className="data-table inventory-summary-table">
         <thead>
           <tr>
             <th scope="col">Producto</th>
@@ -33,17 +33,22 @@ export function InventorySummaryTable({
         <tbody>
           {items.map((item) => (
             <tr key={item.product.id}>
-              <td data-label="Producto">
+              <td className="inventory-product-cell" data-label="Producto">
                 <strong>{item.product.code}</strong>
-                <span>{item.product.name}</span>
+                <span className="inventory-product-name">
+                  {item.product.name}
+                </span>
+                <span className="inventory-product-unit">
+                  {item.product.unit?.name ?? 'Sin unidad'}
+                </span>
               </td>
-              <td data-label="Unidad">
+              <td className="inventory-unit-cell" data-label="Unidad">
                 {item.product.unit?.name ?? 'Sin unidad'}
               </td>
-              <td data-label="Stock total">
+              <td className="inventory-total-cell" data-label="Stock total">
                 <strong>{formatQuantity(item.totalQuantity)}</strong>
               </td>
-              <td data-label="Desglose">
+              <td className="inventory-breakdown-cell" data-label="Desglose">
                 <ul className="warehouse-breakdown">
                   {item.balances.map((balance) => (
                     <li key={balance.id}>
@@ -53,7 +58,7 @@ export function InventorySummaryTable({
                   ))}
                 </ul>
               </td>
-              <td data-label="Detalle">
+              <td className="inventory-detail-cell" data-label="Detalle">
                 <Link
                   className="table-link"
                   href={`/products/${item.product.id}` as Route}
@@ -62,7 +67,7 @@ export function InventorySummaryTable({
                 </Link>
               </td>
               {canAdjust ? (
-                <td data-label="Acciones">
+                <td className="inventory-actions-cell" data-label="Acciones">
                   <div className="balance-actions">
                     {item.balances.map((balance) => (
                       <button
@@ -72,7 +77,8 @@ export function InventorySummaryTable({
                         onClick={() => onAdjust?.(item.product, balance)}
                         type="button"
                       >
-                        Ajustar {balance.warehouse.code}
+                        <span>Ajustar</span>
+                        <small>{balance.warehouse.name}</small>
                       </button>
                     ))}
                   </div>

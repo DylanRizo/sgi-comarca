@@ -1301,6 +1301,19 @@ a {
   gap: 0.45rem;
 }
 
+.inventory-product-unit,
+.low-stock-mobile-minimum {
+  display: none !important;
+}
+
+.table-action small {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .table-action,
 .icon-button {
   min-height: var(--control-touch-size);
@@ -2131,6 +2144,10 @@ a {
     grid-template-columns: repeat(3, minmax(10rem, 1fr));
   }
 
+  .movement-product-search {
+    grid-column: 1 / -1;
+  }
+
   .product-facts {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -2180,6 +2197,118 @@ a {
 
   .data-table td[data-numeric='true'] {
     text-align: left;
+  }
+
+  .inventory-summary-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.15rem 0.8rem;
+    padding: 0.85rem;
+  }
+
+  .inventory-summary-table td {
+    display: block;
+    padding: 0.35rem 0;
+  }
+
+  .inventory-summary-table td::before {
+    display: none;
+  }
+
+  .inventory-summary-table .inventory-product-cell {
+    min-width: 0;
+  }
+
+  .inventory-summary-table .inventory-product-name {
+    overflow-wrap: anywhere;
+  }
+
+  .inventory-summary-table .inventory-product-unit {
+    display: block !important;
+    font-size: 0.78rem;
+  }
+
+  .inventory-summary-table .inventory-unit-cell {
+    display: none;
+  }
+
+  .inventory-summary-table .inventory-total-cell {
+    min-width: 4.25rem;
+    text-align: right;
+  }
+
+  .inventory-summary-table .inventory-total-cell::before {
+    display: block;
+    margin-bottom: 0.15rem;
+    content: 'Stock';
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .inventory-summary-table .inventory-breakdown-cell,
+  .inventory-summary-table .inventory-detail-cell,
+  .inventory-summary-table .inventory-actions-cell {
+    grid-column: 1 / -1;
+  }
+
+  .inventory-summary-table .inventory-breakdown-cell {
+    padding-block: 0.55rem 0.35rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .inventory-summary-table .warehouse-breakdown {
+    min-width: 0;
+  }
+
+  .inventory-summary-table .inventory-detail-cell {
+    padding-top: 0.5rem;
+  }
+
+  .inventory-summary-table .balance-actions {
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  }
+
+  .low-stock-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 1rem;
+    padding: 0.8rem;
+  }
+
+  .low-stock-table td {
+    display: block;
+    padding: 0.25rem 0;
+  }
+
+  .low-stock-table .low-stock-product {
+    grid-column: 1 / -1;
+  }
+
+  .low-stock-table .low-stock-product::before {
+    display: none;
+  }
+
+  .low-stock-table .low-stock-warehouse::before,
+  .low-stock-table .low-stock-quantity::before {
+    display: block;
+    margin-bottom: 0.12rem;
+  }
+
+  .low-stock-table .low-stock-quantity {
+    text-align: right;
+  }
+
+  .low-stock-table .low-stock-minimum {
+    display: none;
+  }
+
+  .low-stock-table .low-stock-mobile-minimum {
+    display: inline !important;
+    margin-top: 0.1rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
 
   .chart-bars li {
@@ -2338,10 +2467,47 @@ a {
 .product-picker {
   margin-bottom: 1.5rem;
 }
+.picker-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.picker-selection {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.picker-selection > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+.picker-selection small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.movement-product-search .product-picker {
+  margin-bottom: 0;
+}
+.movement-product-search {
+  grid-column: 1 / -1;
+}
 @media (max-width: 40rem) {
   .picker-result {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
+    grid-template-columns: minmax(5.5rem, 0.65fr) 1.35fr;
+    gap: 0.35rem 0.6rem;
+  }
+  .picker-result span:last-child {
+    display: none;
   }
   .operation-toolbar > * {
     justify-content: center;

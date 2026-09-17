@@ -7,6 +7,8 @@ import { analyticsApi } from '@/lib/http/analytics-api';
 import { useAuth } from '@/providers/auth-provider';
 import { OperationLinks } from '@/components/layout/operation-links';
 import { OperationalPending } from '@/components/layout/operational-pending';
+import { PaginationControls } from '@/components/inventory/pagination-controls';
+import { formatQuantity } from '@/lib/inventory/presentation';
 
 type LoadState =
   | { kind: 'denied' }
@@ -33,6 +35,7 @@ function formatMoney(value: string): string {
 export default function AppPage() {
   const { state } = useAuth();
   const [inventory, setInventory] = useState<LoadState>({ kind: 'loading' });
+  const [lowStockPage, setLowStockPage] = useState(1);
 
   const authenticated = state.kind === 'authenticated';
   const canReadInventoryAnalytics =
@@ -64,6 +67,21 @@ export default function AppPage() {
 
   if (state.kind !== 'authenticated') return null;
   const { session } = state;
+  const lowStockPageSize = 10;
+  const lowStockTotalItems =
+    inventory.kind === 'ready' ? inventory.data.lowStock.length : 0;
+  const lowStockTotalPages = Math.max(
+    1,
+    Math.ceil(lowStockTotalItems / lowStockPageSize),
+  );
+  const currentLowStockPage = Math.min(lowStockPage, lowStockTotalPages);
+  const visibleLowStock =
+    inventory.kind === 'ready'
+      ? inventory.data.lowStock.slice(
+          (currentLowStockPage - 1) * lowStockPageSize,
+          currentLowStockPage * lowStockPageSize,
+        )
+      : [];
 
   return (
     <main className="content-page" id="main-content">
@@ -181,7 +199,7 @@ export default function AppPage() {
             would bury the ones that matter.
           */}
           <div className="data-table-wrap">
-            <table className="data-table">
+            <table className="data-table low-stock-table">
               <thead>
                 <tr>
                   <th scope="col">Producto</th>
@@ -191,26 +209,48 @@ export default function AppPage() {
                 </tr>
               </thead>
               <tbody>
-                {inventory.data.lowStock.map((alert) => (
+                {visibleLowStock.map((alert) => (
                   <tr key={`${alert.productId}:${alert.warehouseCode}`}>
-                    <td data-label="Producto">
-                      {alert.productCode}
+                    <td className="low-stock-product" data-label="Producto">
+                      <strong>{alert.productCode}</strong>
                       <span>{alert.productName}</span>
                     </td>
-                    <td data-label="Bodega">{alert.warehouseName}</td>
-                    <td data-label="Existencia" data-numeric="true">
+                    <td className="low-stock-warehouse" data-label="Bodega">
+                      {alert.warehouseName}
+                    </td>
+                    <td
+                      className="low-stock-quantity"
+                      data-label="Existencia"
+                      data-numeric="true"
+                    >
                       <span className="difference" data-sign="negative">
-                        {alert.quantity}
+                        {formatQuantity(alert.quantity)}
+                      </span>
+                      <span className="low-stock-mobile-minimum">
+                        de {formatQuantity(alert.minimumStock)} mín.
                       </span>
                     </td>
-                    <td data-label="Mínimo" data-numeric="true">
-                      {alert.minimumStock}
+                    <td
+                      className="low-stock-minimum"
+                      data-label="Mínimo"
+                      data-numeric="true"
+                    >
+                      {formatQuantity(alert.minimumStock)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            onPage={setLowStockPage}
+            pagination={{
+              page: currentLowStockPage,
+              pageSize: lowStockPageSize,
+              totalItems: lowStockTotalItems,
+              totalPages: lowStockTotalPages,
+            }}
+          />
         </section>
       ) : null}
 

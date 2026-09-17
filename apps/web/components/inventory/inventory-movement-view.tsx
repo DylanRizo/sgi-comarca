@@ -4,13 +4,14 @@ import type {
   InventoryMovementType,
   InventoryMovementView as InventoryMovement,
   PaginatedData,
-  ProductInventoryView,
+  ProductSummary,
   WarehouseSummary,
 } from '@sgi/contracts';
 import { type FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { InventoryTransferDialog } from './inventory-transfer-dialog';
+import { ProductPicker } from './product-picker';
 
 import { PaginationControls } from '@/components/inventory/pagination-controls';
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
@@ -56,7 +57,6 @@ function sourceHref(movement: InventoryMovement): Route | null {
 
 interface MovementState {
   movements: PaginatedData<InventoryMovement>;
-  products: readonly ProductInventoryView[];
   warehouses: readonly WarehouseSummary[];
 }
 
@@ -86,6 +86,9 @@ export function InventoryMovementView() {
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [selectedProduct, setSelectedProduct] = useState<ProductSummary | null>(
+    null,
+  );
   const [reload, setReload] = useState(0);
   const [state, setState] = useState<MovementState | null>(null);
 
@@ -97,13 +100,12 @@ export function InventoryMovementView() {
           { ...filters, page, pageSize: 25 },
           controller.signal,
         );
-        const products = await inventoryApi.allInventory(controller.signal);
         const warehouses = await inventoryApi.warehouses(controller.signal);
-        return { movements, products, warehouses };
+        return { movements, warehouses };
       })()
-        .then(({ movements, products, warehouses }) => {
+        .then(({ movements, warehouses }) => {
           setError(null);
-          setState({ movements, products, warehouses: warehouses.items });
+          setState({ movements, warehouses: warehouses.items });
         })
         .catch((requestError: unknown) => {
           if (controller.signal.aborted) return;
@@ -190,25 +192,23 @@ export function InventoryMovementView() {
       </section>
 
       <form className="filter-bar movement-filters" onSubmit={submit}>
-        <label className="filter-field">
-          <span>Producto</span>
-          <select
-            onChange={(event) =>
+        <div className="movement-product-search">
+          <ProductPicker
+            label="Filtrar por producto"
+            onChange={(product) => {
+              setSelectedProduct(product);
               setDraft((current) => ({
                 ...current,
-                productId: event.target.value,
-              }))
-            }
-            value={draft.productId}
-          >
-            <option value="">Todos los productos</option>
-            {state?.products.map(({ product }) => (
-              <option key={product.id} value={product.id}>
-                {product.code} · {product.name}
-              </option>
-            ))}
-          </select>
-        </label>
+                productId: product.id,
+              }));
+            }}
+            onClear={() => {
+              setSelectedProduct(null);
+              setDraft((current) => ({ ...current, productId: '' }));
+            }}
+            value={selectedProduct}
+          />
+        </div>
         <label className="filter-field">
           <span>Bodega</span>
           <select

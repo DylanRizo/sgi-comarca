@@ -62,6 +62,18 @@ export function ProductCatalogView() {
   const [state, setState] = useState<CatalogState | null>(null);
 
   useEffect(() => {
+    const normalizedSearch = draftSearch.trim();
+    if (normalizedSearch === search) return;
+    const timer = window.setTimeout(() => {
+      setError(null);
+      setLoading(true);
+      setPage(1);
+      setSearch(normalizedSearch);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftSearch, search]);
+
+  useEffect(() => {
     let current = true;
     const selectedActive = activeValue(active);
     const query = {
@@ -73,7 +85,7 @@ export function ProductCatalogView() {
         const products = await inventoryApi.products({
           ...query,
           page,
-          pageSize: 25,
+          pageSize: 10,
         });
         const inventory = await allInventory(query);
         return { inventory, products };

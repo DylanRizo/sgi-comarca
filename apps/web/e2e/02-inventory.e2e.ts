@@ -54,6 +54,7 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await expect(page.getByText('DGGR-X', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Siguiente' }).click();
+    await page.getByRole('button', { name: 'Siguiente' }).click();
     await expect(page.getByText('E2E-024', { exact: true })).toBeVisible();
 
     await page.getByLabel('Buscar producto').fill('DGGR-X');
@@ -258,8 +259,11 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       }),
     ).toBeVisible();
     await firstTransferDialog
-      .getByLabel('Producto')
-      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+      .getByLabel('Producto a transferir')
+      .fill('DGGR-X');
+    await firstTransferDialog
+      .getByRole('button', { name: /DGGR-X Producto multi-almacén/u })
+      .click();
     await firstTransferDialog
       .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 4.5' });
@@ -305,8 +309,11 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       name: 'Transferir inventario',
     });
     await secondTransferDialog
-      .getByLabel('Producto')
-      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+      .getByLabel('Producto a transferir')
+      .fill('DGGR-X');
+    await secondTransferDialog
+      .getByRole('button', { name: /DGGR-X Producto multi-almacén/u })
+      .click();
     await secondTransferDialog
       .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 3.5' });
