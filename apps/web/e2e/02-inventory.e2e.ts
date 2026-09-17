@@ -87,17 +87,17 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await expect(page.getByText('2 productos con saldo')).toBeVisible();
 
     await page
-      .getByLabel('Almacén')
+      .getByLabel('Bodega')
       .selectOption({ label: 'Casa Dylan (CASA_DYLAN)' });
     await expect(page.getByText('DGGR-X', { exact: true })).toBeVisible();
     await expect(page.getByText('CCWH-L', { exact: true })).toHaveCount(0);
 
-    await page.getByLabel('Almacén').selectOption('');
+    await page.getByLabel('Bodega').selectOption('');
     await page.getByLabel('Buscar producto').fill('CCWH-L');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByRole('link', { name: 'Ver producto' }).click();
     await expect(
-      page.getByText('Sin valoración registrada para este almacén.'),
+      page.getByText('Sin valoración registrada para esta bodega.'),
     ).toBeVisible();
     await expect(page.getByText('Sin fecha observada')).toHaveCount(0);
   });
@@ -167,7 +167,8 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await expect(
       page.getByRole('heading', { name: 'Ajustar inventario' }),
     ).toBeVisible();
-    await page.getByLabel('Delta firmado').fill('+5');
+    await page.getByLabel('Tipo de ajuste').selectOption('increase');
+    await page.getByLabel('Cantidad', { exact: true }).fill('5');
     await page.getByLabel('Motivo obligatorio').fill('Conteo E2E positivo');
     await expect(page.getByText('ENTRADA +5', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Confirmar entrada +5' }).click();
@@ -177,7 +178,8 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await page
       .getByRole('button', { name: 'Ajustar DGGR-X en Casa Dylan' })
       .click();
-    await page.getByLabel('Delta firmado').fill('-3');
+    await page.getByLabel('Tipo de ajuste').selectOption('decrease');
+    await page.getByLabel('Cantidad', { exact: true }).fill('3');
     await page.getByLabel('Motivo obligatorio').fill('Conteo E2E negativo');
     await expect(page.getByText('SALIDA -3', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Confirmar salida -3' }).click();
@@ -187,7 +189,8 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await page
       .getByRole('button', { name: 'Ajustar DGGR-X en Casa Dylan' })
       .click();
-    await page.getByLabel('Delta firmado').fill('-10');
+    await page.getByLabel('Tipo de ajuste').selectOption('decrease');
+    await page.getByLabel('Cantidad', { exact: true }).fill('10');
     await page
       .getByLabel('Motivo obligatorio')
       .fill('Intento E2E de saldo negativo');
@@ -258,10 +261,10 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       .getByLabel('Producto')
       .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
     await firstTransferDialog
-      .getByLabel('Almacén origen')
+      .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 4.5' });
     await firstTransferDialog
-      .getByLabel('Almacén destino')
+      .getByLabel('Bodega destino')
       .selectOption({ label: 'Casa Luden (CASA_LUDEN)' });
     await firstTransferDialog.getByLabel('Cantidad').fill('1');
     await firstTransferDialog
@@ -305,10 +308,10 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       .getByLabel('Producto')
       .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
     await secondTransferDialog
-      .getByLabel('Almacén origen')
+      .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 3.5' });
     await secondTransferDialog
-      .getByLabel('Almacén destino')
+      .getByLabel('Bodega destino')
       .selectOption({ label: 'Casa Jean (CASA_JEAN)' });
     await secondTransferDialog.getByLabel('Cantidad').fill('99');
     await secondTransferDialog

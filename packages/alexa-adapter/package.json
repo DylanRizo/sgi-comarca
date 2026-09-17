@@ -1,0 +1,35 @@
+{
+  "name": "@sgi/alexa-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src test alexa-hosted --max-warnings 0",
+    "simulate": "tsx src/simulate.ts examples/consultar-existencias.request.json",
+    "simulate:sales": "tsx src/simulate.ts examples/resumen-ventas-en-transito.request.json",
+    "simulate:sale": "tsx src/simulate.ts examples/consultar-venta-en-transito.request.json",
+    "test:hosted": "node --test alexa-hosted/test/index.test.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sgi/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sgi/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "tsx": "4.23.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

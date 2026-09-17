@@ -8,8 +8,10 @@ import {
   ClipboardList,
   FileText,
   House,
+  KeyRound,
   Menu,
   Package,
+  Settings,
   ShoppingCart,
   Wallet,
   X,
@@ -21,6 +23,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ThemeControl } from '@/components/layout/theme-control';
 import { useAuth } from '@/providers/auth-provider';
 
 /**
@@ -81,8 +84,26 @@ const insightNavigation = [
   {
     href: '/analytics',
     icon: ChartColumn,
-    label: 'Analytics',
+    label: 'Análisis',
     permission: 'analytics.read',
+  },
+] as const;
+
+// La administración se filtra por permiso, no por rol: ADMIN es un rol
+// estructural sin permisos implícitos, así que gatear por él mostraría el
+// acceso a quien no puede usarlo.
+const administrationNavigation = [
+  {
+    href: '/settings',
+    icon: Settings,
+    label: 'Configuración',
+    permission: 'users.read',
+  },
+  {
+    href: '/settings/integrations',
+    icon: KeyRound,
+    label: 'Integraciones',
+    permission: 'integrations.manage',
   },
 ] as const;
 
@@ -99,6 +120,46 @@ export function AuthenticatedShell({
   const canReadInventory = state.session.permissions.includes('inventory.read');
   // Hiding a link is presentation only; the backend authorizes every request.
   const canReadSales = state.session.permissions.includes('sales.read');
+  const operationalNavigation = [
+    ...(canReadInventory ? inventoryNavigation : []),
+    ...(canReadSales ? salesNavigation : []),
+  ];
+  const controlNavigation = [...countNavigation, ...financesNavigation].filter(
+    ({ permission }) =>
+      state.session.permissions.includes(permission) ||
+      (permission === 'inventory.audit.create' &&
+        state.session.permissions.includes('inventory.audit.approve')),
+  );
+  const visibleInsightNavigation = insightNavigation.filter(({ permission }) =>
+    state.session.permissions.includes(permission),
+  );
+  const visibleAdministrationNavigation = administrationNavigation.filter(
+    ({ permission }) => state.session.permissions.includes(permission),
+  );
+  const userInitial =
+    Array.from(state.session.displayName.trim())[0]?.toLocaleUpperCase(
+      'es-NI',
+    ) ?? 'U';
+
+  function navigationLink({
+    href,
+    icon,
+    label,
+  }: Readonly<{ href: string; icon: LucideIcon; label: string }>) {
+    const current =
+      pathname === href ||
+      (href !== '/inventory' && pathname.startsWith(`${href}/`));
+    return (
+      <Link
+        aria-current={current ? 'page' : undefined}
+        href={href as Route}
+        key={href}
+      >
+        <NavIcon icon={icon} />
+        {label}
+      </Link>
+    );
+  }
 
   return (
     <div className="application-shell">
@@ -145,60 +206,70 @@ export function AuthenticatedShell({
             <NavIcon icon={House} />
             Inicio
           </Link>
-          {canReadInventory
-            ? inventoryNavigation.map(({ href, icon, label }) => (
-                <Link
-                  aria-current={
-                    pathname === href ||
-                    (href !== '/inventory' && pathname.startsWith(`${href}/`))
-                      ? 'page'
-                      : undefined
-                  }
-                  href={href as Route}
-                  key={href}
-                >
-                  <NavIcon icon={icon} />
-                  {label}
-                </Link>
-              ))
-            : null}
-          {canReadSales
-            ? salesNavigation.map(({ href, icon, label }) => (
-                <Link
-                  aria-current={
-                    pathname === href || pathname.startsWith(`${href}/`)
-                      ? 'page'
-                      : undefined
-                  }
-                  href={href as Route}
-                  key={href}
-                >
-                  <NavIcon icon={icon} />
-                  {label}
-                </Link>
-              ))
-            : null}
-          {[...countNavigation, ...financesNavigation, ...insightNavigation]
-            .filter(({ permission }) =>
-              state.session.permissions.includes(permission),
-            )
-            .map(({ href, icon, label }) => (
-              <Link
-                aria-current={
-                  pathname === href || pathname.startsWith(`${href}/`)
-                    ? 'page'
-                    : undefined
-                }
-                href={href as Route}
-                key={href}
-              >
-                <NavIcon icon={icon} />
-                {label}
-              </Link>
-            ))}
+          {operationalNavigation.length > 0 ? (
+            <div
+              aria-labelledby="operation-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="operation-navigation">Operación</p>
+              {operationalNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {controlNavigation.length > 0 ? (
+            <div
+              aria-labelledby="control-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="control-navigation">Control</p>
+              {controlNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {visibleInsightNavigation.length > 0 ? (
+            <div
+              aria-labelledby="insight-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="insight-navigation">Análisis</p>
+              {visibleInsightNavigation.map(navigationLink)}
+            </div>
+          ) : null}
+          {visibleAdministrationNavigation.length > 0 ? (
+            <div
+              aria-labelledby="administration-navigation"
+              className="navigation-group"
+              role="group"
+            >
+              <p id="administration-navigation">Administración</p>
+              {visibleAdministrationNavigation.map(navigationLink)}
+            </div>
+          ) : null}
         </nav>
-        <div className="application-user">
-          <span>{state.session.displayName}</span>
+        <div
+          className="application-user"
+          // Below the collapse width this block lives inside the menu panel,
+          // so it follows the same toggle instead of standing permanently on
+          // top of the page.
+          data-open={menuOpen ? 'true' : 'false'}
+        >
+          <div
+            aria-label={`Sesión activa: ${state.session.displayName}`}
+            className="application-user-identity"
+          >
+            <span aria-hidden="true" className="user-avatar">
+              {userInitial}
+            </span>
+            <span>
+              <small>Sesión activa</small>
+              <strong>{state.session.displayName}</strong>
+            </span>
+          </div>
+          <Link className="account-link" href={'/account' as Route}>
+            Mi cuenta
+          </Link>
+          <ThemeControl userId={state.session.userId} />
           <LogoutButton />
         </div>
       </header>

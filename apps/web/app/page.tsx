@@ -1,31 +1,36 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Portal · SGI La Comarca',
+};
 
 export default function HomePage() {
   return (
     <main className="shell">
       <section className="hero">
         <p className="eyebrow">SGI La Comarca</p>
-        <h1>Base técnica del monorepo</h1>
+        <h1>Gestión operativa en un solo lugar</h1>
         <p className="lead">
-          Esta es una superficie técnica de FASE 2. No es la interfaz final y
-          todavía no contiene productos, inventario, ventas ni finanzas.
+          Consulta existencias, registra ventas y controla las finanzas con el
+          acceso correspondiente a tu rol.
         </p>
-        <div className="technical-grid" aria-label="Componentes preparados">
+        <div className="technical-grid" aria-label="Áreas de gestión">
           <article className="technical-card">
-            <h2>Web</h2>
-            <p>Next.js, App Router, TypeScript estricto y Tailwind CSS.</p>
+            <h2>Inventario</h2>
+            <p>Productos, existencias, movimientos, traslados y conteos.</p>
           </article>
           <article className="technical-card">
-            <h2>API</h2>
-            <p>NestJS REST, OpenAPI configurable y logging estructurado.</p>
+            <h2>Ventas</h2>
+            <p>Registro, seguimiento y consulta de operaciones comerciales.</p>
           </article>
           <article className="technical-card">
-            <h2>Persistencia</h2>
-            <p>PostgreSQL local y Prisma sin entidades de negocio todavía.</p>
+            <h2>Finanzas</h2>
+            <p>Ingresos, gastos, cierres diarios, reportes y análisis.</p>
           </article>
         </div>
-        <Link className="primary-link" href="/api-status">
-          Comprobar estado de la API
+        <Link className="primary-link" href="/login">
+          Iniciar sesión
         </Link>
       </section>
     </main>

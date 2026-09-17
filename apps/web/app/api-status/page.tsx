@@ -1,7 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ApiStatusCard } from '@/components/api-status-card';
 import { publicApiUrl } from '@/lib/environment';
+
+export const metadata: Metadata = {
+  title: 'Estado de servicios',
+};
 
 export default function ApiStatusPage() {
   return (
@@ -14,7 +19,7 @@ export default function ApiStatusPage() {
         </p>
         <ApiStatusCard apiUrl={publicApiUrl()} />
         <Link className="secondary-link" href="/">
-          Volver a la base técnica
+          Volver al portal
         </Link>
       </section>
     </main>

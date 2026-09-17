@@ -24,6 +24,18 @@ export interface InventoryCountLineView {
   difference: string;
   adjustmentMovementId: string | null;
   countedAt: string;
+  version: number;
+  revisions: InventoryCountLineRevisionView[];
+}
+
+export interface InventoryCountLineRevisionView {
+  id: string;
+  version: number;
+  actor: InventoryCountActor;
+  reason: string;
+  previousCountedQuantity: string;
+  newCountedQuantity: string;
+  correctedAt: string;
 }
 
 /**
@@ -78,6 +90,12 @@ export interface CaptureInventoryCountLineRequest {
   countedQuantity: string;
 }
 
+export interface CorrectInventoryCountLineRequest {
+  countedQuantity: string;
+  expectedVersion: number;
+  reason: string;
+}
+
 export interface CancelInventoryCountSessionRequest {
   reason: string;
 }
@@ -92,6 +110,7 @@ export type InventoryCountPublicErrorCode =
   | 'INVENTORY_COUNT_CONFLICT'
   | 'INVENTORY_COUNT_INVALID_STATE'
   | 'INVENTORY_COUNT_LINE_ALREADY_CAPTURED'
+  | 'INVENTORY_COUNT_LINE_NOT_FOUND'
   | 'INVENTORY_COUNT_NEGATIVE_BALANCE'
   | 'INVENTORY_COUNT_PERMISSION_DENIED'
   | 'INVENTORY_COUNT_PRODUCT_NOT_FOUND'

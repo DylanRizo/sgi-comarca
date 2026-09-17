@@ -37,6 +37,7 @@ export async function createApplication(
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.enableCors({
     allowedHeaders: [
+      'Authorization',
       'Content-Type',
       'X-CSRF-Token',
       'X-Request-ID',

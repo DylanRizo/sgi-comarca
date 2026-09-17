@@ -7,6 +7,10 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  IsInt,
+  Min,
+  IsOptional,
+  IsIn,
 } from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/read-query.dto.js';
@@ -43,6 +47,12 @@ export class CaptureInventoryCountLineDto {
   countedQuantity!: string;
 }
 
+export class CorrectInventoryCountLineDto {
+  @IsString() @Matches(nonNegativeQuantity) countedQuantity!: string;
+  @IsInt() @Min(1) expectedVersion!: number;
+  @IsString() @MaxLength(500) @Matches(/\S/u) reason!: string;
+}
+
 export class CancelInventoryCountSessionDto {
   @IsString()
   @MaxLength(500)
@@ -55,7 +65,16 @@ export class InventoryCountSessionIdParamDto {
   id!: string;
 }
 
-export class InventoryCountQueryDto extends PaginationQueryDto {}
+export class InventoryCountQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsIn(['OPEN', 'PENDING_APPROVAL', 'APPROVED', 'CANCELLED'])
+  status?: 'OPEN' | 'PENDING_APPROVAL' | 'APPROVED' | 'CANCELLED';
+}
+
+export class InventoryCountLineParamDto extends InventoryCountSessionIdParamDto {
+  @IsUUID()
+  lineId!: string;
+}
 
 export const inventoryCountQueryPipe = new ValidationPipe({
   expectedType: InventoryCountQueryDto,

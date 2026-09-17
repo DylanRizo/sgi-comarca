@@ -36,6 +36,19 @@ export const sessionSelect = {
       difference: true,
       expectedQuantity: true,
       id: true,
+      version: true,
+      revisions: {
+        orderBy: { version: 'desc' as const },
+        select: {
+          id: true,
+          version: true,
+          reason: true,
+          previousCountedQuantity: true,
+          newCountedQuantity: true,
+          correctedAt: true,
+          actor: { select: actorSelect },
+        },
+      },
       product: { select: productSelect },
       warehouse: { select: warehouseSelect },
     },
@@ -66,6 +79,16 @@ export type SessionRecord = {
     difference: { toString(): string };
     expectedQuantity: { toString(): string };
     id: string;
+    version: number;
+    revisions: {
+      id: string;
+      version: number;
+      reason: string;
+      previousCountedQuantity: { toString(): string };
+      newCountedQuantity: { toString(): string };
+      correctedAt: Date;
+      actor: { displayName: string; id: string };
+    }[];
     product: { active?: boolean; code: string; id: string; name: string };
     warehouse: { active: boolean; code: string; id: string; name: string };
   }[];
@@ -103,6 +126,16 @@ export function mapSession(
       difference: line.difference.toString(),
       expectedQuantity: line.expectedQuantity.toString(),
       id: line.id,
+      version: line.version,
+      revisions: line.revisions.map((revision) => ({
+        id: revision.id,
+        version: revision.version,
+        reason: revision.reason,
+        previousCountedQuantity: revision.previousCountedQuantity.toString(),
+        newCountedQuantity: revision.newCountedQuantity.toString(),
+        correctedAt: revision.correctedAt.toISOString(),
+        actor: revision.actor,
+      })),
       product: {
         code: line.product.code,
         id: line.product.id,

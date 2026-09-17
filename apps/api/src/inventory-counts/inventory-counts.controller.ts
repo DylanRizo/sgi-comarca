@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Patch,
   Query,
   Req,
   Res,
@@ -27,11 +28,15 @@ import { readSuccess } from '../common/read-http.js';
 import {
   CancelInventoryCountSessionDto,
   CaptureInventoryCountLineDto,
+  CorrectInventoryCountLineDto,
+  InventoryCountLineParamDto,
   CreateInventoryCountSessionDto,
   InventoryCountQueryDto,
   inventoryCountQueryPipe,
   InventoryCountSessionIdParamDto,
 } from './dto/inventory-count.dto.js';
+import { StockOperationError } from '../inventory/stock-command.js';
+import { mapStockOperationError } from '../stock-receipts/stock-operation-http.exception.js';
 import { mapInventoryCountError } from './inventory-count-http.exception.js';
 import { InventoryCountLifecycleService } from './inventory-count-lifecycle.service.js';
 import { InventoryCountSessionService } from './inventory-count-session.service.js';
@@ -91,6 +96,34 @@ export class InventoryCountsController {
         response,
       );
     } catch (error) {
+      mapInventoryCountError(error);
+    }
+  }
+
+  @Patch(':id/lines/:lineId')
+  @RequirePermission('inventory.audit.create')
+  async correctLine(
+    @Param() params: InventoryCountLineParamDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() input: CorrectInventoryCountLineDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<InventoryCountSessionView>> {
+    try {
+      return readSuccess(
+        await this.sessions.correctLine(
+          current.userId,
+          params.id,
+          params.lineId,
+          idempotencyKey,
+          input,
+        ),
+        request,
+        response,
+      );
+    } catch (error) {
+      if (error instanceof StockOperationError) mapStockOperationError(error);
       mapInventoryCountError(error);
     }
   }

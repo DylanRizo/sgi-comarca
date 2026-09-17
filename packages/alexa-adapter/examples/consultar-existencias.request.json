@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "session": {
+    "new": true,
+    "sessionId": "local-demo-session"
+  },
+  "request": {
+    "type": "IntentRequest",
+    "requestId": "local-demo-request",
+    "locale": "es-MX",
+    "intent": {
+      "name": "ConsultarExistenciasIntent",
+      "confirmationStatus": "NONE",
+      "slots": {
+        "producto": {
+          "name": "producto",
+          "value": "Café molido demo"
+        },
+        "bodega": {
+          "name": "bodega",
+          "value": "Casa Dylan"
+        }
+      }
+    }
+  }
+}

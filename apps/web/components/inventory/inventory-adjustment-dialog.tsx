@@ -27,7 +27,7 @@ function adjustmentError(error: unknown): string {
     if (error.status === 401) return 'La sesion ya no es valida.';
     if (error.status === 403) return 'No tienes permiso para realizar ajustes.';
     if (error.status === 404) {
-      return 'El producto, almacen o saldo ya no esta disponible.';
+      return 'El producto, la bodega o el saldo ya no está disponible.';
     }
     if (error.status === 409) {
       return 'El inventario cambio durante la operacion. Actualiza la vista antes de reintentar.';
@@ -49,10 +49,17 @@ export function InventoryAdjustmentDialog({
   const { getCsrfToken } = useAuth();
   const deltaRef = useRef<HTMLInputElement>(null);
   const submissionRef = useRef(false);
+  const idempotencyKey = useRef(crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
-  const [quantityDelta, setQuantityDelta] = useState('');
+  const [direction, setDirection] = useState<'increase' | 'decrease'>(
+    'increase',
+  );
+  const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const quantityDelta =
+    direction === 'decrease' && quantity ? `-${quantity}` : quantity;
   const preview = adjustmentPreview(selection.balance.quantity, quantityDelta);
   const canSubmit =
     preview.kind === 'valid' && reason.trim().length > 0 && !submitting;
@@ -74,17 +81,26 @@ export function InventoryAdjustmentDialog({
           warehouseId: selection.balance.warehouse.id,
         },
         await getCsrfToken(),
+        idempotencyKey.current,
       );
       onSuccess(result);
     } catch (submissionError) {
-      setError(adjustmentError(submissionError));
+      const ambiguous =
+        !(submissionError instanceof ApiHttpError) ||
+        submissionError.status >= 500;
+      setUncertain(ambiguous);
+      setError(
+        ambiguous
+          ? 'No pudimos confirmar la respuesta. Conservamos este ajuste: pulsa Reintentar para recuperar el resultado sin duplicarlo.'
+          : adjustmentError(submissionError),
+      );
     } finally {
       submissionRef.current = false;
       setSubmitting(false);
     }
   }
 
-  const direction =
+  const directionLabel =
     preview.kind === 'valid'
       ? preview.direction === 'ENTRY'
         ? `ENTRADA +${preview.quantityDelta}`
@@ -129,7 +145,7 @@ export function InventoryAdjustmentDialog({
             </dd>
           </div>
           <div>
-            <dt>Almacen</dt>
+            <dt>Bodega</dt>
             <dd>{selection.balance.warehouse.name}</dd>
           </div>
         </dl>
@@ -141,29 +157,46 @@ export function InventoryAdjustmentDialog({
         ) : null}
 
         <form aria-busy={submitting} onSubmit={submit}>
-          <label className="filter-field" htmlFor="quantityDelta">
-            <span>Delta firmado</span>
+          <label className="filter-field" htmlFor="adjustmentDirection">
+            <span>Tipo de ajuste</span>
+            <select
+              disabled={submitting || uncertain}
+              id="adjustmentDirection"
+              onChange={(event) =>
+                setDirection(event.target.value as 'increase' | 'decrease')
+              }
+              value={direction}
+            >
+              <option value="increase">Aumentar existencias</option>
+              <option value="decrease">Disminuir existencias</option>
+            </select>
+          </label>
+          <label className="filter-field" htmlFor="adjustmentQuantity">
+            <span>Cantidad</span>
             <input
-              aria-describedby="delta-help"
-              disabled={submitting}
-              id="quantityDelta"
+              aria-describedby="quantity-help"
+              disabled={submitting || uncertain}
+              id="adjustmentQuantity"
               inputMode="decimal"
               maxLength={20}
-              onChange={(event) => setQuantityDelta(event.target.value)}
-              placeholder="Ejemplo: +5 o -3"
+              min="0.0001"
+              onChange={(event) => setQuantity(event.target.value)}
+              placeholder="Ejemplo: 5 o 3.25"
               ref={deltaRef}
               required
-              value={quantityDelta}
+              step="0.0001"
+              type="number"
+              value={quantity}
             />
           </label>
-          <p className="field-help" id="delta-help">
-            Usa un valor positivo para entrada y negativo para salida. Maximo 4
-            decimales.
+          <p className="field-help" id="quantity-help">
+            Ingresa siempre una cantidad positiva. La vista mostrará el saldo
+            resultante antes de guardar.
           </p>
           <label className="filter-field" htmlFor="adjustmentReason">
             <span>Motivo obligatorio</span>
             <textarea
-              disabled={submitting}
+              disabled={submitting || uncertain}
               id="adjustmentReason"
               maxLength={500}
               onChange={(event) => setReason(event.target.value)}
@@ -177,7 +210,7 @@ export function InventoryAdjustmentDialog({
             className="adjustment-preview"
             data-valid={preview.kind === 'valid'}
           >
-            <strong>{direction}</strong>
+            <strong>{directionLabel}</strong>
             <div>
               <span>{formatQuantity(selection.balance.quantity)}</span>
               <span>
@@ -215,7 +248,9 @@ export function InventoryAdjustmentDialog({
             >
               {submitting
                 ? 'Guardando…'
-                : `Confirmar ${direction.toLowerCase()}`}
+                : uncertain
+                  ? 'Reintentar sin duplicar'
+                  : `Confirmar ${directionLabel.toLowerCase()}`}
             </button>
           </div>
         </form>

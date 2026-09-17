@@ -1,6 +1,7 @@
 'use client';
 
 import type { Route } from 'next';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
@@ -108,42 +109,64 @@ export function ActivationForm() {
   }
 
   return (
-    <form aria-busy={submitting} className="auth-form" onSubmit={submit}>
+    <div className="auth-flow">
       {error ? (
         <AuthFeedback feedbackRef={feedbackRef}>{error}</AuthFeedback>
       ) : null}
-      <div className="field">
-        <label htmlFor="password">Contraseña</label>
-        <input
-          aria-describedby="password-help"
-          autoComplete="new-password"
-          disabled={!ready || !tokenAvailable || submitting}
-          id="password"
-          name="password"
-          ref={passwordRef}
-          type="password"
-        />
-        <p className="field-help" id="password-help">
-          Entre 12 y 128 caracteres. Los espacios se conservan.
-        </p>
-      </div>
-      <div className="field">
-        <label htmlFor="confirmation">Confirmar contraseña</label>
-        <input
-          autoComplete="new-password"
-          disabled={!ready || !tokenAvailable || submitting}
-          id="confirmation"
-          name="confirmation"
-          type="password"
-        />
-      </div>
-      <button
-        className="primary-button"
-        disabled={!ready || !tokenAvailable || submitting}
-        type="submit"
-      >
-        {submitting ? 'Activando…' : 'Activar cuenta'}
-      </button>
-    </form>
+      {!ready ? <p role="status">Comprobando invitación…</p> : null}
+      {ready && !tokenAvailable ? (
+        <section className="auth-recovery" aria-labelledby="activation-help">
+          <h2 id="activation-help">Cómo continuar</h2>
+          <ol>
+            <li>Pide a la persona administradora una invitación nueva.</li>
+            <li>Abre únicamente el enlace privado que recibas.</li>
+            <li>Crea tu contraseña antes de que el enlace venza.</li>
+          </ol>
+          <p>
+            La invitación anterior queda inutilizable. No necesitas compartir tu
+            contraseña con nadie.
+          </p>
+          <Link className="secondary-link" href="/login">
+            Volver a iniciar sesión
+          </Link>
+        </section>
+      ) : null}
+      {ready && tokenAvailable ? (
+        <form aria-busy={submitting} className="auth-form" onSubmit={submit}>
+          <div className="field">
+            <label htmlFor="password">Contraseña</label>
+            <input
+              aria-describedby="password-help"
+              autoComplete="new-password"
+              disabled={submitting}
+              id="password"
+              name="password"
+              ref={passwordRef}
+              type="password"
+            />
+            <p className="field-help" id="password-help">
+              Entre 12 y 128 caracteres. Los espacios se conservan.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor="confirmation">Confirmar contraseña</label>
+            <input
+              autoComplete="new-password"
+              disabled={submitting}
+              id="confirmation"
+              name="confirmation"
+              type="password"
+            />
+          </div>
+          <button
+            className="primary-button"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? 'Activando…' : 'Activar cuenta'}
+          </button>
+        </form>
+      ) : null}
+    </div>
   );
 }

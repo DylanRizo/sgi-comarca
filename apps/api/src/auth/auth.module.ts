@@ -11,8 +11,12 @@ import { LoginService } from './application/login.service.js';
 import { PasswordService } from './application/password.service.js';
 import { SessionService } from './application/session.service.js';
 import { UserAdministrationService } from './application/user-administration.service.js';
+import { UserDirectoryService } from './application/user-directory.service.js';
 import { AuthController } from './controllers/auth.controller.js';
-import { UserAdministrationController } from './controllers/user-administration.controller.js';
+import {
+  RolesController,
+  UserAdministrationController,
+} from './controllers/user-administration.controller.js';
 import { CsrfGuard } from './guards/csrf.guard.js';
 import { OriginGuard } from './guards/origin.guard.js';
 import { PermissionGuard } from './guards/permission.guard.js';
@@ -24,7 +28,7 @@ import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.js
 import { OriginHasher } from './infrastructure/origin-hasher.js';
 
 @Module({
-  controllers: [AuthController, UserAdministrationController],
+  controllers: [AuthController, UserAdministrationController, RolesController],
   providers: [
     {
       provide: SessionService,
@@ -83,6 +87,17 @@ import { OriginHasher } from './infrastructure/origin-hasher.js';
       useFactory: (database: DatabaseService) =>
         database.instantiateProvider(
           (client) => new EffectivePermissionsService(client),
+        ),
+    },
+    {
+      provide: UserDirectoryService,
+      inject: [DatabaseService, EffectivePermissionsService],
+      useFactory: (
+        database: DatabaseService,
+        permissions: EffectivePermissionsService,
+      ) =>
+        database.instantiateProvider(
+          (client) => new UserDirectoryService(client, permissions),
         ),
     },
     {

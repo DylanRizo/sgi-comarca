@@ -1,0 +1,72 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "inventario comarca",
+      "intents": [
+        {
+          "name": "ConsultarExistenciasIntent",
+          "slots": [
+            { "name": "producto", "type": "SGI_PRODUCTO" },
+            { "name": "bodega", "type": "SGI_BODEGA" }
+          ],
+          "samples": [
+            "cuánto hay de {producto} en {bodega}",
+            "cuántas existencias hay de {producto} en {bodega}",
+            "consulta {producto} en {bodega}",
+            "existencias de {producto} en {bodega}"
+          ]
+        },
+        {
+          "name": "ConsultarResumenVentasEnTransitoIntent",
+          "slots": [],
+          "samples": [
+            "cuántas ventas hay en tránsito",
+            "dame el resumen de ventas en tránsito",
+            "qué ventas están en tránsito",
+            "ventas en tránsito"
+          ]
+        },
+        {
+          "name": "ConsultarVentaEnTransitoIntent",
+          "slots": [{ "name": "numeroVenta", "type": "SGI_NUMERO_VENTA" }],
+          "samples": [
+            "qué contiene la venta {numeroVenta}",
+            "dime los detalles de la venta en tránsito {numeroVenta}",
+            "consulta la venta {numeroVenta}",
+            "recuérdame la venta {numeroVenta}"
+          ]
+        },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] }
+      ],
+      "types": [
+        {
+          "name": "SGI_PRODUCTO",
+          "values": [
+            { "name": { "value": "café molido demo" } },
+            { "name": { "value": "café molido demo grande" } }
+          ]
+        },
+        {
+          "name": "SGI_BODEGA",
+          "values": [
+            { "name": { "value": "Casa Dylan" } },
+            { "name": { "value": "Casa Luden" } },
+            { "name": { "value": "Casa Jean" } }
+          ]
+        },
+        {
+          "name": "SGI_NUMERO_VENTA",
+          "values": [
+            { "name": { "value": "123" } },
+            { "name": { "value": "124" } },
+            { "name": { "value": "126" } }
+          ]
+        }
+      ]
+    }
+  }
+}

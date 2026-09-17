@@ -28,6 +28,7 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 | `imports` | batches, staging, errores, mapeos y reconciliación | import_batches, import_errors, import staging | módulos propietarios mediante adaptadores |
 | `settings` | moneda, zona, umbrales y configuración no secreta | system_settings | audit-logs |
 | `audit-logs` | historial inmutable de mutaciones y seguridad | audit_logs | users; no depende de módulos de negocio |
+| `alexa` | vinculación OAuth, autorización y adaptación de consultas audibles de solo lectura | alexa_account_links, alexa_authorization_codes, alexa_oauth_tokens, alexa_rate_limit_windows | auth, inventory, products, warehouses, sales, audit-logs |
 
 ## Propietario de cada flujo transversal
 
@@ -52,6 +53,9 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 - `imports` preserva identidad legacy y no usa servicios HTTP internos.
 - `audit-logs` se escribe dentro de la misma transacción de la mutación cuando sea posible.
 - Catálogos no se codifican en componentes UI.
+- `alexa` no consulta tablas de negocio directamente: sus gateways llaman a
+  los servicios de lectura propietarios y proyectan antes de responder. No
+  expone ni coordina comandos de inventario, ventas o finanzas.
 
 ## Decisiones aún abiertas
 

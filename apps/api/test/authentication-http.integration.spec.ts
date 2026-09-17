@@ -485,18 +485,24 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'closings.reopen',
         'finances.manual.create',
         'finances.read',
+        'integrations.manage',
         'inventory.adjust',
         'inventory.audit.approve',
         'inventory.audit.create',
         'inventory.read',
+        'inventory.valuation.manage',
+        'products.manage',
         'reports.read',
         'sales.cancel',
         'sales.confirm_in_transit',
         'sales.create',
         'sales.read',
+        'stock-receipts.create',
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
+        'users.read',
+        'users.roles.manage',
         'users.sessions.revoke',
         'users.status.manage',
       ],
@@ -505,10 +511,12 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.adjust',
         'inventory.audit.create',
         'inventory.read',
+        'products.manage',
         'reports.read',
         'sales.confirm_in_transit',
         'sales.create',
         'sales.read',
+        'stock-receipts.create',
         'transfers.create',
       ],
       luden: [
@@ -516,10 +524,12 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.adjust',
         'inventory.audit.create',
         'inventory.read',
+        'products.manage',
         'reports.read',
         'sales.confirm_in_transit',
         'sales.create',
         'sales.read',
+        'stock-receipts.create',
         'transfers.create',
       ],
       samantha: [
@@ -532,10 +542,13 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
         'inventory.adjust',
         'inventory.audit.create',
         'inventory.read',
+        'inventory.valuation.manage',
+        'products.manage',
         'reports.read',
         'sales.confirm_in_transit',
         'sales.create',
         'sales.read',
+        'stock-receipts.create',
         'transfers.create',
       ],
     } as const;
@@ -588,7 +601,7 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
     }
   }, 30_000);
 
-  it('keeps only the approved health and authentication entry routes public', async () => {
+  it('keeps only the approved health, authentication and Alexa token entry routes public', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/health')
       .set('Host', host)
@@ -609,6 +622,11 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
       .set('Origin', origin)
       .send({})
       .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/alexa/oauth/token')
+      .set('Host', host)
+      .send({})
+      .expect(400);
 
     await request(app.getHttpServer())
       .get('/api/v1/auth/session')
@@ -617,6 +635,15 @@ describe.sequential('BLOQUE 5 authentication HTTP endpoints', () => {
     await request(app.getHttpServer())
       .get('/api/v1/auth/csrf')
       .set('Host', host)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/v1/alexa/oauth/status')
+      .set('Host', host)
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/v1/alexa/requests')
+      .set('Host', host)
+      .send({})
       .expect(401);
     for (const route of [
       '/api/v1/auth/logout',

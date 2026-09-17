@@ -80,6 +80,19 @@ export function LoginForm() {
       <button className="primary-button" disabled={submitting} type="submit">
         {submitting ? 'Ingresando…' : 'Iniciar sesión'}
       </button>
+      <details className="auth-help">
+        <summary>¿Olvidaste tu contraseña?</summary>
+        <div>
+          <p>
+            Pide a la persona administradora que genere una nueva invitación
+            privada para tu usuario.
+          </p>
+          <p>
+            Al abrirla podrás crear otra contraseña. Nunca compartas tu
+            contraseña actual ni una invitación con otra persona.
+          </p>
+        </div>
+      </details>
     </form>
   );
 }

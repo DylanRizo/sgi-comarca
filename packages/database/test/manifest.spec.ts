@@ -38,10 +38,14 @@ describe('FASE 3B bootstrap manifest', () => {
         'closings.reopen',
         'finances.manual.create',
         'finances.read',
+        'integrations.manage',
         'inventory.adjust',
         'inventory.audit.approve',
         'inventory.audit.create',
         'inventory.read',
+        'inventory.valuation.manage',
+        'products.manage',
+        'stock-receipts.create',
         'reports.read',
         'sales.cancel',
         'sales.confirm_in_transit',
@@ -50,6 +54,8 @@ describe('FASE 3B bootstrap manifest', () => {
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
+        'users.read',
+        'users.roles.manage',
         'users.sessions.revoke',
         'users.status.manage',
       ].sort(),
@@ -89,8 +95,11 @@ describe('FASE 3B bootstrap manifest', () => {
         .sort(),
     ).toEqual(
       [
+        'ADMIN:integrations.manage',
         'ADMIN:users.credentials.revoke',
         'ADMIN:users.invitations.create',
+        'ADMIN:users.read',
+        'ADMIN:users.roles.manage',
         'ADMIN:users.sessions.revoke',
         'ADMIN:users.status.manage',
         'FINANCE:closings.create',
@@ -98,6 +107,9 @@ describe('FASE 3B bootstrap manifest', () => {
         'FINANCE:closings.reopen',
         'FINANCE:finances.manual.create',
         'FINANCE:finances.read',
+        'FINANCE:inventory.valuation.manage',
+        'INVENTORY_MANAGER:products.manage',
+        'INVENTORY_MANAGER:stock-receipts.create',
         'INVENTORY_MANAGER:analytics.read',
         'INVENTORY_MANAGER:inventory.adjust',
         'INVENTORY_MANAGER:inventory.audit.create',
@@ -115,9 +127,9 @@ describe('FASE 3B bootstrap manifest', () => {
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(20);
+    expect(bootstrapPermissions).toHaveLength(26);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(20);
+    expect(bootstrapRolePermissions).toHaveLength(26);
     expect(bootstrapUserPermissions).toHaveLength(2);
   });
 

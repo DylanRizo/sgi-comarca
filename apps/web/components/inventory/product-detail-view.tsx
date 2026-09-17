@@ -19,7 +19,9 @@ import { useAuth } from '@/providers/auth-provider';
 export function ProductDetailView({
   productId,
 }: Readonly<{ productId: string }>) {
-  const { refreshSession } = useAuth();
+  const { refreshSession, state: auth } = useAuth();
+  const permissions =
+    auth.kind === 'authenticated' ? auth.session.permissions : [];
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
@@ -90,6 +92,24 @@ export function ProductDetailView({
             </span>
           </header>
 
+          <div className="operation-toolbar">
+            {permissions.includes('products.manage') ? (
+              <Link
+                className="secondary-button"
+                href={`/products/${productId}/edit` as Route}
+              >
+                Editar ficha
+              </Link>
+            ) : null}
+            {permissions.includes('stock-receipts.create') ? (
+              <Link
+                className="primary-button"
+                href={`/inventory/receipts/new?productId=${productId}` as Route}
+              >
+                Registrar entrada
+              </Link>
+            ) : null}
+          </div>
           <dl className="product-facts">
             <div>
               <dt>Unidad</dt>
@@ -104,7 +124,7 @@ export function ProductDetailView({
               <dd>{formatQuantity(state.product.minimumStock)}</dd>
             </div>
             <div>
-              <dt>Almacenes</dt>
+              <dt>Bodegas</dt>
               <dd>{state.balances.length}</dd>
             </div>
           </dl>
@@ -113,7 +133,7 @@ export function ProductDetailView({
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Desglose</p>
-                <h2 id="balances-title">Balances por almacén</h2>
+                <h2 id="balances-title">Balances por bodega</h2>
               </div>
             </div>
             {state.balances.length === 0 ? (
@@ -138,10 +158,12 @@ export function ProductDetailView({
                         </strong>
                       </header>
                       <dl>
-                        <div>
-                          <dt>Costo actual</dt>
-                          <dd>{formatMoney(balance.currentUnitCost)}</dd>
-                        </div>
+                        {balance.canReadCost ? (
+                          <div>
+                            <dt>Costo actual</dt>
+                            <dd>{formatMoney(balance.currentUnitCost)}</dd>
+                          </div>
+                        ) : null}
                         <div>
                           <dt>Precio actual</dt>
                           <dd>{formatMoney(balance.currentUnitPrice)}</dd>
@@ -151,15 +173,17 @@ export function ProductDetailView({
                         <div className="valuation-panel">
                           <h4>Valoración más reciente</h4>
                           <dl>
-                            <div>
-                              <dt>Costo</dt>
-                              <dd>
-                                {formatMoney(
-                                  valuation.unitCost,
-                                  valuation.currencyCode,
-                                )}
-                              </dd>
-                            </div>
+                            {balance.canReadCost ? (
+                              <div>
+                                <dt>Costo</dt>
+                                <dd>
+                                  {formatMoney(
+                                    valuation.unitCost,
+                                    valuation.currencyCode,
+                                  )}
+                                </dd>
+                              </div>
+                            ) : null}
                             <div>
                               <dt>Precio</dt>
                               <dd>
@@ -177,7 +201,7 @@ export function ProductDetailView({
                         </div>
                       ) : (
                         <p className="valuation-missing">
-                          Sin valoración registrada para este almacén.
+                          Sin valoración registrada para esta bodega.
                         </p>
                       )}
                     </article>

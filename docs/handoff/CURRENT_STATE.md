@@ -1,17 +1,339 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-01.
+Updated: 2026-09-17.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Git state
+## Consolidation snapshot — 2026-09-17
+
+The deployed line remains `codex/staging-pilot` at `b61e711`, not `main`.
+`origin/main` remains at `37e97e4`; the staging line is 32 commits and 237
+paths ahead. The review-ready consolidation branch is
+`codex/consolidate-staging-pr`, created directly from the deployed line. It
+adds only repository hygiene, source normalization, cross-workspace typecheck
+ordering and a Windows-safe E2E launcher; no business rule, migration, RBAC
+grant or staging mutation is part of the consolidation delta.
+
+Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
+readiness, and the web login page. This confirms public availability only; it
+does not replace a direct database fingerprint before any write.
+
+The last direct database evidence recorded on 2026-09-13 identified Neon
+database `sgi_comarca_staging`, PostgreSQL 18.6, 11 finished migrations, zero
+unfinished migrations, 6 roles, 4 users, 26 permissions, 26 active role
+grants, 28 products, and 20 inventory balances, all 20 with stock. Those
+counts supersede the older 144-product/357-balance Docker staging snapshot
+retained later in this file as historical evidence.
+
+The staging line contains the completed FASE 9 and FASE 10 work already present
+on `main`, plus the operational products/receipts/count-correction release,
+the administration panel, Alexa account linking and refresh-token hardening,
+the counted-product workbook importer, and read-only integration keys. Eleven
+versioned migrations exist through `20260912120000_integration_keys`.
+
+The complete local consolidation gate is green from the isolated checkout:
+repository formatting, lint, typecheck, unit tests, PostgreSQL integration
+tests, production build, Prisma generation/validation and the complete
+Playwright suite all passed. The exact evidence is recorded in
+[Last green baseline](#last-green-baseline). CI runs on pull requests and
+pushes to `main`, not on ordinary pushes to `codex/staging-pilot`; publishing
+the consolidation PR and requiring its CI to pass is therefore the remaining
+integration gate before `main` can become the repository baseline.
+
+Operational follow-ups remain separately gated: the first formal physical
+count, first sale, first financial entry, first closing, first Marketplace key
+issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
+Waves 3+ of the legacy import remain unimplemented and blocked by the open
+legacy decisions. No older section of this document authorizes any of those
+writes.
+
+## Read-only integration keys (deployed and enabled; first key not recorded)
+
+On 2026-09-12 the owner approved connecting the Facebook Marketplace bot to the
+SGI through a revocable read-only integration key, publishing only stocked
+products at the SGI sale price and withholding products whose price is mixed
+across warehouses, flagged for review or missing. The design is recorded in
+[ADR-017](../decisions/ADR-017-integration-keys-read-only.md) and the operator
+guide in [the Marketplace bot integration](../integrations/marketplace-bot.md).
+
+The branch `codex/integration-keys-marketplace` (from `codex/staging-pilot`)
+adds migration `20260912120000_integration_keys` with tables
+`integration_keys` and `integration_rate_limit_windows`, the ADMIN-only
+permission `integrations.manage` (26 permissions in the bootstrap manifest),
+hash-only 43-character keys shown once with a mandatory expiry of at most 90
+days, owner-bound revalidation of `inventory.read` on every request, a
+persistent per-minute limit, `GET /api/v1/integrations/catalog` projecting only
+code, name, description, total stocked quantity, sale price and price issue (never
+cost), key management endpoints and the `/settings/integrations` page. Everything
+is gated by `INTEGRATION_KEYS_ENABLED`, off by default.
+
+Local verification passed lint (9/9 tasks, only the existing unused disable
+warning), typecheck (8/8), build (8/8), Prisma schema validation, the 14
+integration-key PostgreSQL tests, the updated schema and bootstrap counts, and
+the focused Chromium settings and integrations suites (5/5). In the full
+sequential run on this Windows machine, the legacy-profiler golden test fails
+only because `core.autocrlf` rewrites its fixture to CRLF, and three unit files,
+the inventory-count lifecycle hook and the persistent-commit TOCTOU case failed
+under load but pass when run on their own.
+
+The owner authorized committing and pushing the branch on 2026-09-13 as commit
+`0084137`, without merging it into `codex/staging-pilot`.
+
+On 2026-09-13 the owner authorized the staging preflight and then the migration
+with its bootstrap. The owner ran both scripts locally so the Neon connection
+string never left their terminal. The migration was first rehearsed on a local
+restore of the pre-migration backup, where it applied only the new migration
+and the bootstrap created exactly one permission, one role grant and one audit
+record. On staging, the target was positively verified in a read-only session
+as database `sgi_comarca_staging`, role `sgi_staging_owner`, PostgreSQL 18.6,
+with 10 finished migrations, zero unfinished, the Alexa migration as the latest,
+no integration tables, 25 permissions, 25 active role grants, 6 roles, 4 users,
+28 products and 20 inventory balances, all 20 stocked.
+
+`pnpm db:migrate:deploy` applied only `20260912120000_integration_keys`, and
+`pnpm db:bootstrap` created only `integrations.manage`, its active `ADMIN`
+grant and one audit record. The read-only verification afterwards found 11
+finished migrations, zero unfinished, both integration tables present and
+empty, 26 permissions and 26 active grants, with roles, users, products and
+balances unchanged. Private custom-format checkpoints, verified with
+`pg_restore --list` and kept out of Git under `backups/`:
+
+| Checkpoint | File | Size | Archive entries | SHA-256 |
+|---|---|---:|---:|---|
+| Pre-migration | `sgi_comarca_staging_pre_integration_keys_20260913T194421Z.dump` | 256,861 bytes | 415 | `4908743e196d4605959f3b7db1751b8c2fd5a39265a94d270ed1059b34e1ca02` |
+| Post-migration | `sgi_comarca_staging_post_integration_keys_20260913T194601Z.dump` | 262,075 bytes | 425 | `f846716789a71af2343c23ba91453bec4160aad2e75741a07841c1623f9ffcdb` |
+
+After the migration the API still returned 200 for health and for readiness
+with the database `up`.
+
+The owner then authorized deploying the code and enabling the flag. The branch
+was fast-forwarded into `codex/staging-pilot` at `6400449`. Because both Render
+services keep `autoDeployTrigger: 'off'`, the deploys were triggered manually for
+that exact commit: API `dep-dajfvd3m8hqs73859p90` and web
+`dep-dajg0cojo6nc73dnmdhg`, both `live`. With the flag still off, the API
+returned 200 for health and readiness, 401 for the catalog without a key, 503
+for a well-formed but unknown key, 401 for key management without a session,
+and `cache-control: no-store` on the catalog. The web returned 200 for `/login`
+and for `/settings/integrations`.
+
+The owner set `INTEGRATION_KEYS_ENABLED=true` on `sgi-comarca-api-staging` from
+the Render dashboard, which deployed `dep-dajgrs6k1f9s73djm2mg` on the same
+commit (`live`). Afterwards the unknown well-formed key returned 401 instead of
+503, while health, readiness, the keyless catalog and key management kept
+their expected responses. As of the last recorded check on 2026-09-13, no
+integration key existed yet. The first issuance must be revalidated before it
+is attempted, shown once, and stored only in the Marketplace bot panel.
+
+## Alexa real-read integration (deployed and account linked)
+
+The owner approved the bounded architecture on 2026-09-09 and explicitly
+authorized its staging preflight, migration and deployment on 2026-09-10. The
+private Alexa-hosted bridge, OAuth 2.0 Authorization Code + PKCE account
+linking, hash-only revocable tokens, 30-request/minute persistent limit,
+dedicated bearer authorization, safe inventory/sales projections,
+consent/revocation UI, schema migration and tests are versioned on
+`codex/staging-pilot` through commit `fd22f30`. The synthetic POC remains
+available as local adapter fixtures.
+
+Final local verification passed lint (9/9 tasks, with only the existing unused
+disable warning), typecheck (8/8 tasks), 65 files / 282 unit tests, 31 files /
+335 PostgreSQL integration tests, build (8/8 tasks), Prisma schema validation
+and the focused Chromium account-linking flow. The browser test found and fixed
+a real consent defect: the initial form read `FormData(form)` without its
+submitter, so both buttons sent `approved: false`; the final implementation
+derives the decision from the actual submit button and the regression test
+asserts `approved: true` for `Vincular Alexa`. The E2E harness now also builds
+`@sgi/contracts` before starting the API so a clean run cannot consume a stale
+runtime export.
+
+The staging target was revalidated directly before mutation as database
+`sgi_comarca_staging`, role `sgi_staging_owner`, PostgreSQL 18.6, with nine
+finished migrations, zero unfinished migrations and no Alexa tables. A private
+custom-format pre-migration backup was created and verified with
+`pg_restore --list`. `pnpm db:migrate:deploy` then applied only
+`20260909120000_alexa_account_linking`. A second verified checkpoint was taken
+before the separately approved administration bootstrap; that bootstrap added
+only permissions `users.read` and `users.roles.manage`, their two active ADMIN
+role grants and one audit record. It created no user, credential, invitation,
+warehouse or business row.
+
+The final private post-bootstrap checkpoint is
+`sgi_comarca_staging_post_alexa_admin_bootstrap_20260910T195112Z.dump`
+(233,822 bytes, SHA-256
+`dbb4c010e6b638bec25a5fea2bffe6aab7c1021ceb3c8c2d898a37e18201a3dd`),
+with 437 archive entries accepted by `pg_restore --list`. The post-operation
+read-only check found ten finished migrations, zero unfinished migrations,
+four empty Alexa tables, 25 permissions, 25 active role-permission rows, both
+expected ADMIN grants, and still zero products, inventory balances, inventory
+movements and sales. Subsequent owner login activity accounts for one active
+session and the latest authentication audit record; it is not a deployment
+mutation.
+
+Render API and web deploys for `fd22f30` both reached `live`. HTTPS checks
+returned 200 for API health, API readiness with database `up`, the web root and
+`/alexa/link`. Both services track `codex/staging-pilot` and automatic deploys
+were explicitly enabled after the successful manual smoke gate.
+
+The Alexa-specific Render configuration, Amazon account-linking configuration
+and Alexa-hosted bridge were subsequently deployed through the approved staging
+procedure. On 2026-09-10 the owner completed the consent flow from the Alexa
+mobile application and received Amazon's account-linked confirmation. The skill
+can therefore use the linked SGI identity for its bounded read-only inventory
+and in-transit sales queries. This is an operational snapshot; revalidate the
+link and the intended staging target before relying on it. Continue to use the
+[real connection guide](../integrations/alexa-real-integration.md) for changes;
+do not expose the generated client secret or copy sessions between
+environments.
+
+On 2026-09-12 the owner reported repeated account-link prompts and authorized
+the bounded renewal fix. The implementation now follows Amazon's token-lifetime
+and rotation guidance: one-hour access tokens, rotating 180-day refresh tokens
+and a non-extending 60-second reuse grace for a just-rotated refresh token.
+Only the technical `ROTATED` reason receives grace; explicit unlinking,
+reauthorization, credential changes/revocation and disabled users remain
+immediate invalidation boundaries. This change requires no schema migration or
+RBAC change. Commit `1fb6b716ea0e77d67df8fdceee8bd4c19d93d3fc` was deployed
+to the staging API as Render deployment `dep-dainmnojo6nc73fle2v0`; it reached
+`live` and `GET /api/v1/ready` returned `200` with the database `up`. The full
+integration gate passed 31 files and 335 tests. One final unlink/relink in the
+Alexa app remains an owner action so Alexa replaces the tokens issued under the
+old lifecycle.
+
+## Counted-product workbook import (deployed; operational evidence to reconcile)
+
+The private Products area now includes `/products/import`, a focused importer
+for the initial physical-count workbook. It reads the workbook locally in the
+browser, validates its expected headers and values, ignores catalog rows without
+a warehouse count and computes stock from the warehouse physical-count columns
+instead of trusting a potentially stale footer total. The preview must be
+reviewed before starting the mutation.
+
+The importer reuses the existing protected product and stock-receipt APIs, CSRF
+protection, backend authorization, immutable inventory movements and
+transactional initial receipts. It requires the existing product-management,
+stock-receipt and valuation permissions. Deterministic idempotency keys make an
+exact-file retry safe: the same workbook cannot add its opening stock twice.
+Rows with an explicit zero count create the product without fabricating an
+inventory movement. Missing unit and product-group values use the documented
+SGI defaults `UNIDADES` and `GENERAL`.
+
+The owner's source workbook was preserved outside Git and passed the production
+parser with 28 counted variants, 19 with positive stock, 9 with zero stock and
+62 total physical units. Its displayed footer says 56, but three counted rows
+sum to the six-unit difference; the importer correctly uses the physical
+warehouse cells. At implementation time no staging product or inventory row
+had been written by this code change. A later direct preflight on 2026-09-13
+found 28 products and 20 stocked balances in Neon, so the operational import
+occurred after that implementation snapshot. Before another import or
+physical-count gate, record the exact import audit/receipt evidence and
+reconcile it with the expected 28 variants / 62 physical units. Do not repeat
+the import merely to recreate missing documentation; deterministic idempotency
+keys remain the safety boundary.
+
+## Free staging pilot (Render + Neon)
+
+On 2026-09-03 the owner approved the bounded free staging pilot documented in
+[ADR-013](../decisions/ADR-013-free-staging-pilot.md). An isolated Neon project
+named `sgi-comarca-staging` was created in `aws-us-east-1` with PostgreSQL 18.
+The direct read-only fingerprint confirmed database `sgi_comarca_staging`, role
+`sgi_staging_owner`, one default branch named `main`, zero public tables and no
+`_prisma_migrations` table. No connection string, credential or private ID was
+written to the repository.
+
+On 2026-09-04 the owner explicitly authorized the schema-only gate. The target
+was revalidated by project, region, PostgreSQL major, branch, database and role;
+the schema was still empty and all six previous Neon operations were finished.
+The branch `checkpoint-empty-2026-09-04` was created from `main` without its own
+compute. `pnpm db:migrate:deploy` then applied the seven versioned migrations to
+`main`. Direct verification found 35 public tables, seven finished migration
+rows, zero unfinished migrations, zero active Neon operations, and zero rows in
+the inspected bootstrap and operational tables.
+
+The owner then explicitly authorized the structural-bootstrap gate. After a
+second positive target check, the branch
+`checkpoint-pre-bootstrap-2026-09-04` was created from `main` without its own
+compute. Two bootstrap attempts reached Prisma's default five-second
+interactive-transaction timeout and rolled back completely. The focused fix
+sets the bootstrap transaction timeout to 30 seconds while preserving
+`Serializable` isolation; formatting, database-package lint/typecheck and the
+7/7 bootstrap integration cases passed before the retry. The corrected
+`pnpm db:bootstrap` run created exactly 6 roles, 20 permissions, 4 pending
+users, 3 active warehouses, 11 active user-role grants, 20 active
+role-permission grants, 2 active direct user grants and 1 bootstrap audit log.
+Direct verification found no revoked grants, password credentials, sessions,
+invitations, products, inventory balances or movements, sales, financial
+entries, closings or inventory-count sessions, and no active Neon operation.
+
+The owner explicitly authorized the Git publication gate on 2026-09-04. Branch
+`codex/staging-pilot` was created from `main` at `37e97e4`; the bootstrap
+timeout fix, reviewed UI polish, and Render/Neon pilot configuration were kept
+in separate auditable commits and published only to that branch. Validation
+passed Prisma schema validation, lint 8/8, typecheck 7/7, unit tests 61 files /
+249 tests, integration tests 29 files / 318 tests, build 7/7 and Playwright
+42/42. Every file in the gate passes an explicit Prettier check, `git diff
+--check` and the secret scan. The repository-wide `pnpm format:check` remains
+red on 223 pre-existing files outside this gate, including the untracked
+`.agents/` plugin cache; those files were not reformatted or committed.
+
+The owner explicitly authorized the Render-services gate on 2026-09-04. The
+official Render CLI validated the manifest after removing the Free-tier-only
+unsupported shutdown-delay setting and declaring the Git repository. Because
+the dashboard browser was unavailable, the two manifest-equivalent services
+were created directly with the CLI instead of attaching a Blueprint. Both use
+the Free plan in Virginia, track `codex/staging-pilot` with automatic deploys
+off, and deploy commit `3425351`; no Render database or paid resource exists.
+The API uses the pooled Neon connection as a Render secret, and both HMAC
+secrets were generated locally in memory and transmitted only to Render.
+
+The initial web build exposed a clean-checkout defect: it did not generate the
+Prisma client before Next.js typechecking. Adding `pnpm db:generate` to the web
+build command fixed the deploy. Both services are now `live`; read-only HTTPS
+checks returned 200 for API health, API readiness and the web login page. No
+migration, bootstrap, import, invitation or business mutation ran from Render.
+This remains a time-bound external snapshot, not permanent live truth. The full
+HTTPS/cookie/cold-start smoke gate and every activation or data gate remain
+separately controlled in the
+[pilot runbook](../deployment/render-neon-staging-pilot.md).
+
+The owner then approved two staging-only custom domains. Hostinger CNAMEs now
+map `sgi.lacomarcanic.com` to the Render web service and
+`api-sgi.lacomarcanic.com` to the Render API service; the root domain, `www`,
+mail and the existing store were not changed. Render reports both domains as
+verified. Both services deployed commit `5a668ae`; HTTPS health, readiness and
+login returned 200, the web bundle references only the custom API origin, CORS
+accepts the custom web origin with credentials, and the session cookie retains
+its host-only, Secure, HttpOnly, SameSite=Lax and root-path attributes. The
+`onrender.com` domains remain enabled as an operational fallback. See
+[ADR-014](../decisions/ADR-014-staging-custom-domains.md).
+
+The first requests after more than 15 minutes without test traffic returned 200
+in 839 ms for API readiness and 383 ms for the login page. Both deployments
+remained `live`, and the post-request log review found no secret values. This is
+one observation, not an availability guarantee for the Free tier.
+
+The owner explicitly authorized the initial private ADMIN invitation on
+2026-09-04. A pre-mutation check confirmed one pending assigned ADMIN, no active
+ADMIN, credentials, sessions or invitations, the exact approved authorization
+matrix and no active Neon operation. The branch
+`checkpoint-pre-initial-admin-2026-09-04` was created from `main` without its
+own compute. One CLI attempt exited before producing a token and left no partial
+write; after a fresh read-only matrix check, the interactive CLI created the
+initial invitation at 18:13:52 UTC, expiring at 18:13:52 UTC on 2026-09-05. The
+post-check found exactly one valid invitation, one pending and zero active
+ADMINs, no credential or session, one matching audit event and no active Neon
+operation. The raw token was delivered only through the private channel and is
+not stored in the repository. Account activation and login/logout verification
+remain pending.
+
+## Historical Git state before the staging-pilot line
 
 The current repository HEAD is always determined dynamically. This document
 never records an authoritative "current" HEAD of its own, because any commit
 that updates the handoff would immediately invalidate such a field.
 
 - Repository: `DylanRizo/sgi-comarca`.
+- Pilot deployment branch: `codex/staging-pilot`, based on `main` at `37e97e4`.
 - Branch: `main`, except the FASE 9 work below, which lives on
   `migration/09-reports` and is not yet merged into `main`.
 - Expected working tree before starting work: clean.
@@ -82,12 +404,13 @@ file.
 | 8B | Contracts and pure finance domain, read API, manual financial entries, and daily closing creation/reopening are implemented and closed in blocks 8B.1-8B.5. The 8B.5 closure verification ran directly against the local PostgreSQL on 2026-08-29: 55 files / 194 unit tests, 25 files / 244 integration tests, 24/24 Chromium E2E, lint 8/8, typecheck 7/7, build 7/7, format and Prisma schema clean, an in-memory OpenAPI check (36 total paths, 6 finance/closing, none public), and a manual security review with no findings. The local staging database was reconfirmed untouched: still at the 6A migration, no FASE 8A tables, sales/sale_items present since 3A with zero rows. `PHASE_8B_COMPLETE`. |
 | 8C | Finances and daily closings UI complete in Spanish over the closed FASE 8B API: a merged finance list (manual entries plus sale income derived at read time, never a persisted or editable entry), category/type/date filters, period totals, manual entry creation, closing list/detail with frozen figures and reopening history, closing creation, and a reopen action gated by permission and by closing status. Verified directly on 2026-08-29: 58 files / 203 unit tests, 32/32 Chromium E2E (24 regression plus 8 new), lint 8/8, typecheck 7/7, build 7/7, format clean, and a manual security review with no findings. Building it exposed and fixed a real cross-suite E2E ordering bug (an exact product count in 02-inventory.e2e.ts depended on file discovery order rather than an explicit one) and a cross-module 403-message bug naming the wrong permission. Not deployed; nothing was written to staging. `PHASE_8C_COMPLETE`. This closes FASE 8 end to end: schema, application/API, and UI. `PHASE_8_COMPLETE`. |
 | 9A | Physical inventory count schema and RBAC foundation complete on `migration/09-reports` (not yet merged into `main`): `InventoryCountSession` (lifecycle `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either non-terminal state, with separate creator/approver/canceller actors and actor-scoped idempotency), `InventoryCountSessionWarehouse` (explicit session scope, so a missing line is distinguishable from a warehouse never meant to be counted, per AT-AUD-02), and `InventoryCountLine` (expected/counted/difference, linked immutably to the generated adjustment via a unique `adjustment_movement_id`). The session never writes stock itself; a deferred constraint trigger requires the linked movement to be an `ADJUSTMENT` matching the line's product, warehouse, and magnitude, so the FASE 5C atomic adjustment path remains the only stock-writing route. Named to avoid colliding with the existing `InventoryAuditService` (audit log), per the plan's §6. RBAC adds `inventory.audit.create`, `inventory.audit.approve`, `reports.read`, and `analytics.read` as direct grants to the sole admin only; no role grants any of the four, preserving the still-open role-grant decision in the FASE 9 plan. No API and no UI. Commit `2671d5d` added the foundation; commit `b55aef9` fixed a break-glass authorization-matrix gap (it was checking only `sales.cancel` as the lone direct grant and ignoring the four new ones), a legacy-importer reference, and a migration column reference, and added full integration coverage. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 58 files/204 tests, integration 26 files/262 tests, build 7/7, `format:check` and `db:validate` clean. Not deployed; staging remains on the FASE 7A/8A migration. `PHASE_9A_SCHEMA_COMPLETE`. |
-| 9B.1 | Physical count application and REST API complete on `migration/09-reports` (not yet merged into `main`): the `inventory-counts` module implements session creation, count capture, submission, approval and cancellation over the closed 9A schema. Approval delegates every stock change to the FASE 5C atomic adjustment path inside one transaction, so no second stock-writing route exists; it refuses the whole approval when a balance moved since the count (`INVENTORY_COUNT_BALANCE_CHANGED`) rather than recomputing against the new balance, and reports uncounted in-scope products as `pendingItems` instead of assuming zero (AT-AUD-02). Approving requires `inventory.audit.approve` and `inventory.adjust` on the same actor; reads and cancellation accept either audit capability, since 9A defined no read permission. `RequirePermission` gained additive any-of support (a single code still stores plain string metadata). No migration and no RBAC change were needed. See ["Current inventory-count application"](#current-inventory-count-application-fase-9b1-migration09-reports-only). Verified directly against PostgreSQL 18.4 on 2026-08-30. Not deployed; no UI (that is 9C). `PHASE_9B_1_COMPLETE`. |
+| 9B.1 | Physical count application and REST API complete on `migration/09-reports` (not yet merged into `main`): the `inventory-counts` module implements session creation, count capture, submission, approval and cancellation over the closed 9A schema. Approval delegates every stock change to the FASE 5C atomic adjustment path inside one transaction, so no second stock-writing route exists; it refuses the whole approval when a balance moved since the count (`INVENTORY_COUNT_BALANCE_CHANGED`) rather than recomputing against the new balance, and reports uncounted in-scope products as `pendingItems` instead of assuming zero (AT-AUD-02). Approving requires `inventory.audit.approve` and `inventory.adjust` on the same actor; reads and cancellation accept either audit capability, since 9A defined no read permission. `RequirePermission` gained additive any-of support (a single code still stores plain string metadata). No migration and no RBAC change were needed. See ["Historical FASE 9B.1 closure snapshot"](#historical-fase-9b1-closure-snapshot). Verified directly against PostgreSQL 18.4 on 2026-08-30. Not deployed; no UI (that is 9C). `PHASE_9B_1_COMPLETE`. |
 
-## Current inventory-count application (FASE 9B.1, `migration/09-reports` only)
+## Historical FASE 9B.1 closure snapshot
 
-The `inventory-counts` module turns the 9A schema into an API. It is versioned
-and locally verified only: nothing is deployed and no UI exists (that is 9C).
+The following records the state when 9B.1 first closed. The module, its later
+UI, schema and RBAC have since reached the deployed staging line; the historical
+verification details are retained here without rewriting that earlier gate.
 
 - `POST /api/v1/inventory/counts` creates an `OPEN` session declaring its
   warehouse scope, guarded by `inventory.audit.create`, with a mandatory
@@ -141,7 +464,7 @@ nothing about its locking, validation, audit event or signature changed.
 | 9B.3 | Analytics complete on `migration/09-reports` (unmerged): inventory KPIs (distinct products, stock-outs, cost/price review alerts, total value) and sales analytics (volume by day/week/month, top products, per-seller totals, gross profit and margin). Same two rules as 9B.2: analytics never widens access, so each route also requires its domain's read permission, and every monetary figure additionally requires `finances.read`. Margin follows DEC-015 rather than averaging silently. A cost that is absent, or zero — which the data uses as a review flag — excludes its line from **both** sides of the subtraction, because counting it as free stock would inflate profit, and dividing full revenue by partial cost would report a margin no line earned. Every response carries a `marginCoverage` (covered/excluded/total lines and ratio), and a period with no trustworthy cost reports a null margin rather than zero, since unknown is not the same as none. Inventory valuation applies the identical rule and reports its own coverage. All ratios and money use exact integer arithmetic. Sales aggregation is capped at 366 days and restricted to `COMPLETED` sales, backed by the existing `(status, business_date)` index. Analytics keeps the shared quantity helper's trimmed decimals, unlike reports which pin the scale, because a dashboard reads better with `15` than `15.0000`. No migration and no RBAC change. Verified directly against PostgreSQL 18.4 on 2026-08-30: lint 8/8, typecheck 7/7, unit 61 files/236 tests, integration 11/11 for the new spec, build 7/7, format and `db:validate` clean. `PHASE_9B_3_COMPLETE`. |
 | 9C | FASE 9 interface complete on `migration/09-reports` (unmerged), closing FASE 9 end to end. Three surfaces: the physical count flow (session list and creation declaring its warehouse scope, count capture, submit, approve, cancel), the four reports with date filters and CSV export, and a sales analytics view. The operational home replaced the session-diagnostics screen: stock health, stock-outs and cost-review alerts now lead, with session facts and permissions kept below for support. Coverage always travels with the figure it qualifies — a margin computed over half the lines renders its covered/total count beside it — and money never renders when the API returns null, so an actor without `finances.read` sees no monetary column anywhere. `globals.css` became a token system (colour, radius, shadow, motion, type) with OS-driven dark mode and transitions honouring `prefers-reduced-motion`; because it is written against the class names the pages already used, every earlier screen was restyled without a rename, and the Playwright suite still selects on the same hooks. Building it exposed two real regressions of its own: dashboard shortcuts duplicated the always-visible header navigation, giving two links one accessible name, and an earlier draft dropped the permissions list the FASE 3B suite asserts on. Both were fixed rather than worked around in the tests. Verified directly on 2026-08-31: lint 8/8, typecheck 7/7, unit 61 files/236 tests, build 7/7, and 32/32 Chromium E2E. Nothing deployed; staging untouched. `PHASE_9C_COMPLETE`, `PHASE_9_COMPLETE`. |
 
-## Current milestone
+## Historical phase milestone before staging-pilot consolidation
 
 - `PHASE_6_COMPLETE`
 - `PHASE_7A_SCHEMA_COMPLETE`
@@ -184,7 +507,7 @@ deployment, authorizes an operational write. The next gate is described in
 [NEXT_PHASE.md](NEXT_PHASE.md); that document authorizes neither
 implementation nor an operational write.
 
-## Current capabilities
+## Core capabilities recorded at the FASE 8/9 closure
 
 Read capabilities implemented:
 
@@ -299,7 +622,7 @@ sales schema, FASE 7B provides the application/API, and FASE 7C provides the
 UI. None of those repository capabilities means staging
 deployment or legacy sales import occurred.
 
-## Current inventory-count schema (FASE 9A, `migration/09-reports` only)
+## Inventory-count schema
 
 - `InventoryCountSession` is the audit session document: lifecycle
   `OPEN → PENDING_APPROVAL → APPROVED`, or `CANCELLED` from either
@@ -317,15 +640,14 @@ deployment or legacy sales import occurred.
 - Named `InventoryCountSession`/`InventoryCountLine` rather than reusing
   "audit" to avoid colliding with the pre-existing `InventoryAuditService`,
   which writes `AuditLog` rows and is unrelated to physical counting.
-- RBAC: `inventory.audit.create`, `inventory.audit.approve`, `reports.read`,
-  and `analytics.read` exist as direct grants to the sole admin only. No
-  role grants any of the four yet; which role(s) should is still an open
-  business decision (see `docs/reviews/phase-9-audits-reports-plan.md` §2).
-- No API and no UI exist yet for this schema, and nothing was applied to
-  staging or any persistent database. This schema lives only on
-  `migration/09-reports`, which has not merged into `main`.
+- RBAC: `inventory.audit.create`, `reports.read`, and `analytics.read` are role
+  grants in the approved matrix; `inventory.audit.approve` remains a direct
+  grant to Dylan and additionally requires `inventory.adjust` at approval.
+- The API and UI implement creation, immutable capture, correction while open,
+  submission, approval and cancellation. The migration and grants are present
+  in Neon staging; the first formal staging count remains an independent gate.
 
-## Last verified staging snapshot
+## Historical Docker staging snapshot — 2026-08-23
 
 This is non-secret operational evidence verified read-only on 2026-08-23,
 immediately after the FASE 6 transfer gate. It is not a substitute for a fresh
@@ -488,13 +810,16 @@ active unique, check, and immutability constraints. No replay request was
 issued against staging; replay behavior remains covered by the
 integration/concurrency suites.
 
-## Current RBAC
+## Current RBAC manifest
 
-- On `main`, the manifest contains 16 permissions and 15 role grants.
-- On `migration/09-reports` (unmerged), it contains 20 permissions, 20 role
-  grants, and 2 direct grants. On 2026-08-31 the owner approved the FASE 9
-  grants, moving counting, reports and analytics onto roles and leaving only
-  `sales.cancel` and `inventory.audit.approve` as direct.
+- The deployed manifest contains 26 permissions, 26 role grants and 2 direct
+  grants. The last direct staging verification on 2026-09-13 matched those
+  permission and role-grant counts.
+- `ADMIN` grants the four original account-management capabilities plus
+  `users.read`, `users.roles.manage`, and `integrations.manage`; it remains an
+  explicit role rather than a superuser bypass.
+- `products.manage` and `stock-receipts.create` belong to
+  `INVENTORY_MANAGER`; `inventory.valuation.manage` belongs to `FINANCE`.
 - `inventory.read → INVENTORY_MANAGER`.
 - `inventory.adjust → INVENTORY_MANAGER`.
 - `transfers.create → INVENTORY_MANAGER`.
@@ -522,18 +847,19 @@ The full matrix is in
 
 ## Current migrations
 
-On `main`, in order:
+On the deployed staging line, in order:
 
 1. `20260804044231_phase_3a_initial_structure`;
 2. `20260804164613_phase_3b_authentication_models`;
 3. `20260806042328_phase_3b_user_permission_effect`;
 4. `20260820170000_phase_6a_transfer_foundation`;
 5. `20260826232758_phase_7a_sales_foundation`;
-6. `20260829144239_phase_8a_finances_closings_foundation`.
-
-On `migration/09-reports` (unmerged), additionally:
-
-7. `20260830181934_phase_9a_inventory_count_foundation`.
+6. `20260829144239_phase_8a_finances_closings_foundation`;
+7. `20260830181934_phase_9a_inventory_count_foundation`;
+8. `20260905041000_operational_products_receipts`;
+9. `20260905062000_inventory_count_corrections`;
+10. `20260909120000_alexa_account_linking`;
+11. `20260912120000_integration_keys`.
 
 ## Current transfer architecture
 
@@ -626,6 +952,27 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 `PHASE_6_CONCURRENCY_FIX_PASS`.
 
 ## Last green baseline
+
+Revalidated on 2026-09-17 from the isolated
+`codex/consolidate-staging-pr` checkout, derived directly from deployed commit
+`b61e711`: repository-wide formatting passed; lint passed 9/9 packages with
+only the pre-existing unused-disable warning in the user-administration
+controller; typecheck passed 13/13 tasks; unit tests passed 67 files / 291
+tests; PostgreSQL integration tests passed 32 files / 349 tests; production
+build passed 8/8 tasks; Prisma generation and schema validation passed; and
+the complete Chromium Playwright suite passed 54/54 tests across authentication,
+inventory, stock operations, counts, sales, finances, settings, integrations,
+responsive layouts and accessibility. The runners used temporary local
+databases only, and the final catalog check found no remaining `sgi_e2e_*`
+database. Staging was not a test target and received no write.
+
+That gate exposed and fixed two clean-checkout infrastructure defects without
+relaxing assertions: the workspace typecheck graph now builds dependency
+artifacts before consumers, and the E2E launcher invokes pnpm reliably through
+`cmd.exe` on Windows without forcing pnpm's CI installation behavior into the
+local database process. Stable LF attributes also prevent Windows checkout
+normalization from changing golden fixtures. The remaining gate is remote PR
+CI and review against `main`.
 
 Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`) at
 the FASE 9B.1 closure, run directly against the same local PostgreSQL: lint

@@ -140,13 +140,40 @@ See [authorization-matrix.md](../architecture/authorization-matrix.md) and
   idle expiry cannot move backwards, while idle expiry remains bounded by the
   absolute expiry. Concurrency must not weaken revocation, active-user checks,
   or effective-permission evaluation.
-- Routes are private by default. The only public routes are health, readiness,
-  activation, and login as enumerated in `AGENTS.md`.
+- Routes are private by default. The public routes are health, readiness,
+  activation, login and the bounded Alexa OAuth token exchange enumerated in
+  `AGENTS.md`.
 - Authenticated mutations use session-derived CSRF protection. Host, Origin,
   CORS, trust proxy, and Helmet are explicit. Swagger is not mounted.
 - The last enabled ADMIN cannot be deactivated or have the credential revoked
   administratively. Session revocation, logout, normal password change, and the
   approved local break-glass recovery remain possible.
+
+## Alexa read-only integration
+
+- On 2026-09-09 the owner approved a real, private-Development Alexa
+  integration for inventory and in-transit sales reads only. This approval
+  covers implementation and local verification; staging migration, deployment,
+  configuration and account linking remain a separate operational gate.
+- Account linking uses OAuth 2.0 Authorization Code with PKCE S256 and exact
+  `inventory.read` and `sales.read` scopes. The owner-approved renewal fix of
+  2026-09-12 uses one-hour access tokens, rotating 180-day refresh tokens and a
+  non-extending 60-second reuse grace for a just-rotated refresh token;
+  persistence remains SHA-256-only for codes/tokens.
+- The only new public route is `POST /api/v1/alexa/oauth/token`, protected as a
+  server-to-server route by exact Host plus OAuth client authentication. Voice
+  requests use a dedicated bearer-token guard and revalidate current user,
+  credential and RBAC state.
+- The rate limit is 30 voice requests per linked account per minute. Link,
+  token, revoke and query events are audited without secrets or spoken slots.
+- Audible data is restricted to product, warehouse, stock quantity/unit and
+  the number/date/product/quantity/warehouse projection of in-transit sales.
+  Prices, costs, totals, payment, customer/contact/address, staff identities,
+  observations and other free text are excluded. Alexa has no business-write
+  route or intent.
+
+See [ADR-016](../decisions/ADR-016-alexa-read-only-poc.md) and the
+[connection guide](../integrations/alexa-real-integration.md).
 
 ## Legacy profiling and import
 
@@ -206,6 +233,17 @@ See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
 
 ## Operations
+
+- El piloto gratuito de staging para cuatro usuarios usa dos servicios web de
+  Render Free y PostgreSQL 18 en Neon Free. Es una excepción temporal y no una
+  aprobación de producción. Migraciones, bootstrap, invitaciones, importaciones
+  y operaciones reales conservan gates separados. Ver
+  [ADR-013](../decisions/ADR-013-free-staging-pilot.md).
+- El staging piloto usa `sgi.lacomarcanic.com` para la web y
+  `api-sgi.lacomarcanic.com` para la API. El dominio raíz, `www`, correo y tienda
+  permanecen fuera del alcance; los dominios `onrender.com` siguen habilitados
+  como respaldo. Esto no selecciona un dominio de producción. Ver
+  [ADR-014](../decisions/ADR-014-staging-custom-domains.md).
 
 - Development, staging, and future production are separate environments.
   Credentials and sessions are not copied between them.

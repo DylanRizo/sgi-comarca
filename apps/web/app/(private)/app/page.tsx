@@ -1,25 +1,18 @@
 'use client';
 
 import type { InventoryAnalytics } from '@sgi/contracts';
-import type { Route } from 'next';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { analyticsApi } from '@/lib/http/analytics-api';
 import { useAuth } from '@/providers/auth-provider';
+import { OperationLinks } from '@/components/layout/operation-links';
+import { OperationalPending } from '@/components/layout/operational-pending';
 
 type LoadState =
   | { kind: 'denied' }
   | { kind: 'error' }
   | { kind: 'loading' }
   | { kind: 'ready'; data: InventoryAnalytics };
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('es-NI', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
 
 function formatMoney(value: string): string {
   return new Intl.NumberFormat('es-NI', {
@@ -76,13 +69,23 @@ export default function AppPage() {
     <main className="content-page" id="main-content">
       <section className="page-heading" aria-labelledby="welcome-title">
         <div>
-          <p className="eyebrow">SGI La Comarca</p>
           <h1 id="welcome-title">Bienvenido, {session.displayName}</h1>
           <p>
             Resumen operativo del inventario y accesos directos a tu trabajo.
           </p>
         </div>
       </section>
+
+      <OperationLinks />
+      {inventory.kind === 'ready' && inventory.data.catalogProducts === 0 ? (
+        <section className="read-state">
+          <h2>Empecemos con tu catálogo</h2>
+          <p>
+            Todavía no hay productos registrados en este entorno. Crea el primer
+            producto y registra su entrada inicial para comenzar.
+          </p>
+        </section>
+      ) : null}
 
       {inventory.kind === 'loading' ? (
         <p className="read-state">Cargando el estado del inventario…</p>
@@ -211,45 +214,7 @@ export default function AppPage() {
         </section>
       ) : null}
 
-      <section aria-labelledby="session-title" className="detail-section">
-        <div className="section-heading">
-          <h2 id="session-title">Tu sesión</h2>
-        </div>
-        <dl className="session-details">
-          <div>
-            <dt>Usuario</dt>
-            <dd>{session.identifier}</dd>
-          </div>
-          <div>
-            <dt>Inactividad</dt>
-            <dd>{formatDate(session.idleExpiresAt)}</dd>
-          </div>
-          <div>
-            <dt>Límite absoluto</dt>
-            <dd>{formatDate(session.absoluteExpiresAt)}</dd>
-          </div>
-        </dl>
-        <section aria-labelledby="permissions-title">
-          <h2 id="permissions-title">Permisos disponibles</h2>
-          {session.permissions.length ? (
-            <ul className="permissions-list">
-              {session.permissions.map((permission) => (
-                <li key={permission}>{permission}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>No hay acciones disponibles.</p>
-          )}
-        </section>
-        <div className="button-row">
-          <Link
-            className="secondary-link"
-            href={'/account/change-password' as Route}
-          >
-            Cambiar contraseña
-          </Link>
-        </div>
-      </section>
+      <OperationalPending />
     </main>
   );
 }

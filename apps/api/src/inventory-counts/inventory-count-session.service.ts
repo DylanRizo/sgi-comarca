@@ -1,7 +1,9 @@
 import type {
   CaptureInventoryCountLineRequest,
+  CorrectInventoryCountLineRequest,
   CreateInventoryCountSessionRequest,
   InventoryCountSessionSummary,
+  InventoryCountSessionStatus,
   InventoryCountSessionView,
   PaginatedData,
 } from '@sgi/contracts';
@@ -16,6 +18,7 @@ import {
 } from '../inventory/inventory-quantity.js';
 import { InventoryCountAuditService } from './inventory-count-audit.service.js';
 import { InventoryCountError } from './inventory-count.errors.js';
+import { stockCommand } from '../inventory/stock-command.js';
 import {
   loadSessionView,
   mapSessionSummary,
@@ -137,6 +140,95 @@ export class InventoryCountSessionService {
     );
   }
 
+  async correctLine(
+    actorUserId: string,
+    sessionId: string,
+    lineId: string,
+    idempotencyKey: string | undefined,
+    rawInput: CorrectInventoryCountLineRequest,
+  ): Promise<InventoryCountSessionView> {
+    const countedScaled = nonNegativeQuantity(rawInput.countedQuantity);
+    const reason = rawInput.reason?.trim();
+    if (
+      !reason ||
+      reason.length > 500 ||
+      !Number.isInteger(rawInput.expectedVersion) ||
+      rawInput.expectedVersion < 1
+    ) {
+      throw new InventoryCountError('INVENTORY_COUNT_REQUEST_INVALID');
+    }
+    await stockCommand(
+      this.client,
+      actorUserId,
+      'inventory.count.line.correct',
+      idempotencyKey,
+      { sessionId, lineId, ...rawInput, reason },
+      ['inventory.audit.create'],
+      async (transaction) => {
+        const current = await this.lockSession(transaction, sessionId);
+        if (current.status !== 'OPEN')
+          throw new InventoryCountError('INVENTORY_COUNT_INVALID_STATE');
+        const locked = await transaction.$queryRaw<{ id: string }[]>`
+          SELECT id FROM inventory_count_lines
+          WHERE id = ${lineId}::uuid AND session_id = ${sessionId}::uuid
+          FOR UPDATE
+        `;
+        if (!locked[0])
+          throw new InventoryCountError('INVENTORY_COUNT_LINE_NOT_FOUND');
+        const line = await transaction.inventoryCountLine.findUniqueOrThrow({
+          where: { id: lineId },
+        });
+        if (line.version !== rawInput.expectedVersion)
+          throw new InventoryCountError('INVENTORY_COUNT_CONFLICT');
+        const countedQuantity = inventoryDecimalString(countedScaled);
+        if (line.countedQuantity.toString() === countedQuantity)
+          throw new InventoryCountError('INVENTORY_COUNT_REQUEST_INVALID');
+        const difference = inventoryDecimalString(
+          countedScaled - nonNegativeQuantity(line.expectedQuantity.toString()),
+        );
+        const correctedAt = this.clock.now();
+        const version = line.version + 1;
+        await transaction.inventoryCountLineRevision.create({
+          data: {
+            lineId,
+            version,
+            actorUserId,
+            reason,
+            previousCountedQuantity: line.countedQuantity,
+            newCountedQuantity: countedQuantity,
+            correctedAt,
+          },
+        });
+        await transaction.inventoryCountLine.update({
+          where: { id: lineId },
+          data: {
+            countedQuantity,
+            difference,
+            countedAt: correctedAt,
+            version,
+          },
+        });
+        await transaction.auditLog.create({
+          data: {
+            actorUserId,
+            action: 'inventory.count.line.corrected',
+            entityType: 'InventoryCountLine',
+            entityId: lineId,
+            beforeData: {
+              countedQuantity: line.countedQuantity.toString(),
+              version: line.version,
+            },
+            afterData: { countedQuantity, difference, version },
+            metadata: { sessionId, reason },
+            occurredAt: correctedAt,
+          },
+        });
+        return { sessionId };
+      },
+    );
+    return loadSessionView(this.client, sessionId);
+  }
+
   async get(
     actorUserId: string,
     sessionId: string,
@@ -147,16 +239,23 @@ export class InventoryCountSessionService {
 
   async list(
     actorUserId: string,
-    query: { page: number; pageSize: number },
+    query: {
+      page: number;
+      pageSize: number;
+      status?: InventoryCountSessionStatus;
+    },
   ): Promise<PaginatedData<InventoryCountSessionSummary>> {
     await this.authorizeRead(this.client, actorUserId);
     const [totalItems, records] = await Promise.all([
-      this.client.inventoryCountSession.count(),
+      this.client.inventoryCountSession.count({
+        where: query.status ? { status: query.status } : {},
+      }),
       this.client.inventoryCountSession.findMany({
         orderBy: [{ businessDate: 'desc' }, { createdAt: 'desc' }],
         select: { ...sessionSelect, _count: { select: { lines: true } } },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
+        where: query.status ? { status: query.status } : {},
       }),
     ]);
     const items = (

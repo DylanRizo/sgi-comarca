@@ -12,6 +12,25 @@ const webUrl = process.env.SGI_E2E_WEB_URL ?? 'http://localhost:3100';
 const initialPassword = 'calm river orchard lantern';
 const changedPassword = 'gentle mountain harbor phrase';
 const database = new AuthenticationDatabase();
+const alexaLinkPath =
+  '/alexa/link?client_id=sgi-alexa-development&redirect_uri=' +
+  encodeURIComponent(
+    'https://pitangui.amazon.com/api/skill/link/SGIALEXADEVELOPMENT',
+  ) +
+  '&response_type=code&state=alexa-state&scope=inventory.read%20sales.read' +
+  '&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGH123456789&code_challenge_method=S256';
+const expectedAlexaLink = new URL(alexaLinkPath, webUrl);
+
+function isAlexaLinkUrl(url: URL): boolean {
+  const expectedParameters = [...expectedAlexaLink.searchParams.entries()];
+  return (
+    url.pathname === expectedAlexaLink.pathname &&
+    [...url.searchParams.entries()].length === expectedParameters.length &&
+    expectedParameters.every(
+      ([name, value]) => url.searchParams.get(name) === value,
+    )
+  );
+}
 
 async function activateThroughApi(request: APIRequestContext): Promise<void> {
   const token = await database.createInvitation();
@@ -107,6 +126,15 @@ test.describe('BLOQUE 6 authentication interface', () => {
       'No fue posible activar la cuenta',
     );
     await expect(page.locator('.auth-feedback')).toBeFocused();
+    await expect(
+      page.getByRole('heading', { name: 'Cómo continuar' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Volver a iniciar sesión' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Activar cuenta' }),
+    ).toHaveCount(0);
   });
 
   test('keeps a valid invitation usable after password policy rejection', async ({
@@ -148,8 +176,100 @@ test.describe('BLOQUE 6 authentication interface', () => {
   }) => {
     await activateThroughApi(request);
     await loginThroughPage(page);
-    await expect(page.getByText('dylan', { exact: true })).toBeVisible();
-    await expect(page.getByText('sales.create', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Bienvenido, Dylan' }),
+    ).toBeVisible();
+    await expect(page.getByText('sales.create', { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText('Operación', { exact: true })).toBeVisible();
+    await expect(page.getByText('Control', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Análisis', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Mi cuenta' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Mi cuenta' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Registrar ventas', { exact: true }),
+    ).toBeVisible();
+  });
+
+  test('preserves Alexa account linking through login and limits consent to read-only data', async ({
+    page,
+    request,
+  }) => {
+    await activateThroughApi(request);
+    await page.goto(alexaLinkPath);
+    await expect(page).toHaveURL((url) => {
+      const next = url.searchParams.get('next');
+      return Boolean(
+        url.pathname === '/login' &&
+        next &&
+        isAlexaLinkUrl(new URL(next, webUrl)),
+      );
+    });
+
+    await page.getByLabel('Usuario').fill('dylan');
+    await page.getByLabel('Contraseña').fill(initialPassword);
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+    await expect(page).toHaveURL(isAlexaLinkUrl);
+    await expect(
+      page.getByRole('heading', {
+        name: 'Vincular Inventario Comarca con Alexa',
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Existencias por producto y bodega.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Ventas en tránsito, productos y cantidades.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/No podrá crear ni modificar productos/u),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Tampoco recibirá precios, costos, pagos, clientes/u),
+    ).toBeVisible();
+
+    let authorizationBody: Record<string, unknown> | undefined;
+    await page.route('**/api/v1/alexa/oauth/authorize', async (route) => {
+      authorizationBody = route.request().postDataJSON() as Record<
+        string,
+        unknown
+      >;
+      await route.fulfill({
+        contentType: 'application/json',
+        json: {
+          data: { redirectUrl: `${webUrl}/api-status?alexa=linked` },
+          meta: { requestId: 'alexa-link-e2e' },
+        },
+        status: 200,
+      });
+    });
+    await page.getByRole('button', { name: 'Vincular Alexa' }).click();
+    await expect(page).toHaveURL('/api-status?alexa=linked');
+    expect(authorizationBody).toMatchObject({
+      approved: true,
+      clientId: 'sgi-alexa-development',
+      codeChallengeMethod: 'S256',
+      responseType: 'code',
+      scope: 'inventory.read sales.read',
+      state: 'alexa-state',
+    });
+    expect(Object.keys(authorizationBody ?? {}).sort()).toEqual(
+      [
+        'approved',
+        'clientId',
+        'codeChallenge',
+        'codeChallengeMethod',
+        'redirectUri',
+        'responseType',
+        'scope',
+        'state',
+      ].sort(),
+    );
   });
 
   test('keeps invalid login errors uniform, accessible and focused', async ({
@@ -163,6 +283,19 @@ test.describe('BLOQUE 6 authentication interface', () => {
       'No fue posible iniciar sesión con esos datos.',
     );
     await expect(page.getByLabel('Usuario')).toBeFocused();
+  });
+
+  test('explains the administrator-mediated password recovery path', async ({
+    page,
+  }) => {
+    await page.goto('/login');
+    await page.getByText('¿Olvidaste tu contraseña?').click();
+    await expect(
+      page.getByText(/genere una nueva invitación privada/u),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Nunca compartas tu contraseña actual/u),
+    ).toBeVisible();
   });
 
   test('prevents a double login submission', async ({ page, request }) => {
@@ -218,12 +351,15 @@ test.describe('BLOQUE 6 authentication interface', () => {
     }) => {
       await activateThroughApi(request);
       await loginThroughPage(page);
-      await expect(page.getByText('dylan', { exact: true })).toBeVisible();
+      // The operational UX change moved session identity and permissions from
+      // Inicio to Cuenta, so the private content this guards now lives there.
+      await page.goto('/account');
+      await expect(page.getByText('Dylan · dylan')).toBeVisible();
       await database.expireLatestSession(expiration);
 
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await expect(page).toHaveURL('/session-expired');
-      await expect(page.getByText('dylan', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('dylan')).toHaveCount(0);
       await expect(page.getByText('sales.create', { exact: true })).toHaveCount(
         0,
       );
@@ -251,6 +387,7 @@ test.describe('BLOQUE 6 authentication interface', () => {
   }) => {
     await activateThroughApi(request);
     await loginThroughPage(page);
+    await page.goto('/account');
     await page.getByRole('link', { name: 'Cambiar contraseña' }).click();
     await page.getByLabel('Contraseña actual').fill(initialPassword);
     await page

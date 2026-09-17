@@ -380,6 +380,111 @@ describe('FASE 9B.1 inventory count lifecycle', () => {
     expect(line.countedQuantity.toString()).toBe('94');
   });
 
+  it('corrects an open line with version control and immutable history', async () => {
+    const sessionId = await newSession();
+    const captured = await sessions.captureLine(counterId, sessionId, {
+      countedQuantity: '98',
+      productId,
+      warehouseId,
+    });
+    const original = captured.lines[0]!;
+    const correctionKey = key();
+    const input = {
+      countedQuantity: '99',
+      expectedVersion: 1,
+      reason: 'Se verificó nuevamente la caja',
+    };
+    const corrected = await sessions.correctLine(
+      counterId,
+      sessionId,
+      original.id,
+      correctionKey,
+      input,
+    );
+    expect(corrected.lines[0]).toMatchObject({
+      countedQuantity: '99',
+      difference: '-1',
+      expectedQuantity: '100',
+      version: 2,
+    });
+    expect(corrected.lines[0]!.revisions[0]).toMatchObject({
+      newCountedQuantity: '99',
+      previousCountedQuantity: '98',
+      reason: input.reason,
+      version: 2,
+    });
+    expect(
+      (
+        await sessions.correctLine(
+          counterId,
+          sessionId,
+          original.id,
+          correctionKey,
+          input,
+        )
+      ).lines[0]!.version,
+    ).toBe(2);
+    expect(await balanceQuantity()).toBe(100);
+    expect(await client.inventoryMovement.count({ where: { productId } })).toBe(
+      0,
+    );
+    expect(
+      await client.inventoryCountLineRevision.count({
+        where: { lineId: original.id },
+      }),
+    ).toBe(1);
+    await expect(
+      client.inventoryCountLineRevision.update({
+        where: { id: corrected.lines[0]!.revisions[0]!.id },
+        data: { reason: 'reescribir' },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('prevents concurrent overwrites and locks corrections after submission', async () => {
+    const sessionId = await newSession();
+    const captured = await sessions.captureLine(counterId, sessionId, {
+      countedQuantity: '98',
+      productId,
+      warehouseId,
+    });
+    const line = captured.lines[0]!;
+    const results = await Promise.allSettled([
+      sessions.correctLine(counterId, sessionId, line.id, key(), {
+        countedQuantity: '99',
+        expectedVersion: 1,
+        reason: 'Primera verificación',
+      }),
+      sessions.correctLine(secondCounterId, sessionId, line.id, key(), {
+        countedQuantity: '97',
+        expectedVersion: 1,
+        reason: 'Segunda verificación',
+      }),
+    ]);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    const current = await sessions.get(counterId, sessionId);
+    expect(current.lines[0]!.version).toBe(2);
+    await lifecycle.submit(counterId, sessionId);
+    await expect(
+      sessions.correctLine(counterId, sessionId, line.id, key(), {
+        countedQuantity: '96',
+        expectedVersion: 2,
+        reason: 'Intento tardío',
+      }),
+    ).rejects.toMatchObject({ code: 'INVENTORY_COUNT_INVALID_STATE' });
+    await expect(
+      client.inventoryCountLine.update({
+        where: { id: line.id },
+        data: { countedQuantity: '96', difference: '-4', version: 3 },
+      }),
+    ).rejects.toThrow();
+  });
+
   it('refuses a warehouse outside the declared scope', async () => {
     const sessionId = await newSession();
     expect(

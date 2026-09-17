@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "request": {
+    "type": "IntentRequest",
+    "requestId": "local-demo-transit-sales-summary",
+    "locale": "es-MX",
+    "intent": {
+      "name": "ConsultarResumenVentasEnTransitoIntent",
+      "confirmationStatus": "NONE",
+      "slots": {}
+    }
+  }
+}

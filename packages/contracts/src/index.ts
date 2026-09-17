@@ -14,6 +14,23 @@ export type {
   SellerPoint,
   TopProductPoint,
 } from './analytics.js';
+export {
+  alexaScopes,
+  type AlexaAuthorizationData,
+  type AlexaAuthorizationRequest,
+  type AlexaLinkStatusData,
+  type AlexaScope,
+} from './alexa.js';
+export {
+  integrationKeyScopes,
+  type CreateIntegrationKeyRequest,
+  type CreatedIntegrationKeyData,
+  type IntegrationCatalogItem,
+  type IntegrationKeyScope,
+  type IntegrationKeyStatus,
+  type IntegrationKeySummary,
+  type IntegrationPriceIssue,
+} from './integrations.js';
 export type { ApiErrorBody, ApiMeta, ApiSuccess } from './api-response.js';
 export type {
   ActivateAccountRequest,
@@ -50,9 +67,11 @@ export {
   inventoryCountSessionStatuses,
   type CancelInventoryCountSessionRequest,
   type CaptureInventoryCountLineRequest,
+  type CorrectInventoryCountLineRequest,
   type CreateInventoryCountSessionRequest,
   type InventoryCountActor,
   type InventoryCountLineView,
+  type InventoryCountLineRevisionView,
   type InventoryCountPendingItem,
   type InventoryCountPublicErrorCode,
   type InventoryCountSessionStatus,
@@ -110,5 +129,24 @@ export {
 } from './sales.js';
 export type {
   AdminInvitationData,
+  RoleSummary,
+  UpdateUserPermissionsInput,
+  UpdateUserRolesInput,
   UserAdministrationPublicErrorCode,
+  UserDetail,
+  UserDirectoryEntry,
+  UserPermissionOverride,
 } from './user-administration.js';
+export type {
+  ProductGroupView,
+  ProductInput,
+  ReceiptInput,
+  CreateProductInput,
+  EditProductInput,
+  ReceiptView,
+  ProductCreatedView,
+  ProductCatalogs,
+  PendingValuation,
+  ValuationInput,
+  StockOperationErrorCode,
+} from './stock-operations.js';

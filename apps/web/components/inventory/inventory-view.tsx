@@ -138,7 +138,7 @@ export function InventoryView() {
             <p className="eyebrow">Existencias</p>
             <h1>Inventario</h1>
             <p>
-              Stock consolidado y desglose por almacén, consultados directamente
+              Stock consolidado y desglose por bodega, consultados directamente
               desde el saldo operacional.
             </p>
           </div>
@@ -201,7 +201,7 @@ export function InventoryView() {
             />
           </label>
           <label className="filter-field">
-            <span>Almacén</span>
+            <span>Bodega</span>
             <select
               onChange={(event) => {
                 const value = event.target.value;
@@ -212,7 +212,7 @@ export function InventoryView() {
               }}
               value={warehouseId}
             >
-              <option value="">Todos los almacenes</option>
+              <option value="">Todas las bodegas</option>
               {state?.warehouses.map((warehouse) => (
                 <option key={warehouse.id} value={warehouse.id}>
                   {warehouse.name} ({warehouse.code})

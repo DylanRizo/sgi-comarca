@@ -186,7 +186,7 @@ export function saleDraftIssueMessage(issue: SaleDraftIssue): string {
   if (issue === 'BUSINESS_DATE_INVALID') return 'Selecciona una fecha válida.';
   if (issue === 'NO_LINES') return 'Agrega al menos una línea.';
   if (issue === 'WAREHOUSE_MISSING') {
-    return 'Cada línea necesita producto y almacén.';
+    return 'Cada línea necesita producto y bodega.';
   }
   if (issue === 'QUANTITY_INVALID') {
     return 'Ingresa una cantidad mayor que cero, con máximo 4 decimales.';
@@ -197,5 +197,5 @@ export function saleDraftIssueMessage(issue: SaleDraftIssue): string {
   if (issue === 'SHIPPING_INVALID') {
     return 'El envío debe ser un monto no negativo con máximo 2 decimales.';
   }
-  return 'La cantidad supera el stock disponible en ese almacén.';
+  return 'La cantidad supera el stock disponible en esa bodega.';
 }

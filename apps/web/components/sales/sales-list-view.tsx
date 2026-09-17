@@ -59,9 +59,11 @@ const emptyDraft: SalesDraft = {
   warehouseId: '',
 };
 
-export function SalesListView() {
+export function SalesListView({
+  openCreate = false,
+}: Readonly<{ openCreate?: boolean }>) {
   const { refreshSession, state: authState } = useAuth();
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(openCreate);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState<SalesDraft>(emptyDraft);
   const [filters, setFilters] = useState<SalesQuery>({});
@@ -198,7 +200,7 @@ export function SalesListView() {
           </select>
         </label>
         <label className="filter-field">
-          <span>Almacén</span>
+          <span>Bodega</span>
           <select
             onChange={(event) =>
               setDraft((current) => ({
@@ -208,7 +210,7 @@ export function SalesListView() {
             }
             value={draft.warehouseId}
           >
-            <option value="">Todos los almacenes</option>
+            <option value="">Todas las bodegas</option>
             {state?.warehouses.map((warehouse) => (
               <option key={warehouse.id} value={warehouse.id}>
                 {warehouse.name} ({warehouse.code})
@@ -275,7 +277,7 @@ export function SalesListView() {
                   <th>Entrega</th>
                   <th>Pago</th>
                   <th>Líneas</th>
-                  <th>Almacenes</th>
+                  <th>Bodegas</th>
                   <th>Total</th>
                 </tr>
               </thead>
@@ -305,8 +307,8 @@ export function SalesListView() {
                       {paymentStatusLabel(sale.paymentStatus)}
                     </td>
                     <td data-label="Líneas">{sale.items.length}</td>
-                    <td data-label="Almacenes">
-                      {saleWarehouseNames(sale).join(', ') || 'Sin almacén'}
+                    <td data-label="Bodegas">
+                      {saleWarehouseNames(sale).join(', ') || 'Sin bodega'}
                     </td>
                     <td data-label="Total">
                       <strong>

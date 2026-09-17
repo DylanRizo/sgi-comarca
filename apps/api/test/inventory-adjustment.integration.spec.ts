@@ -188,6 +188,7 @@ describe('FASE 5C inventory adjustments', () => {
   function adjustment(
     authenticated: Browser,
     body: Record<string, unknown>,
+    idempotencyKey = randomUUID(),
   ): request.Test {
     return request(app.getHttpServer())
       .post('/api/v1/inventory/adjustments')
@@ -195,6 +196,7 @@ describe('FASE 5C inventory adjustments', () => {
       .set('Origin', origin)
       .set('Cookie', authenticated.cookie)
       .set('X-CSRF-Token', authenticated.csrfToken)
+      .set('Idempotency-Key', idempotencyKey)
       .send(body);
   }
 
@@ -268,6 +270,49 @@ describe('FASE 5C inventory adjustments', () => {
         },
       }),
     ).toBe(2);
+  });
+
+  it('persistently replays the same adjustment without changing stock twice', async () => {
+    const authenticated = await browser();
+    const unit = await client.unit.findFirstOrThrow();
+    const product = await client.product.create({
+      data: {
+        code: `IDEMP-${randomUUID().toUpperCase()}`,
+        name: 'Ajuste idempotente',
+        unitId: unit.id,
+      },
+    });
+    await client.inventoryBalance.create({
+      data: { productId: product.id, warehouseId, quantity: '4' },
+    });
+    const body = input('2', { productId: product.id });
+    const idempotencyKey = randomUUID();
+    const first = await adjustment(authenticated, body, idempotencyKey).expect(
+      201,
+    );
+    const replay = await adjustment(authenticated, body, idempotencyKey).expect(
+      201,
+    );
+    expect(replay.body.data).toEqual(first.body.data);
+    expect(
+      (
+        await client.inventoryBalance.findUniqueOrThrow({
+          where: {
+            productId_warehouseId: { productId: product.id, warehouseId },
+          },
+        })
+      ).quantity.toString(),
+    ).toBe('6');
+    expect(
+      await client.inventoryMovement.count({
+        where: { productId: product.id },
+      }),
+    ).toBe(1);
+    await adjustment(
+      authenticated,
+      { ...body, quantityDelta: '3' },
+      idempotencyKey,
+    ).expect(409);
   });
 
   it('rejects invalid resources, zero, blank reason and negative stock safely', async () => {

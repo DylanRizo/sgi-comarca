@@ -71,9 +71,27 @@ Superficie pública aprobada:
 - `GET /api/v1/health`;
 - `GET /api/v1/ready`;
 - `POST /api/v1/auth/activate`;
-- `POST /api/v1/auth/login`.
+- `POST /api/v1/auth/login`;
+- `POST /api/v1/alexa/oauth/token`, exclusivamente para intercambio OAuth
+  servidor-a-servidor, con Client ID/secreto, PKCE para el grant inicial,
+  validación exacta de Host y respuestas OAuth sin detalles internos.
 
 Añadir otra ruta pública requiere decisión explícita y `PublicRoute`.
+
+La integración Alexa aprobada en ADR-016 añade una segunda frontera privada:
+`POST /api/v1/alexa/requests` omite cookie y CSRF, pero exige un bearer token
+opaco propio, vínculo vigente, usuario/credencial activos, ambos permisos
+`inventory.read` y `sales.read`, y un límite persistente de 30 consultas por
+minuto. Los guards globales solo se omiten mediante la marca explícita de ruta
+externa; un guard dedicado realiza toda esa reautorización. Los access tokens
+duran 15 minutos y los refresh tokens rotatorios 30 días; solo se persisten sus
+hashes SHA-256.
+
+`POST /api/v1/alexa/oauth/authorize`, `GET /api/v1/alexa/oauth/status` y
+`POST /api/v1/alexa/oauth/revoke` conservan la sesión humana normal. Las dos
+mutaciones exigen Origin y CSRF. La Lambda elimina contexto, IDs y slots no
+permitidos antes de llegar al backend, y la proyección de voz excluye datos
+financieros, personales y texto libre.
 
 ## Autorización
 

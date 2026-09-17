@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "session": {
+    "new": true,
+    "sessionId": "local-demo-sale-session"
+  },
+  "request": {
+    "type": "IntentRequest",
+    "requestId": "local-demo-sale-request",
+    "locale": "es-MX",
+    "intent": {
+      "name": "ConsultarVentaEnTransitoIntent",
+      "confirmationStatus": "NONE",
+      "slots": {
+        "numeroVenta": {
+          "name": "numeroVenta",
+          "value": "123"
+        }
+      }
+    }
+  }
+}

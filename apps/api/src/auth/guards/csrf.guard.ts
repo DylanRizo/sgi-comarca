@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 
 import { PUBLIC_ROUTE_METADATA } from '../decorators/public-route.decorator.js';
+import { EXTERNAL_BEARER_ROUTE_METADATA } from '../decorators/external-bearer-route.decorator.js';
 import type { AuthenticatedRequest } from '../http/auth-http-context.js';
 import { AuthHttpException } from '../http/auth-http.exception.js';
 import { CsrfTokenService } from '../http/csrf-token.service.js';
@@ -32,7 +33,11 @@ export class CsrfGuard implements CanActivate {
       this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE_METADATA, [
         context.getHandler(),
         context.getClass(),
-      ])
+      ]) ||
+      this.reflector.getAllAndOverride<boolean>(
+        EXTERNAL_BEARER_ROUTE_METADATA,
+        [context.getHandler(), context.getClass()],
+      )
     ) {
       return true;
     }

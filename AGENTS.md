@@ -174,8 +174,9 @@ Los controladores deben ser delgados. Las reglas del negocio deben vivir en serv
 - Las rutas de producción son privadas por defecto y solo pueden hacerse
   públicas mediante una decisión explícita y `PublicRoute`. La superficie
   pública vigente se limita a `GET /api/v1/health`, `GET /api/v1/ready`,
-  `POST /api/v1/auth/activate` y `POST /api/v1/auth/login`; añadir otra ruta
-  pública requiere aprobación explícita.
+  `POST /api/v1/auth/activate`, `POST /api/v1/auth/login` y el intercambio
+  OAuth servidor-a-servidor `POST /api/v1/alexa/oauth/token` aprobado en
+  ADR-016; añadir otra ruta pública requiere aprobación explícita.
 - Usar sesiones opacas revocables con cookies `HttpOnly`, `Secure` y `SameSite`.
 - No guardar tokens en `localStorage`.
 - Hash de contraseñas con Argon2.
