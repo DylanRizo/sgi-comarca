@@ -2,10 +2,11 @@
 
 Updated: 2026-09-17.
 
-Este documento ordena los siguientes gates; no autoriza saltarse ninguno. La
-línea desplegada está en `codex/staging-pilot` (`b61e711`) y permanece 32
-commits por delante de `origin/main` (`37e97e4`). La consolidación validada se
-trabaja desde `codex/consolidate-staging-pr`.
+Este documento ordena los siguientes gates; no autoriza saltarse ninguno. El
+repositorio consolidado está en `main` (`fa85292`) mediante PR #1. La línea
+externamente desplegada permanece en `codex/staging-pilot` (`b61e711`); la
+diferencia posterior es solo de higiene, documentación e infraestructura de
+validación, sin migraciones ni cambios funcionales.
 
 ## Gate 1 — consolidar la línea desplegada
 
@@ -50,7 +51,8 @@ invocación de pnpm del runner E2E en Windows. Staging no fue destino de prueba.
 
 ## Gate 3 — integrar a `main`
 
-Estado: `NEXT`.
+Estado: `COMPLETE` el 2026-09-17. PR #1 pasó CI remoto y fue fusionado mediante
+merge commit `fa85292`, sin reescribir el historial desplegado.
 
 Solo después del Gate 2:
 
@@ -62,6 +64,8 @@ Solo después del Gate 2:
 6. confirmar que `main`, el commit desplegado y el handoff quedan trazables.
 
 ## Gate 4 — primer conteo físico formal en staging
+
+Estado: `NEXT`.
 
 Es el siguiente gate operacional seleccionado. No debe basarse en la fotografía
 histórica de 144 productos y 357 saldos. La última evidencia registrada de Neon
