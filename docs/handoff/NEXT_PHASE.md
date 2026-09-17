@@ -1,11 +1,11 @@
 # Next gates — consolidación, baseline verde y primer conteo controlado
 
-Updated: 2026-09-16.
+Updated: 2026-09-17.
 
 Este documento ordena los siguientes gates; no autoriza saltarse ninguno. La
 línea desplegada está en `codex/staging-pilot` (`b61e711`) y permanece 32
-commits por delante de `origin/main` (`37e97e4`). La consolidación se trabaja
-desde `codex/consolidate-staging`.
+commits por delante de `origin/main` (`37e97e4`). La consolidación validada se
+trabaja desde `codex/consolidate-staging-pr`.
 
 ## Gate 1 — consolidar la línea desplegada
 
@@ -16,9 +16,10 @@ desde `codex/consolidate-staging`.
    cambios legacy;
 5. mantener cambios de consolidación separados de nuevas funcionalidades.
 
-Estado: `IN_PROGRESS`. La rama de consolidación parte exactamente de
-`b61e711`; los temporales ejecutables `*.tmp.mjs` y `*.tmp.mts` ya están
-ignorados sin ser eliminados.
+Estado: `COMPLETE`. La rama parte exactamente de `b61e711`; los temporales
+ejecutables `*.tmp.mjs` y `*.tmp.mts` están ignorados sin eliminar archivos del
+operador. El diff fue normalizado, revisado y mantenido separado de nuevas
+funcionalidades.
 
 ## Gate 2 — baseline reproducible
 
@@ -41,7 +42,15 @@ pasen en aislamiento. Primero se debe distinguir entre defecto de producto,
 aislamiento de fixtures, paralelismo del runner y normalización CRLF; luego se
 corrige la causa sin debilitar aserciones.
 
+Estado: `COMPLETE` el 2026-09-17 desde el checkout aislado. Pasaron formato,
+lint 9/9, typecheck 13/13, unitarias 291/291, integración PostgreSQL 349/349,
+build 8/8, generación/validación Prisma y Playwright Chromium 54/54. Se
+corrigieron el orden de compilación requerido por el typecheck limpio y la
+invocación de pnpm del runner E2E en Windows. Staging no fue destino de prueba.
+
 ## Gate 3 — integrar a `main`
+
+Estado: `NEXT`.
 
 Solo después del Gate 2:
 

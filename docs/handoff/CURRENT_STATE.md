@@ -1,17 +1,19 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-16.
+Updated: 2026-09-17.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Consolidation snapshot — 2026-09-16
+## Consolidation snapshot — 2026-09-17
 
-The deployable line is `codex/staging-pilot` at `b61e711`, not `main`.
+The deployed line remains `codex/staging-pilot` at `b61e711`, not `main`.
 `origin/main` remains at `37e97e4`; the staging line is 32 commits and 237
-paths ahead. Consolidation work continues on `codex/consolidate-staging`,
-created directly from the deployed line. No business or staging mutation is
-implied by that branch.
+paths ahead. The review-ready consolidation branch is
+`codex/consolidate-staging-pr`, created directly from the deployed line. It
+adds only repository hygiene, source normalization, cross-workspace typecheck
+ordering and a Windows-safe E2E launcher; no business rule, migration, RBAC
+grant or staging mutation is part of the consolidation delta.
 
 Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
 readiness, and the web login page. This confirms public availability only; it
@@ -30,12 +32,14 @@ the administration panel, Alexa account linking and refresh-token hardening,
 the counted-product workbook importer, and read-only integration keys. Eleven
 versioned migrations exist through `20260912120000_integration_keys`.
 
-The repository is not yet a production baseline. The latest integration-key
-gate passed lint, typecheck, build, Prisma validation, focused PostgreSQL tests,
-and focused Playwright tests, but the complete local run was not uniformly
-green under Windows load. CI runs on pull requests and pushes to `main`, not on
-ordinary pushes to `codex/staging-pilot`. A clean cross-platform consolidation
-gate is therefore required before merging the deployed line into `main`.
+The complete local consolidation gate is green from the isolated checkout:
+repository formatting, lint, typecheck, unit tests, PostgreSQL integration
+tests, production build, Prisma generation/validation and the complete
+Playwright suite all passed. The exact evidence is recorded in
+[Last green baseline](#last-green-baseline). CI runs on pull requests and
+pushes to `main`, not on ordinary pushes to `codex/staging-pilot`; publishing
+the consolidation PR and requiring its CI to pass is therefore the remaining
+integration gate before `main` can become the repository baseline.
 
 Operational follow-ups remain separately gated: the first formal physical
 count, first sale, first financial entry, first closing, first Marketplace key
@@ -948,6 +952,27 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 `PHASE_6_CONCURRENCY_FIX_PASS`.
 
 ## Last green baseline
+
+Revalidated on 2026-09-17 from the isolated
+`codex/consolidate-staging-pr` checkout, derived directly from deployed commit
+`b61e711`: repository-wide formatting passed; lint passed 9/9 packages with
+only the pre-existing unused-disable warning in the user-administration
+controller; typecheck passed 13/13 tasks; unit tests passed 67 files / 291
+tests; PostgreSQL integration tests passed 32 files / 349 tests; production
+build passed 8/8 tasks; Prisma generation and schema validation passed; and
+the complete Chromium Playwright suite passed 54/54 tests across authentication,
+inventory, stock operations, counts, sales, finances, settings, integrations,
+responsive layouts and accessibility. The runners used temporary local
+databases only, and the final catalog check found no remaining `sgi_e2e_*`
+database. Staging was not a test target and received no write.
+
+That gate exposed and fixed two clean-checkout infrastructure defects without
+relaxing assertions: the workspace typecheck graph now builds dependency
+artifacts before consumers, and the E2E launcher invokes pnpm reliably through
+`cmd.exe` on Windows without forcing pnpm's CI installation behavior into the
+local database process. Stable LF attributes also prevent Windows checkout
+normalization from changing golden fixtures. The remaining gate is remote PR
+CI and review against `main`.
 
 Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`) at
 the FASE 9B.1 closure, run directly against the same local PostgreSQL: lint
