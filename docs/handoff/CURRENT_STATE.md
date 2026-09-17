@@ -7,13 +7,13 @@ remain authoritative. Revalidate external operational state before acting on it.
 
 ## Consolidation snapshot — 2026-09-17
 
-The deployed line remains `codex/staging-pilot` at `b61e711`, not `main`.
-`origin/main` remains at `37e97e4`; the staging line is 32 commits and 237
-paths ahead. The review-ready consolidation branch is
-`codex/consolidate-staging-pr`, created directly from the deployed line. It
-adds only repository hygiene, source normalization, cross-workspace typecheck
-ordering and a Windows-safe E2E launcher; no business rule, migration, RBAC
-grant or staging mutation is part of the consolidation delta.
+The repository baseline is `main` at merge commit `fa85292`, produced by PR
+[#1](https://github.com/DylanRizo/sgi-comarca/pull/1). The externally deployed
+runtime remains `codex/staging-pilot` at `b61e711`; the commits after that
+deployed SHA add only repository hygiene, source normalization,
+cross-workspace typecheck ordering and a Windows-safe E2E launcher. No
+business rule, migration, RBAC grant or staging mutation is part of the
+consolidation delta.
 
 Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
 readiness, and the web login page. This confirms public availability only; it
@@ -36,10 +36,9 @@ The complete local consolidation gate is green from the isolated checkout:
 repository formatting, lint, typecheck, unit tests, PostgreSQL integration
 tests, production build, Prisma generation/validation and the complete
 Playwright suite all passed. The exact evidence is recorded in
-[Last green baseline](#last-green-baseline). CI runs on pull requests and
-pushes to `main`, not on ordinary pushes to `codex/staging-pilot`; publishing
-the consolidation PR and requiring its CI to pass is therefore the remaining
-integration gate before `main` can become the repository baseline.
+[Last green baseline](#last-green-baseline). PR #1 passed remote CI and was
+merged without rewriting the deployed history. The first formal controlled
+physical count in staging is now the next selected gate.
 
 Operational follow-ups remain separately gated: the first formal physical
 count, first sale, first financial entry, first closing, first Marketplace key
@@ -971,8 +970,8 @@ relaxing assertions: the workspace typecheck graph now builds dependency
 artifacts before consumers, and the E2E launcher invokes pnpm reliably through
 `cmd.exe` on Windows without forcing pnpm's CI installation behavior into the
 local database process. Stable LF attributes also prevent Windows checkout
-normalization from changing golden fixtures. The remaining gate is remote PR
-CI and review against `main`.
+normalization from changing golden fixtures. PR #1 passed remote CI and merged
+this validated history into `main` as `fa85292`.
 
 Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`) at
 the FASE 9B.1 closure, run directly against the same local PostgreSQL: lint
