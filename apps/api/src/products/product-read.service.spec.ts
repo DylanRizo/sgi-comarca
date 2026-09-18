@@ -80,4 +80,56 @@ describe('ProductReadService', () => {
       resource: 'product',
     });
   });
+
+  it('finds a bounded voice candidate set by normalized word variants', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      {
+        active: true,
+        code: 'CAM-COMP-BL-M',
+        group: null,
+        id: '00000000-0000-4000-8000-000000000010',
+        minimumStock: decimal('0'),
+        name: 'Camisa de compresión manga larga blanca M',
+        unit: null,
+      },
+      {
+        active: true,
+        code: 'CAM-COMP-BL-L',
+        group: null,
+        id: '00000000-0000-4000-8000-000000000011',
+        minimumStock: decimal('0'),
+        name: 'Camisa de compresión manga larga blanca L',
+        unit: null,
+      },
+      {
+        active: true,
+        code: 'CAM-COMP-NE-M',
+        group: null,
+        id: '00000000-0000-4000-8000-000000000012',
+        minimumStock: decimal('0'),
+        name: 'Camisa de compresión manga larga negra M',
+        unit: null,
+      },
+    ]);
+    const database = {
+      product: { findMany },
+    } as unknown as DatabaseClient;
+    const service = new ProductReadService(database);
+
+    const result = await service.searchVoiceCandidates(
+      ['camisa', 'compresion', 'blanco', 'm'],
+      2,
+    );
+
+    expect(result).toMatchObject({ truncated: true });
+    expect(result.items).toHaveLength(2);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 3,
+        where: expect.objectContaining({ active: true, OR: expect.any(Array) }),
+      }),
+    );
+    const where = findMany.mock.calls[0]?.[0]?.where;
+    expect(JSON.stringify(where)).toContain('compresión');
+  });
 });

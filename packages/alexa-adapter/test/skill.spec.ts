@@ -69,7 +69,7 @@ describe('Alexa inventory skill', () => {
     expect(productSearch).toHaveBeenCalledWith('café molido demo');
     expect(warehouseSearch).toHaveBeenCalledWith('Dylan');
     expect(speech(result)).toBe(
-      'Hay 12.5 unidades de Café molido demo en Casa Dylan.',
+      'Entendí Café molido demo en Casa Dylan. Hay 12.5 unidades de Café molido demo en Casa Dylan.',
     );
   });
 
@@ -109,7 +109,7 @@ describe('Alexa inventory skill', () => {
     expect(search).not.toHaveBeenCalled();
   });
 
-  it('elicits a missing warehouse without querying catalogs', async () => {
+  it('validates the product before eliciting a missing warehouse', async () => {
     const gateway = new DemoInventoryGateway();
     const search = vi.spyOn(gateway, 'searchProducts');
 
@@ -117,7 +117,7 @@ describe('Alexa inventory skill', () => {
 
     expect(elicitedSlot(result)).toBe('bodega');
     expect(speech(result)).toBe('¿En qué bodega?');
-    expect(search).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith('Café molido demo');
   });
 
   it('does not guess when the product phrase is ambiguous', async () => {

@@ -4,7 +4,10 @@ import type {
   WarehouseSummary,
 } from '@sgi/contracts';
 
-import { normalizeSpokenValue } from './catalog-resolution.js';
+import {
+  normalizeSpokenValue,
+  rankProductCandidates,
+} from './catalog-resolution.js';
 import type { InventoryLookupPort } from './inventory-lookup.port.js';
 
 const demoUnit = {
@@ -61,9 +64,7 @@ function containsSpokenValue(
 
 export class DemoInventoryGateway implements InventoryLookupPort {
   async searchProducts(query: string): Promise<readonly ProductSummary[]> {
-    return demoProducts.filter((product) =>
-      containsSpokenValue(product, query),
-    );
+    return rankProductCandidates(query, demoProducts);
   }
 
   async searchWarehouses(query: string): Promise<readonly WarehouseSummary[]> {

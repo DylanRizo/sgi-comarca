@@ -12,6 +12,8 @@ export {
 } from './ask-sdk-handler.js';
 export {
   normalizeSpokenValue,
+  productQueryTokens,
+  rankProductCandidates,
   resolveCatalogCandidate,
   type CatalogResolution,
 } from './catalog-resolution.js';

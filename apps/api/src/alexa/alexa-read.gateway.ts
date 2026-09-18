@@ -1,5 +1,7 @@
 import {
   normalizeSaleNumber,
+  productQueryTokens,
+  rankProductCandidates,
   type InventoryLookupPort,
   type SaleLookupPort,
 } from '@sgi/alexa-adapter';
@@ -17,14 +19,11 @@ export class AlexaInventoryGateway implements InventoryLookupPort {
   ) {}
 
   async searchProducts(query: string) {
-    return (
-      await this.products.list({
-        active: true,
-        page: 1,
-        pageSize: 10,
-        search: query,
-      })
-    ).items;
+    const candidates = await this.products.searchVoiceCandidates(
+      productQueryTokens(query),
+    );
+    if (candidates.truncated) return candidates.items.slice(0, 10);
+    return rankProductCandidates(query, candidates.items).slice(0, 10);
   }
 
   async searchWarehouses(query: string) {

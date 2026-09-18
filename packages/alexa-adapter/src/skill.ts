@@ -197,14 +197,7 @@ async function inventoryIntent(
     return elicitSlot(intent, PRODUCT_SLOT, '¿Qué producto quieres consultar?');
   }
 
-  const spokenWarehouse = resolvedSlotValue(intent.slots?.[WAREHOUSE_SLOT]);
-  if (!spokenWarehouse) {
-    return elicitSlot(intent, WAREHOUSE_SLOT, '¿En qué bodega?');
-  }
-
   const productQuery = productLookupValue(spokenProduct);
-  const warehouseQuery = warehouseLookupValue(spokenWarehouse);
-
   const product = resolveCatalogCandidate(
     productQuery,
     await inventory.searchProducts(productQuery),
@@ -212,6 +205,13 @@ async function inventoryIntent(
   if (product.kind !== 'found') {
     return productResolutionResponse(intent, productQuery, product);
   }
+
+  const spokenWarehouse = resolvedSlotValue(intent.slots?.[WAREHOUSE_SLOT]);
+  if (!spokenWarehouse) {
+    return elicitSlot(intent, WAREHOUSE_SLOT, '¿En qué bodega?');
+  }
+
+  const warehouseQuery = warehouseLookupValue(spokenWarehouse);
 
   const warehouse = resolveCatalogCandidate(
     warehouseQuery,
@@ -237,8 +237,12 @@ async function inventoryIntent(
 
   const unit = product.value.unit?.name;
   const amount = unit ? `${balance.quantity} ${unit}` : balance.quantity;
+  const interpretation =
+    product.match === 'inferred' || warehouse.match === 'inferred'
+      ? `Entendí ${product.value.name} en ${warehouse.value.name}. `
+      : '';
   return response(
-    `Hay ${amount} de ${product.value.name} en ${warehouse.value.name}.`,
+    `${interpretation}Hay ${amount} de ${product.value.name} en ${warehouse.value.name}.`,
     true,
   );
 }
@@ -396,9 +400,9 @@ export async function handleAlexaRequest(
   try {
     if (envelope.request.type === 'LaunchRequest') {
       return response(
-        'Puedes consultar existencias por producto y bodega, pedir el resumen de ventas en tránsito, o consultar una venta por número.',
+        'Puedes decir consultar existencias y te preguntaré primero el producto y después la bodega. También puedes pedir el resumen de ventas en tránsito o consultar una venta por número.',
         false,
-        'Dime el producto y la bodega, pide el resumen de ventas en tránsito, o dime el número de venta.',
+        'Di consultar existencias, pide el resumen de ventas en tránsito, o dime el número de venta.',
       );
     }
     if (envelope.request.type === 'SessionEndedRequest') return emptyResponse();
@@ -420,9 +424,9 @@ export async function handleAlexaRequest(
     }
     if (intent.name === 'AMAZON.HelpIntent') {
       return response(
-        'Pregunta cuántas existencias hay de un producto en una bodega, pide el resumen de ventas en tránsito, o consulta una venta por número.',
+        'Di consultar existencias y te preguntaré el producto y la bodega por separado. También puedes pedir el resumen de ventas en tránsito o consultar una venta por número.',
         false,
-        'Dime el producto y la bodega, pide el resumen de ventas en tránsito, o dime el número de venta.',
+        'Di consultar existencias, pide el resumen de ventas en tránsito, o dime el número de venta.',
       );
     }
     if (
