@@ -1,17 +1,17 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-17.
+Updated: 2026-09-20.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Consolidation snapshot — 2026-09-17
+## Consolidation snapshot — 2026-09-20
 
-The deployable line is `codex/staging-pilot` at functional commit `8bf570d`,
-not `main`. `origin/main` is at `c9b4d1c`; the staging line is 3 commits and 19
+The deployable line is `codex/staging-pilot` at functional commit `93aa537`,
+not `main`. `origin/main` is at `c9b4d1c`; the staging line is 5 commits and 29
 paths ahead. Consolidation work continues on `codex/consolidate-staging`, whose
 functional baseline matches the deployed line. A later documentation-only
-commit may legitimately move that branch beyond `8bf570d` without changing the
+commit may legitimately move that branch beyond `93aa537` without changing the
 deployed application baseline.
 
 Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
@@ -44,6 +44,45 @@ issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
 Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
+
+## Alexa guided product lookup deployment — 2026-09-18 to 2026-09-20
+
+The owner authorized committing, pushing and deploying the first conversational
+recognition improvement for inventory queries. Functional commit `93aa537`
+adds a guided `consultar existencias` flow that asks for the product before the
+warehouse, ranks product tokens independently of spoken order, accepts bounded
+near matches and common spoken colour/size variants, and preserves
+clarification whenever candidates tie instead of guessing. The real catalog
+continues to come from the SGI API and is not embedded in Git.
+
+Local verification passed the Alexa adapter suite (including the new catalog
+resolution coverage), the Alexa-hosted bridge tests, the complete unit suite
+(68 files / 298 tests), the complete PostgreSQL integration suite (32 files /
+349 tests), lint (9/9 tasks, with the pre-existing unused-disable warning),
+typecheck (8/8 tasks), build (8/8 tasks), Prisma validation, focused Prettier
+validation, the staged secret scan and `git diff --check`. No browser test was
+required because this change does not alter a web interface.
+
+Render deployment `dep-damq2mbncjis73ce5bmg` made exact commit `93aa537` live
+on the staging API. Read-only smoke checks returned HTTP 200 from both
+`GET /api/v1/health` and `GET /api/v1/ready`; readiness reported `status: ready`
+and `database: up`. The web service was intentionally not redeployed because no
+web code changed. No migration, RBAC grant, operational inventory write or
+Alexa-hosted Lambda-code change was part of this deployment.
+
+On 2026-09-20 the Development interaction model for Spanish (Mexico) was
+uploaded through SMAPI and all four Amazon build steps succeeded: quick language
+model, full language model, dialog model and name-free interaction. A read-back
+matched the versioned model byte-for-byte after canonical JSON normalization
+(`sha256 d0ca4e7e2cbb5368f172cef3b95874bafd761817ce1f27241f44a4cfb70fb49b`),
+including the bare `consultar existencias` utterance. Account linking was not
+changed, so already linked Alexa accounts do not need to be linked again.
+
+The live Render control-plane check reported automatic deploy enabled for both
+services even though the versioned `render.yaml` declares it disabled. No
+configuration was changed silently; the API was deployed explicitly by commit
+after the ordinary push did not create a webhook deploy. Reconcile this drift
+before relying on automatic staging deploys.
 
 ## Alexa long-product query deployment — 2026-09-17
 
