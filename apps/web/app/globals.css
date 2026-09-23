@@ -1129,6 +1129,19 @@ a {
   font-weight: 600;
 }
 
+.sale-seller-field {
+  align-content: start;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.sale-seller-field small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .checkbox-field {
   display: flex;
   min-height: 2.8rem;

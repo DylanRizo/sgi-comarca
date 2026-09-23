@@ -10,6 +10,10 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
   return {
     businessDate: new Date('2026-08-27T00:00:00.000Z'),
     completedAt: null,
+    createdBy: {
+      displayName: 'Dylan Rizo',
+      id: '00000000-0000-4000-8000-000000000005',
+    },
     createdAt: new Date('2026-08-27T15:04:05.000Z'),
     currencyCode: 'NIO',
     delivererText: null,
@@ -43,6 +47,7 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
     paymentStatus: 'PENDING',
     saleNumber: 'VTA-000000001',
     salesChannelText: null,
+    seller: null,
     sellerUserId: null,
     shippingAmount: decimal('5.00'),
     status: 'IN_TRANSIT',
@@ -59,6 +64,32 @@ describe('mapSale', () => {
     expect(view.total).toBe('30.00');
     expect(view.shippingAmount).toBe('5.00');
     expect(view.items[0]?.unitPriceSnapshot).toBe('10.00');
+  });
+
+  it('resolves the authenticated creator for an old operational sale without a seller', () => {
+    const view = mapSale(sale());
+    expect(view.seller).toEqual({
+      displayName: 'Dylan Rizo',
+      id: '00000000-0000-4000-8000-000000000005',
+    });
+  });
+
+  it('prefers the explicitly assigned seller over the creator', () => {
+    const view = mapSale(
+      sale({
+        seller: {
+          displayName: 'Samantha Rizo',
+          id: '00000000-0000-4000-8000-000000000006',
+        },
+        sellerUserId: '00000000-0000-4000-8000-000000000006',
+      }),
+    );
+    expect(view.seller?.displayName).toBe('Samantha Rizo');
+  });
+
+  it('does not attribute a legacy import to its technical creator', () => {
+    const view = mapSale(sale({ origin: 'LEGACY_IMPORT' }));
+    expect(view.seller).toBeNull();
   });
 
   it('emits quantity as persisted, without imposing a canonical scale', () => {

@@ -201,7 +201,9 @@ describe('FASE 9B.3 analytics', () => {
           origin: 'OPERATIONAL',
           paymentStatus: 'PENDING',
           requestHash: 'b'.repeat(64),
-          sellerUserId: sellerId,
+          // Reproduces sales created by the old web form: the authenticated
+          // creator was known, but seller_user_id was left null.
+          sellerUserId: null,
           shippingAmount: '0.00',
           status: 'COMPLETED',
           subtotal: '150.00',
@@ -366,6 +368,7 @@ describe('FASE 9B.3 analytics', () => {
       await cookie(analystId),
     ).expect(200);
     expect(plain.body.data.bySeller[0].sellerName).toContain('phase9b3-seller');
+    expect(plain.body.data.bySeller[0].sellerUserId).toBe(sellerId);
     expect(plain.body.data.bySeller[0].averageTicket).toBeNull();
     expect(plain.body.data.averageTicket).toBeNull();
 

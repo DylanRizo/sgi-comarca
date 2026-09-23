@@ -43,6 +43,7 @@ export interface SaleRecord {
   total: DecimalLike;
   departureAt: Date | null;
   completedAt: Date | null;
+  createdBy: { displayName: string; id: string } | null;
   createdAt: Date;
   items: SaleItemRecord[];
   salesChannelText: string | null;
@@ -50,6 +51,7 @@ export interface SaleRecord {
   deliveryPlace: string | null;
   paymentMethodText: string | null;
   observations: string | null;
+  seller: { displayName: string; id: string } | null;
 }
 
 /**
@@ -103,6 +105,8 @@ function saleItemView(item: SaleItemRecord): SaleItemView {
  * legacy free text, and delivery place are likewise never exposed.
  */
 export function mapSale(sale: SaleRecord): SaleView {
+  const seller =
+    sale.seller ?? (sale.origin === 'OPERATIONAL' ? sale.createdBy : null);
   return {
     businessDate: civilDate(sale.businessDate),
     completedAt: sale.completedAt?.toISOString() ?? null,
@@ -119,6 +123,7 @@ export function mapSale(sale: SaleRecord): SaleView {
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
     salesChannelText: sale.salesChannelText,
+    seller,
     sellerUserId: sale.sellerUserId,
     shippingAmount: moneyString(sale.shippingAmount),
     status: sale.status,

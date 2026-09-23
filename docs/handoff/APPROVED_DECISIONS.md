@@ -32,6 +32,11 @@ ADR, architecture document, migration, and tests.
   `OPERATIONAL`; a future importer must choose `LEGACY_IMPORT` explicitly.
   `LEGACY_UNKNOWN` is valid only for `LEGACY_IMPORT`, and legacy support must
   not relax constraints that protect operational sales.
+- An operational sale belongs by default to the authenticated user who creates
+  it. A caller may explicitly attribute it to another active user. Operational
+  rows created by the earlier web form with `seller_user_id = NULL` resolve
+  their creator as seller on reads and aggregates without rewriting history;
+  legacy rows do not inherit their technical importer as seller.
 - An operational sale is created only as `IN_TRANSIT` or `COMPLETED`, according
   to the bounded intent supplied by the client and validated by the server. It
   always starts with `paymentStatus = PENDING`; the client cannot provide the

@@ -39,7 +39,7 @@ export interface CreateSaleRequest {
   /** Civil date in America/Managua, `YYYY-MM-DD`. */
   businessDate: string;
   items: CreateSaleItemRequest[];
-  /** Optional active user; omission is persisted as null. */
+  /** Optional active user; omission assigns the authenticated creator. */
   sellerUserId?: string;
   /** Optional Decimal(18,2) non-negative amount; canonical default `0.00`. */
   shippingAmount?: string;
@@ -86,6 +86,8 @@ export interface SaleView {
   businessDate: string;
   status: SaleStatus;
   paymentStatus: SalePaymentStatus;
+  /** Resolved seller. Operational rows without an old explicit seller fall back to their creator. */
+  seller: { id: string; displayName: string } | null;
   sellerUserId: string | null;
   currencyCode: string;
   shippingAmount: string;

@@ -27,6 +27,7 @@ function sale(overrides: Partial<SaleView> = {}): SaleView {
     paymentStatus: 'PENDING',
     saleNumber: 'VTA-000000001',
     salesChannelText: null,
+    seller: null,
     sellerUserId: null,
     shippingAmount: '0.00',
     status: 'IN_TRANSIT',

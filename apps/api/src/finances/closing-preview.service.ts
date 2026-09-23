@@ -46,6 +46,9 @@ export class ClosingPreviewService {
       }),
       this.database.sale.findMany({
         select: {
+          createdBy: { select: { displayName: true } },
+          createdByUserId: true,
+          origin: true,
           paymentMethodText: true,
           seller: { select: { displayName: true } },
           sellerUserId: true,
@@ -78,7 +81,15 @@ export class ClosingPreviewService {
     >();
 
     for (const sale of sales) {
-      const key = sale.sellerUserId ?? '';
+      const fallbackToCreator =
+        sale.origin === 'OPERATIONAL' && sale.sellerUserId === null;
+      const resolvedSellerUserId = fallbackToCreator
+        ? sale.createdByUserId
+        : sale.sellerUserId;
+      const resolvedSellerName = fallbackToCreator
+        ? sale.createdBy?.displayName
+        : sale.seller?.displayName;
+      const key = resolvedSellerUserId ?? '';
       const entry = bySeller.get(key) ?? {
         cash: 0n,
         cashAmount: '0.00',
@@ -86,8 +97,8 @@ export class ClosingPreviewService {
         digitalAmount: '0.00',
         other: 0n,
         saleCount: 0,
-        sellerName: sale.seller?.displayName ?? 'Sin vendedor',
-        sellerUserId: sale.sellerUserId,
+        sellerName: resolvedSellerName ?? 'Sin vendedor',
+        sellerUserId: resolvedSellerUserId,
         totalAmount: '0.00',
         unspecifiedAmount: '0.00',
       };

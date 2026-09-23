@@ -102,6 +102,11 @@ test.describe('FASE 7C sales UI flows', () => {
     await page.goto('/sales');
     await expect(page).toHaveURL('/sales');
     await openCreateDialog(page);
+    await expect(
+      page
+        .getByRole('dialog', { name: 'Registrar venta' })
+        .getByText('Dylan', { exact: true }),
+    ).toBeVisible();
 
     await fillLine(page, 0, {
       productCode: multiWarehouseCode,
@@ -168,6 +173,11 @@ test.describe('FASE 7C sales UI flows', () => {
       .getByText('Pendiente');
     await expect(fulfillmentStatus).toHaveText('En tránsito');
     await expect(paymentStatus).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: 'Resumen de la venta' })
+        .getByText('Dylan', { exact: true }),
+    ).toBeVisible();
     // sales.read grants no financial permission: cost never reaches the page.
     await expect(page.locator('body')).not.toContainText('Costo');
     await expect(page.locator('body')).not.toContainText('Margen');
@@ -184,6 +194,12 @@ test.describe('FASE 7C sales UI flows', () => {
       await database.balanceQuantity(multiWarehouseCode, 'CASA_DYLAN'),
     ).toBe(7);
     await expect(paymentStatus).toBeVisible();
+
+    await page.getByRole('link', { name: 'Análisis', exact: true }).click();
+    const sellers = page.getByRole('region', { name: 'Vendedores' });
+    await expect(
+      sellers.getByText('Dylan', { exact: true }).first(),
+    ).toBeVisible();
   });
 
   test('cancels a sale after asking for a reason and restores stock once', async ({

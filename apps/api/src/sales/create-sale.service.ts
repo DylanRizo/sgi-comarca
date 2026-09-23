@@ -190,7 +190,11 @@ export class CreateSaleService {
       };
     });
 
-    const sellerUserId = input.sellerUserId?.toLowerCase() ?? null;
+    // A person registering a sale is its seller unless the caller explicitly
+    // attributes it to another active user. The web form historically omitted
+    // this field, which left operational sales under "Sin vendedor" even
+    // though their authenticated creator was known and audited.
+    const sellerUserId = input.sellerUserId?.toLowerCase() ?? actorUserId;
     if (sellerUserId) {
       const seller = await transaction.user.findUnique({
         select: { activatedAt: true, status: true },

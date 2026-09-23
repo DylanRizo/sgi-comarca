@@ -103,6 +103,10 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
         <>
           <section className="detail-grid" aria-label="Resumen de la venta">
             <div>
+              <span className="detail-label">Vendedor</span>
+              <strong>{sale.seller?.displayName ?? 'Sin vendedor'}</strong>
+            </div>
+            <div>
               <span className="detail-label">Entrega</span>
               <strong>{saleStatusLabel(sale.status)}</strong>
             </div>
