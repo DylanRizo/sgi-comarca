@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-20.
+Updated: 2026-09-22.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -44,6 +44,31 @@ issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
 Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
+
+## Sale seller attribution deployment — 2026-09-22
+
+The owner reported that operational sales created from the web application did
+not identify the authenticated user as seller in either the sale detail or
+sales analytics, and authorized the fix, commit, push and staging deployment.
+Functional commit `7fd2e4d` now defaults a new operational sale to its
+authenticated creator unless another active seller is supplied explicitly.
+Existing operational rows with a null seller resolve their audited creator on
+reads, analytics and closing previews without rewriting history; legacy-import
+rows do not inherit a technical importer.
+
+Local verification passed typecheck, lint, 301 unit tests, 47 focused
+PostgreSQL integration tests, the seven-test Chromium sales flow and the
+production build. All 15 changed files passed focused Prettier validation,
+`git diff --check` and a staged secret scan. Repository-wide `format:check`
+continues to report 172 pre-existing files outside this change.
+
+Both deployment branches were pushed to exact commit
+`7fd2e4d8bd393c22e61c5c95d1dc1a0b9d81489c`. Render API deployment
+`dep-dapkeogu01pc73cv36lg` and web deployment
+`dep-dapkep8u01pc73cv3a4g` reached `live` on that commit. Read-only HTTPS smoke
+checks returned API `status: ok`, readiness `status: ready` with
+`database: up`, and HTTP 200 for the web login page. This release added no
+migration, RBAC change or staging database mutation.
 
 ## Alexa guided product lookup deployment — 2026-09-18 to 2026-09-20
 
