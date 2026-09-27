@@ -57,11 +57,31 @@ products were affected on 2026-09-26.
 The owner approved the inheritance rule recorded in
 [ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md). The fix is
 implemented on branch `claude/transfer-inherit-valuation`, created from
-`f550950`, with no migration, RBAC or contract change. Its deployment is
-recorded separately below this paragraph once verified. The already affected balances
-are being completed manually by the owner in Inventario > Valoraciones; no data
-correction is part of this change and any such correction remains a separate
-gate.
+`f550950`, with no migration, RBAC or contract change. The already affected
+balances are being completed manually by the owner in Inventario > Valoraciones;
+no data correction is part of this change and any such correction remains a
+separate gate.
+
+Local verification passed lint (with the pre-existing unused-disable warning),
+typecheck, build, 308 unit tests, the 34 focused PostgreSQL transfer and
+integration-catalog tests and the 5-test Chromium inventory suite, including
+the transfer flow. Against the original service six of the new integration
+tests failed and the catalog returned `MISSING`. The complete integration suite
+passed 355/356: the only failure was the pre-existing
+`sales-concurrency › serializes a sale with cancellation` conflict, which failed
+4 of 8 isolated runs both with and without this change.
+
+The owner authorized commit, push and staging deployment on 2026-09-26.
+Functional commit `dc3b7ea` was pushed to `claude/transfer-inherit-valuation`
+and fast-forwarded onto `codex/staging-pilot` (`7fd2e4d..dc3b7ea`). The push
+did not trigger an automatic deploy; the owner deployed that exact commit from
+the Render dashboard: API `dep-dasaob0jo6nc73avt43g` and web
+`dep-dasaq5t9fdbs73cl1iv0`, both `live` (the web has no code change). Read-only
+smoke checks returned API `status: ok`, readiness `status: ready` with
+`database: up`, and HTTP 200 for the web login page. No migration, RBAC change
+or staging database write was part of this release. `codex/consolidate-staging`
+was deliberately not updated because its checkout holds unrelated uncommitted
+work touching the same documents; it must integrate `dc3b7ea` later.
 
 ## Sale seller attribution deployment — 2026-09-22
 
