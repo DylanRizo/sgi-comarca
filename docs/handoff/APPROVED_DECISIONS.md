@@ -232,8 +232,19 @@ See [ADR-008](../decisions/ADR-008-legacy-import-boundaries.md),
   canonical request hash are persisted; the original key is never stored.
   Same key/payload replays without effects; another payload returns 409.
 - Transfers do not create, copy, or modify `ProductWarehouseValuation`.
+- On 2026-09-26 the owner approved transfer valuation inheritance. Inside the
+  transfer transaction, with both balances locked, a destination whose
+  `currentUnitCost` is `NULL` takes the origin's cost and `costReviewRequired`;
+  independently, a destination whose `currentUnitPrice` is `NULL` takes the
+  origin's price and `priceReviewRequired`. An existing destination cost or
+  price is never overwritten, even when it differs from the origin, and a
+  `NULL` origin value leaves the destination `NULL`. Inheritance lives only in
+  `InventoryBalance`; `inventory.transferred` records what was inherited in
+  `metadata.inheritedValuation`. Balances affected before this rule are not
+  corrected automatically.
 
 See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md),
 [transaction-design.md](../architecture/transaction-design.md), and
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
 

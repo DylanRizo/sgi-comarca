@@ -140,7 +140,9 @@ La clave original nunca se persiste ni registra. Misma clave, actor y payload
 canónico devuelve la transferencia existente sin nuevo stock, ledger o
 auditoría; payload distinto devuelve `IDEMPOTENCY_KEY_REUSED`. Cada transferencia
 crea exactamente un `AuditLog` `inventory.transferred` y no crea ni copia
-`ProductWarehouseValuation`.
+`ProductWarehouseValuation`. Cuando el balance destino no tiene costo o precio,
+hereda los del origen con su flag de revisión, sin sobrescribir valores
+existentes (ADR-019); el contrato de respuesta no cambia.
 
 ## Integración Alexa de solo lectura
 

@@ -12,6 +12,10 @@ import {
   inventoryScaledInteger,
   maximumScaledInventoryQuantity,
 } from './inventory-quantity.js';
+import {
+  inheritedTransferValuation,
+  type TransferBalanceValuation,
+} from './inventory-transfer-valuation.js';
 
 type TransactionClient = Omit<
   DatabaseClient,
@@ -25,7 +29,24 @@ type LockedWarehouse = {
   id: string;
   name: string;
 };
-type LockedBalance = { id: string; quantity: string; warehouse_id: string };
+type LockedBalance = {
+  cost_review_required: boolean;
+  current_unit_cost: string | null;
+  current_unit_price: string | null;
+  id: string;
+  price_review_required: boolean;
+  quantity: string;
+  warehouse_id: string;
+};
+
+function balanceValuation(balance: LockedBalance): TransferBalanceValuation {
+  return {
+    costReviewRequired: balance.cost_review_required,
+    currentUnitCost: balance.current_unit_cost,
+    currentUnitPrice: balance.current_unit_price,
+    priceReviewRequired: balance.price_review_required,
+  };
+}
 
 export type InventoryTransferFailure =
   | 'IDEMPOTENCY_KEY_INVALID'
@@ -275,7 +296,14 @@ export class InventoryTransferService {
       ON CONFLICT (product_id, warehouse_id) DO NOTHING
     `;
     const balances = await transaction.$queryRaw<LockedBalance[]>`
-      SELECT id, warehouse_id, quantity::text AS quantity
+      SELECT
+        id,
+        warehouse_id,
+        quantity::text AS quantity,
+        current_unit_cost::text AS current_unit_cost,
+        current_unit_price::text AS current_unit_price,
+        cost_review_required,
+        price_review_required
       FROM inventory_balances
       WHERE product_id = ${product.id}::uuid
       ORDER BY warehouse_id
@@ -315,6 +343,12 @@ export class InventoryTransferService {
       }
       return total + value;
     }, 0n);
+    // Read under the same row locks as the quantities, so a concurrent
+    // valuation either lands first (and is kept) or waits for this transfer.
+    const inherited = inheritedTransferValuation(
+      balanceValuation(source),
+      balanceValuation(destination),
+    );
 
     const occurredAt = this.clock.now();
     const transfer = await transaction.inventoryTransfer.create({
@@ -347,6 +381,8 @@ export class InventoryTransferService {
     await transaction.inventoryBalance.update({
       data: {
         quantity: inventoryDecimalString(destinationAfter),
+        ...inherited.cost,
+        ...inherited.price,
         version: { increment: 1 },
       },
       where: { id: destination.id },
@@ -389,6 +425,7 @@ export class InventoryTransferService {
       actorUserId,
       fromWarehouseId: fromWarehouse.id,
       incomingMovementId: incoming.id,
+      inheritedValuation: inherited,
       outgoingMovementId: outgoing.id,
       occurredAt,
       productId: product.id,
