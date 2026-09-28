@@ -2363,12 +2363,11 @@ a {
     flex-wrap: nowrap;
   }
 
-  /* A long menu scrolls inside the panel rather than pushing the session block
-       past the bottom of the screen. dvh follows the browser chrome; the vh
-       declaration above it is the fallback where dvh is unsupported. */
+  /* A long navigation list scrolls within a shorter area, reserving visible
+     space below it for account, appearance and logout controls. */
   .application-nav[data-open='true'] {
-    max-height: calc(100vh - 9rem);
-    max-height: calc(100dvh - 9rem);
+    max-height: max(8rem, calc(100vh - 18rem));
+    max-height: max(8rem, calc(100dvh - 18rem));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
