@@ -78,6 +78,24 @@ Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
 
+## Transfer valuation inheritance — 2026-09-26
+
+A transfer created the destination balance with `NULL` price and cost and only
+added quantity. With real stock this made the integration catalog report the
+whole product as `priceIssue = MISSING`, so the Marketplace publisher withheld
+it, and ADR-009 rejected sales from the destination for missing cost. The
+verified case was a wristband transfer from Casa Dylan to Casa Jean; eight
+products were affected on 2026-09-26.
+
+The owner approved the inheritance rule recorded in
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md). The fix is
+implemented on branch `claude/transfer-inherit-valuation`, created from
+`f550950`, with no migration, RBAC or contract change. Its deployment is
+recorded separately below this paragraph once verified. The already affected balances
+are being completed manually by the owner in Inventario > Valoraciones; no data
+correction is part of this change and any such correction remains a separate
+gate.
+
 ## Sale seller attribution deployment — 2026-09-22
 
 The owner reported that operational sales created from the web application did
@@ -999,9 +1017,14 @@ On the deployed staging line, in order:
 - Same actor/key/payload replays the committed result without a second stock
   change or audit event. Reusing the key with another payload returns HTTP 409.
 - Consolidated product stock is invariant across a transfer.
-- A transfer never creates, copies, or modifies a valuation.
+- A transfer never creates, copies, or modifies a `ProductWarehouseValuation`.
+- Under ADR-019 a destination balance whose cost or price is `NULL` inherits
+  the locked origin's value and review flag, each side independently; existing
+  destination values are never overwritten and a `NULL` origin stays `NULL`.
+  `inventory.transferred` records the inherited values.
 
-See [transaction-design.md](../architecture/transaction-design.md) and
+See [ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md),
+[transaction-design.md](../architecture/transaction-design.md) and
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
 
 ## Current sales architecture

@@ -142,6 +142,7 @@ lock every balance of the product ordered by warehouse id
 if origin.quantity < quantity: raise INSUFFICIENT_STOCK
 create inventory_transfer and item
 decrease origin; increase destination
+fill a NULL destination cost/price from the locked origin, with its review flag (ADR-019)
 append stock_movement(TRANSFER_OUT, -quantity, origin, transfer_item_id)
 append stock_movement(TRANSFER_IN, +quantity, destination, transfer_item_id)
 append exactly one inventory.transferred audit_log
@@ -172,8 +173,21 @@ estable; no existen retries ilimitados. Conflictos transitorios se devuelven com
 
 Si el destino no tiene balance, se crea en cero dentro de la misma transacción y
 la entrada informa `before = 0`. La operación no crea, copia ni modifica
-valoraciones. Dos movimientos correlacionados, el audit log y ambos balances se
-confirman juntos o se revierten juntos.
+`ProductWarehouseValuation`. Dos movimientos correlacionados, el audit log y
+ambos balances se confirman juntos o se revierten juntos.
+
+Herencia de precio y costo operacional
+([ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md)): con ambos
+balances ya bloqueados, si `currentUnitCost` del destino es `NULL` toma el del
+origen junto con `costReviewRequired`; de forma independiente, si
+`currentUnitPrice` del destino es `NULL` toma el del origen junto con
+`priceReviewRequired`. Un valor existente del destino nunca se sobrescribe,
+aunque difiera del origen, y un origen `NULL` deja el destino `NULL`. La herencia
+se escribe en el mismo `UPDATE` que suma la cantidad del destino, por lo que una
+valoración concurrente queda antes (y se conserva) o espera a la transferencia
+y falla por `version`. El evento `inventory.transferred` registra en
+`metadata.inheritedValuation` los valores heredados (`cost`/`price`, cada uno
+`null` cuando no se heredó). Un replay idempotente no vuelve a heredar.
 
 ```mermaid
 sequenceDiagram
@@ -185,7 +199,7 @@ sequenceDiagram
     T->>DB: Bloquear origen y destino ordenados
     T->>T: Validar saldo y almacenes distintos
     T->>DB: Crear transferencia/item
-    T->>DB: Restar origen + sumar destino
+    T->>DB: Restar origen + sumar destino (+ heredar costo/precio NULL)
     T->>DB: Crear TRANSFER_OUT + TRANSFER_IN + audit_log
     alt todo válido
         T->>DB: COMMIT

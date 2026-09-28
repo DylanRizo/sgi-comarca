@@ -60,7 +60,7 @@ Respuesta (`data`):
 | `null` | Precio único y vigente | Publicar con `unitPrice` |
 | `MIXED` | Las bodegas con stock tienen precios distintos | Igualar el precio en el SGI |
 | `REVIEW` | Alguna bodega marca el precio en revisión | Revisar la valoración en el SGI |
-| `MISSING` | Falta precio en alguna bodega con stock | Completar el precio en el SGI |
+| `MISSING` | Falta precio en alguna bodega con stock | Completar el precio en el SGI (desde ADR-019 una transferencia ya copia el precio del origen a un destino sin precio) |
 
 El publicador no publica un producto con `priceIssue` distinto de `null`.
 
