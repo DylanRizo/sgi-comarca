@@ -5,71 +5,79 @@ Updated: 2026-09-27.
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Sale payment recording — local implementation, 2026-09-27
+## Sale payment recording — deployed to staging, 2026-09-27
 
 The owner approved an explicit payment workflow after observing completed sales
-listed as pending. The versioned implementation on
-`codex/consolidate-staging` implements full payment recording for operational
-sales that are `COMPLETED`
-and `PENDING`; delivery confirmation and payment remain separate transitions.
-The new immutable `sale_payments` document stores the exact sale total and
-currency, server timestamp, method and responsible user. The status transition
-is protected by database triggers, actor-scoped idempotency and the explicit
-`sales.record_payment` permission granted to the `SALES` role. Cancelled sales
-are presented as `No aplica` without rewriting their historical payment status.
-Partial payments, reversals, refunds and any change to financial-recognition
-rules remain outside this decision; see ADR-018.
+listed as pending. The versioned implementation records payment for operational
+sales that are `COMPLETED` and `PENDING`; delivery confirmation and payment
+remain separate transitions. The immutable `sale_payments` document stores the
+exact sale total and currency, server timestamp, method and responsible user.
+The status transition is protected by database triggers, actor-scoped
+idempotency and the explicit `sales.record_payment` permission granted to the
+`SALES` role. Cancelled sales are presented as `No aplica` without rewriting
+their historical payment status. Partial payments, reversals, refunds and any
+change to financial-recognition rules remain outside this decision; see ADR-018.
 
-The local schema now contains 12 migrations through
-`20260926120000_sale_payment_recording`; the bootstrap manifest contains 27
-permissions and 27 role grants. No migration, bootstrap, push, Render deployment
-or staging mutation has been performed for this work. The recorded
-staging snapshot below therefore remains historical external evidence and must
-be revalidated before any future write.
+Functional commits `4c98fd0` (mobile theme control) and `15a57fc` (sale payment
+recording) were merged with the already deployed transfer-valuation fix in
+`194fb3aa6484efe4ad341e84f841210a66689bae`. Both
+`codex/consolidate-staging` and `codex/staging-pilot` were pushed to that exact
+commit before deployment.
 
-Local verification passed Prisma generation and validation, lint (with the
+Before the staging write, Neon project `sgi-comarca-staging` and its direct
+non-pooled `main` connection were positively verified. Checkpoint branch
+`checkpoint-pre-sale-payments-2026-09-27` was created from `main` and reached
+`ready`. Migration `20260926120000_sale_payment_recording` was the only pending
+migration and applied successfully. The idempotent bootstrap created one
+permission and one role grant; the staging manifest now has 27 permissions,
+Dylan remains active, and the follow-up diagnostic reported zero unfinished
+migrations. The connection environment variable and clipboard were cleared
+afterward.
+
+Render's advertised automatic deploy did not start after the ordinary push, so
+both services were deployed explicitly by exact commit. API deployment
+`dep-dast0fvpn0mc739u1j00` and web deployment
+`dep-dast0gojo6nc73da03eg` reached `live` on `194fb3a`. Public read-only smoke
+checks returned HTTP 200 from API health, API readiness with `database: up`, and
+the web login page.
+
+Pre-merge verification passed Prisma generation and validation, lint (with the
 pre-existing unused-disable warning), typecheck, 68 unit files / 304 tests, 32
 PostgreSQL integration files / 354 tests, the 9-test Chromium sales flow and the
-production build. The first full integration attempt exposed three stale exact
-count expectations and one load-sensitive concurrency retry; after updating
-the expectations, the four focused files passed 43/43 and the complete rerun
-passed 354/354. The separate preceding mobile theme-control commit changes
+production build. After merging the independently verified transfer-valuation
+fix, the combined tree passed lint, typecheck, 69 unit files / 311 tests, five
+focused PostgreSQL integration files / 77 tests, and the production build. The
+separate preceding mobile theme-control commit changes
 `apps/web/app/globals.css`,
 `apps/web/components/layout/authenticated-shell.tsx` and
 `apps/web/e2e/90-responsive.e2e.ts`; the responsive Chromium gate passed 9/9.
 
-## Consolidation snapshot — 2026-09-20
+## Consolidation snapshot — 2026-09-27
 
-The deployable line is `codex/staging-pilot` at functional commit `93aa537`,
-not `main`. `origin/main` is at `c9b4d1c`; the staging line is 5 commits and 29
-paths ahead. Consolidation work continues on `codex/consolidate-staging`, whose
-functional baseline matches the deployed line. A later documentation-only
-commit may legitimately move that branch beyond `93aa537` without changing the
-deployed application baseline.
+The deployable line is `codex/staging-pilot`, not `main`. The functional state
+of `codex/staging-pilot` and `codex/consolidate-staging` is exact merge commit
+`194fb3aa6484efe4ad341e84f841210a66689bae`; a later documentation-only commit
+may legitimately move the consolidation branch without changing the deployed
+application baseline.
 
-Public read-only checks on 2026-09-16 returned HTTP 200 for API health, API
-readiness, and the web login page. This confirms public availability only; it
-does not replace a direct database fingerprint before any write.
-
-The last direct database evidence recorded on 2026-09-13 identified Neon
-database `sgi_comarca_staging`, PostgreSQL 18.6, 11 finished migrations, zero
-unfinished migrations, 6 roles, 4 users, 26 permissions, 26 active role
-grants, 28 products, and 20 inventory balances, all 20 with stock. Those
-counts supersede the older 144-product/357-balance Docker staging snapshot
-retained later in this file as historical evidence.
+The latest direct staging evidence confirms 12 finished migrations through
+`20260926120000_sale_payment_recording`, zero unfinished migrations, 27
+permissions, 14 units, one product group and Dylan active. Older product,
+balance, role and user counts elsewhere in this document are historical and
+must be revalidated before relying on them for an operational write.
 
 The staging line contains the completed FASE 9 and FASE 10 work already present
 on `main`, plus the operational products/receipts/count-correction release,
-the administration panel, Alexa account linking and refresh-token hardening,
-the counted-product workbook importer, and read-only integration keys. Eleven
-versioned migrations exist through `20260912120000_integration_keys`.
+administration, Alexa account linking and refresh-token hardening, the
+counted-product workbook importer, read-only integration keys, seller
+attribution, transfer valuation inheritance, mobile inventory UX, mobile theme
+control and explicit sale payments.
 
-The repository is not yet a production baseline. The latest integration-key
-gate passed lint, typecheck, build, Prisma validation, focused PostgreSQL tests,
-and focused Playwright tests, but the complete local run was not uniformly
-green under Windows load. CI runs on pull requests and pushes to `main`, not on
-ordinary pushes to `codex/staging-pilot`. A clean cross-platform consolidation
-gate is therefore required before merging the deployed line into `main`.
+The repository is not yet a production baseline. CI runs on pull requests and
+pushes to `main`, not on ordinary pushes to `codex/staging-pilot`; the combined
+release was therefore validated locally before its staging deployment. A clean
+cross-platform consolidation gate is still required before merging the
+deployed line into `main`.
 
 Operational follow-ups remain separately gated: the first formal physical
 count, first sale, first financial entry, first closing, first Marketplace key
@@ -88,13 +96,12 @@ verified case was a wristband transfer from Casa Dylan to Casa Jean; eight
 products were affected on 2026-09-26.
 
 The owner approved the inheritance rule recorded in
-[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md). The fix is
-implemented on branch `claude/transfer-inherit-valuation`, created from
-`f550950`, with no migration, RBAC or contract change. Its deployment is
-recorded separately below this paragraph once verified. The already affected balances
-are being completed manually by the owner in Inventario > Valoraciones; no data
-correction is part of this change and any such correction remains a separate
-gate.
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md). The fix was
+implemented as `dc3b7ea`, merged into the consolidated release, and is now live
+in both Render services at `194fb3a`. It has no migration, RBAC or contract
+change. The already affected balances are being completed manually by the owner
+in Inventario > Valoraciones; no data correction is part of this change and any
+such correction remains a separate gate.
 
 ## Sale seller attribution deployment — 2026-09-22
 
