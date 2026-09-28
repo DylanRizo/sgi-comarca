@@ -12,6 +12,7 @@ const labels: Record<string, string> = {
   'inventory.valuation.manage': 'Completar costos y precios',
   'transfers.create': 'Transferir entre bodegas',
   'sales.read': 'Consultar ventas',
+  'sales.record_payment': 'Registrar pagos de ventas completadas',
   'sales.create': 'Registrar ventas',
   'sales.cancel': 'Cancelar ventas elegibles',
   'sales.confirm_in_transit': 'Confirmar ventas en tránsito',

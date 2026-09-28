@@ -38,6 +38,7 @@ const approvedPermissionCodes = [
   'sales.confirm_in_transit',
   'sales.create',
   'sales.read',
+  'sales.record_payment',
   'stock-receipts.create',
   'transfers.create',
   'users.credentials.revoke',
@@ -75,6 +76,7 @@ const approvedRolePermissionKeys = [
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
   'SALES:sales.read',
+  'SALES:sales.record_payment',
 ] as const;
 
 /**

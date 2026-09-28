@@ -257,6 +257,62 @@ test.describe('FASE 7C sales UI flows', () => {
     ).toHaveCount(0);
   });
 
+  test('records payment for a completed sale exactly once', async ({
+    page,
+    request,
+  }) => {
+    const suffix = randomUUID().slice(0, 8);
+    const { multiWarehouseCode } = await database.seedSalesFixtures(suffix);
+    await activateAndLogin(request, page);
+
+    await page.goto('/sales');
+    await openCreateDialog(page);
+    await fillLine(page, 0, {
+      productCode: multiWarehouseCode,
+      quantity: '1',
+      warehouse: 'Casa Dylan',
+    });
+    await page.getByRole('button', { name: 'Registrar venta' }).last().click();
+    const saleNumber = await registeredSaleNumber(page);
+    await page
+      .getByRole('link', {
+        exact: true,
+        name: `Ver detalle de la venta ${saleNumber}`,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Confirmar entrega' }).click();
+    await expect(page.locator('.status-badge')).toHaveText('Completada');
+
+    const before = await database.salesCounts();
+    await page.getByRole('button', { name: 'Registrar pago' }).click();
+    await page.getByLabel('Medio de pago').fill('Transferencia');
+    await page.getByRole('button', { name: 'Confirmar pago' }).click();
+
+    const summary = page.getByRole('region', { name: 'Resumen de la venta' });
+    await expect(
+      summary
+        .getByText('Pago', { exact: true })
+        .locator('..')
+        .getByText('Pagada', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      summary.getByText('Transferencia', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      summary
+        .getByText('Pago registrado por', { exact: true })
+        .locator('..')
+        .getByText('Dylan', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Registrar pago' }),
+    ).toHaveCount(0);
+
+    const after = await database.salesCounts();
+    expect(after.payments).toBe(before.payments + 1);
+    expect(after.saleMovements).toBe(before.saleMovements);
+  });
+
   test('rejects the whole sale when a line has no registered cost', async ({
     page,
     request,
@@ -334,6 +390,37 @@ test.describe('FASE 7C sales UI flows', () => {
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Registrar venta' }),
+    ).toHaveCount(0);
+  });
+
+  test('hides payment recording when the explicit permission is denied', async ({
+    page,
+    request,
+  }) => {
+    const suffix = randomUUID().slice(0, 8);
+    const { multiWarehouseCode } = await database.seedSalesFixtures(suffix);
+    await database.denySalesPermission('sales.record_payment');
+    await activateAndLogin(request, page);
+
+    await page.goto('/sales');
+    await openCreateDialog(page);
+    await fillLine(page, 0, {
+      productCode: multiWarehouseCode,
+      quantity: '1',
+      warehouse: 'Casa Dylan',
+    });
+    await page.getByRole('button', { name: 'Registrar venta' }).last().click();
+    const saleNumber = await registeredSaleNumber(page);
+    await page
+      .getByRole('link', {
+        exact: true,
+        name: `Ver detalle de la venta ${saleNumber}`,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Confirmar entrega' }).click();
+    await expect(page.locator('.status-badge')).toHaveText('Completada');
+    await expect(
+      page.getByRole('button', { name: 'Registrar pago' }),
     ).toHaveCount(0);
   });
 });

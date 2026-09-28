@@ -530,6 +530,7 @@ export class AuthenticationDatabase {
     cancellations: number;
     confirmations: number;
     items: number;
+    payments: number;
     saleCancellationMovements: number;
     saleMovements: number;
     sales: number;
@@ -539,6 +540,7 @@ export class AuthenticationDatabase {
       items,
       cancellations,
       confirmations,
+      payments,
       saleMovements,
       saleCancellationMovements,
     ] = await Promise.all([
@@ -546,6 +548,7 @@ export class AuthenticationDatabase {
       this.client.saleItem.count(),
       this.client.saleCancellation.count(),
       this.client.inTransitConfirmation.count(),
+      this.client.salePayment.count(),
       this.client.inventoryMovement.count({ where: { type: 'SALE' } }),
       this.client.inventoryMovement.count({
         where: { type: 'SALE_CANCELLATION' },
@@ -555,6 +558,7 @@ export class AuthenticationDatabase {
       cancellations,
       confirmations,
       items,
+      payments,
       saleCancellationMovements,
       saleMovements,
       sales,
@@ -576,7 +580,8 @@ export class AuthenticationDatabase {
   }
 
   async denySalesPermission(
-    code: 'sales.cancel' | 'sales.create' | 'sales.read',
+    code:
+      'sales.cancel' | 'sales.create' | 'sales.read' | 'sales.record_payment',
   ): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({ where: { code } }),

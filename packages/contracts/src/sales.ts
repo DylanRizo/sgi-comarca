@@ -59,6 +59,11 @@ export interface CreateSaleRequest {
   departureAt?: string;
 }
 
+export interface RecordSalePaymentRequest {
+  /** Required free-text method, trimmed and bounded by the server. */
+  paymentMethodText: string;
+}
+
 /**
  * Read-safe view of a sale line. `unitCostSnapshot` is intentionally absent:
  * `sales.read` grants no financial permission (ADR-009, AGENTS.md).
@@ -79,6 +84,15 @@ export interface SaleItemView {
   shippingAllocation: string;
 }
 
+export interface SalePaymentView {
+  id: string;
+  amount: string;
+  currencyCode: string;
+  methodText: string;
+  paidAt: string;
+  recordedBy: { id: string; displayName: string };
+}
+
 export interface SaleView {
   id: string;
   saleNumber: string;
@@ -86,6 +100,8 @@ export interface SaleView {
   businessDate: string;
   status: SaleStatus;
   paymentStatus: SalePaymentStatus;
+  /** Immutable full-payment evidence; absent until payment is recorded. */
+  payment: SalePaymentView | null;
   /** Resolved seller. Operational rows without an old explicit seller fall back to their creator. */
   seller: { id: string; displayName: string } | null;
   sellerUserId: string | null;

@@ -27,6 +27,13 @@ ADR, architecture document, migration, and tests.
 - Fulfillment and payment are separate concerns. Confirming an in-transit sale
   changes only the fulfillment status to `COMPLETED`; it does not set
   `paymentStatus` to `PAID`, touch inventory, or append another stock movement.
+- A completed pending operational sale can be marked paid only through the
+  idempotent payment command. It creates one immutable full-payment document
+  with the sale total/currency, server timestamp, required payment method and
+  responsible user, then changes only `paymentStatus` to `PAID`. It never
+  touches inventory. Partial payments, refunds and payment edits are outside
+  V1; cancelled sales display payment as not applicable. See
+  [ADR-018](../decisions/ADR-018-sale-payment-recording.md).
 - Every `Sale` has an explicit, immutable `SaleOrigin` of `OPERATIONAL` or
   `LEGACY_IMPORT`, with no database default. API-created sales are always
   `OPERATIONAL`; a future importer must choose `LEGACY_IMPORT` explicitly.
@@ -105,14 +112,17 @@ and the operational pricing boundary.
 - Roles are `ADMIN`, `PARTNER`, `INVENTORY_MANAGER`, `SALES`, `FINANCE`, and
   `READ_ONLY`.
 - Authorization is deny-by-default and based on explicit permission codes.
-- `ADMIN` grants exactly `users.invitations.create`,
+- `ADMIN` grants exactly `integrations.manage`, `users.read`,
+  `users.roles.manage`, `users.invitations.create`,
   `users.credentials.revoke`, `users.sessions.revoke`, and
   `users.status.manage`; it is not a superuser or bypass.
 - `FINANCE` grants `finances.read`, `finances.manual.create`, `closings.read`,
-  `closings.create`, and `closings.reopen`.
-- `INVENTORY_MANAGER` grants `inventory.adjust`, `inventory.read`, and
-  `transfers.create`.
-- `SALES` grants `sales.create`, `sales.confirm_in_transit`, and `sales.read`.
+  `closings.create`, `closings.reopen`, and `inventory.valuation.manage`.
+- `INVENTORY_MANAGER` grants `products.manage`, `stock-receipts.create`,
+  `inventory.adjust`, `inventory.read`, `inventory.audit.create`,
+  `transfers.create`, `reports.read`, and `analytics.read`.
+- `SALES` grants `sales.create`, `sales.confirm_in_transit`, `sales.read`,
+  `sales.record_payment`, `reports.read`, and `analytics.read`.
 - `sales.read` is implemented in the versioned bootstrap manifest and granted
   only by `SALES`. Sales GET endpoints must require it. `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it implicitly,
@@ -120,7 +130,8 @@ and the operational pricing boundary.
   staging remains a separate unauthorized persistent gate.
 - `PARTNER` and `READ_ONLY` have no grants initially.
 - Dylan has `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, and `SALES`, plus direct
-  `sales.cancel`. Samantha has `FINANCE`, `INVENTORY_MANAGER`, and `SALES`.
+  `sales.cancel` and `inventory.audit.approve`. Samantha has `FINANCE`,
+  `INVENTORY_MANAGER`, and `SALES`.
   Jean and Luden have `INVENTORY_MANAGER` and `SALES`.
 - A direct active `DENY` wins over any direct or role grant. There are no
   wildcards, prefix matching, role inheritance, or ADMIN bypass.

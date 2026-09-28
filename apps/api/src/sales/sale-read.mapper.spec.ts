@@ -44,6 +44,7 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
     observations: null,
     origin: 'OPERATIONAL',
     paymentMethodText: null,
+    payment: null,
     paymentStatus: 'PENDING',
     saleNumber: 'VTA-000000001',
     salesChannelText: null,
@@ -158,5 +159,38 @@ describe('mapSale', () => {
     );
     expect(view.completedAt).toBe('2026-08-28T10:00:00.000Z');
     expect(mapSale(sale()).completedAt).toBeNull();
+  });
+
+  it('maps immutable payment evidence without exposing hashes', () => {
+    const view = mapSale(
+      sale({
+        payment: {
+          amount: decimal('30'),
+          currencyCode: 'NIO',
+          id: '00000000-0000-4000-8000-000000000007',
+          methodText: 'Transferencia',
+          paidAt: new Date('2026-08-28T11:00:00.000Z'),
+          recordedBy: {
+            displayName: 'Dylan Rizo',
+            id: '00000000-0000-4000-8000-000000000005',
+          },
+        },
+        paymentStatus: 'PAID',
+        status: 'COMPLETED',
+      }),
+    );
+
+    expect(view.payment).toEqual({
+      amount: '30.00',
+      currencyCode: 'NIO',
+      id: '00000000-0000-4000-8000-000000000007',
+      methodText: 'Transferencia',
+      paidAt: '2026-08-28T11:00:00.000Z',
+      recordedBy: {
+        displayName: 'Dylan Rizo',
+        id: '00000000-0000-4000-8000-000000000005',
+      },
+    });
+    expect(JSON.stringify(view)).not.toContain('requestHash');
   });
 });

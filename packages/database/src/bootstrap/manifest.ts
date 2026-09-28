@@ -117,6 +117,10 @@ export const bootstrapPermissions = [
     description: 'Consultar ventas autorizadas.',
   },
   {
+    code: 'sales.record_payment',
+    description: 'Registrar el pago total de ventas completadas.',
+  },
+  {
     code: 'sales.confirm_in_transit',
     description: 'Confirmar ventas en tránsito.',
   },
@@ -215,6 +219,7 @@ export const bootstrapRolePermissions = [
   { roleCode: 'SALES', permissionCode: 'analytics.read' },
   { roleCode: 'SALES', permissionCode: 'sales.create' },
   { roleCode: 'SALES', permissionCode: 'sales.read' },
+  { roleCode: 'SALES', permissionCode: 'sales.record_payment' },
   {
     roleCode: 'SALES',
     permissionCode: 'sales.confirm_in_transit',

@@ -5,7 +5,11 @@ import { useRef, useState } from 'react';
 
 import { ApiHttpError } from '@/lib/http/api-client';
 import { salesApi } from '@/lib/http/sales-api';
-import { canCancel, canConfirm } from '@/lib/sales/presentation';
+import {
+  canCancel,
+  canConfirm,
+  canRecordPayment,
+} from '@/lib/sales/presentation';
 import { useAuth } from '@/providers/auth-provider';
 
 function lifecycleError(error: unknown): string {
@@ -37,8 +41,11 @@ export function SaleLifecycleActions({
   const submissionRef = useRef(false);
   const confirmKeyRef = useRef(crypto.randomUUID());
   const cancelKeyRef = useRef(crypto.randomUUID());
+  const paymentKeyRef = useRef(crypto.randomUUID());
   const [cancelling, setCancelling] = useState(false);
+  const [recordingPayment, setRecordingPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethodText, setPaymentMethodText] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,8 +55,10 @@ export function SaleLifecycleActions({
   const mayConfirm =
     permissions.includes('sales.confirm_in_transit') && canConfirm(sale);
   const mayCancel = permissions.includes('sales.cancel') && canCancel(sale);
+  const mayRecordPayment =
+    permissions.includes('sales.record_payment') && canRecordPayment(sale);
 
-  if (!mayConfirm && !mayCancel) return null;
+  if (!mayConfirm && !mayCancel && !mayRecordPayment) return null;
 
   async function run(action: () => Promise<SaleView>) {
     if (submissionRef.current) return;
@@ -60,7 +69,10 @@ export function SaleLifecycleActions({
       onUpdated(await action());
       confirmKeyRef.current = crypto.randomUUID();
       cancelKeyRef.current = crypto.randomUUID();
+      paymentKeyRef.current = crypto.randomUUID();
       setCancelling(false);
+      setRecordingPayment(false);
+      setPaymentMethodText('');
       setReason('');
     } catch (actionError) {
       setError(lifecycleError(actionError));
@@ -127,6 +139,56 @@ export function SaleLifecycleActions({
             </button>
           </div>
         </div>
+      ) : recordingPayment ? (
+        <div className="sale-cancel-panel">
+          <p>
+            Se registrará el pago total de esta venta. El registro conserva
+            fecha, responsable y método de pago, y no modifica el inventario.
+          </p>
+          <label>
+            <span>Medio de pago</span>
+            <input
+              autoComplete="off"
+              maxLength={160}
+              onChange={(event) => {
+                setPaymentMethodText(event.target.value);
+                setError(null);
+              }}
+              placeholder="Efectivo, transferencia, tarjeta…"
+              value={paymentMethodText}
+            />
+          </label>
+          <div className="dialog-actions">
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setRecordingPayment(false);
+                setPaymentMethodText('');
+                setError(null);
+              }}
+              type="button"
+            >
+              Volver
+            </button>
+            <button
+              className="primary-button"
+              disabled={submitting || paymentMethodText.trim().length === 0}
+              onClick={() =>
+                void run(async () =>
+                  salesApi.recordPayment(
+                    sale.id,
+                    { paymentMethodText: paymentMethodText.trim() },
+                    await getCsrfToken(),
+                    paymentKeyRef.current,
+                  ),
+                )
+              }
+              type="button"
+            >
+              {submitting ? 'Registrando…' : 'Confirmar pago'}
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="dialog-actions">
           {mayConfirm ? (
@@ -158,6 +220,20 @@ export function SaleLifecycleActions({
               type="button"
             >
               Cancelar venta
+            </button>
+          ) : null}
+          {mayRecordPayment ? (
+            <button
+              className="primary-button"
+              disabled={submitting}
+              onClick={() => {
+                setError(null);
+                setPaymentMethodText(sale.paymentMethodText ?? '');
+                setRecordingPayment(true);
+              }}
+              type="button"
+            >
+              Registrar pago
             </button>
           ) : null}
         </div>

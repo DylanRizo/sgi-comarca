@@ -15,6 +15,13 @@ export function paymentStatusLabel(status: SalePaymentStatus): string {
   return 'Sin registrar';
 }
 
+/** Cancelled orders have no collectible payment in this lifecycle. */
+export function salePaymentLabel(sale: SaleView): string {
+  return sale.status === 'CANCELLED'
+    ? 'No aplica'
+    : paymentStatusLabel(sale.paymentStatus);
+}
+
 export function saleStatusTone(
   status: SaleStatus,
 ): 'cancelled' | 'completed' | 'neutral' | 'transit' {
@@ -35,6 +42,11 @@ export function canConfirm(sale: SaleView): boolean {
 /** Cancellation is total and only for an eligible in-transit, unpaid sale. */
 export function canCancel(sale: SaleView): boolean {
   return sale.status === 'IN_TRANSIT' && sale.paymentStatus === 'PENDING';
+}
+
+/** Payment is a separate, irreversible transition after fulfillment. */
+export function canRecordPayment(sale: SaleView): boolean {
+  return sale.status === 'COMPLETED' && sale.paymentStatus === 'PENDING';
 }
 
 /**

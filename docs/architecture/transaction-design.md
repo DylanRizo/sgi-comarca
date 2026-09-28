@@ -287,7 +287,7 @@ append audit_log(state transition)
 complete idempotency; commit
 ```
 
-La repetición, incluso con una clave nueva sobre una venta ya completada, no produce efectos adicionales. La decisión de evidencia de pago adicional permanece abierta.
+La repetición, incluso con una clave nueva sobre una venta ya completada, no produce efectos adicionales. El pago permanece como una acción posterior e independiente.
 
 ```mermaid
 sequenceDiagram
@@ -309,6 +309,26 @@ sequenceDiagram
         S-->>U: INVALID_SALE_STATE
     end
 ```
+
+## 6.1. Registro de pago total
+
+```text
+begin
+claim idempotency("sale:payment")
+require sales.record_payment and a non-empty bounded payment method
+lock sale row
+if a coherent SalePayment already exists: return the paid representation
+require OPERATIONAL + COMPLETED + PENDING
+insert immutable SalePayment(total, currency, method, actor, server timestamp)
+update paymentStatus=PAID
+do not read or update inventory balances; do not create stock movements
+append audit_log(payment transition)
+complete idempotency; commit
+```
+
+La base exige que el documento exista antes de la transición y que importe y
+moneda coincidan con el encabezado inmutable. No hay pago parcial, edición,
+reembolso ni reversión en V1.
 
 ## 7. Cancelación de venta
 

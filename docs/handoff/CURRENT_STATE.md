@@ -1,9 +1,42 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-22.
+Updated: 2026-09-27.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
+
+## Sale payment recording — local implementation, 2026-09-27
+
+The owner approved an explicit payment workflow after observing completed sales
+listed as pending. The versioned implementation on
+`codex/consolidate-staging` implements full payment recording for operational
+sales that are `COMPLETED`
+and `PENDING`; delivery confirmation and payment remain separate transitions.
+The new immutable `sale_payments` document stores the exact sale total and
+currency, server timestamp, method and responsible user. The status transition
+is protected by database triggers, actor-scoped idempotency and the explicit
+`sales.record_payment` permission granted to the `SALES` role. Cancelled sales
+are presented as `No aplica` without rewriting their historical payment status.
+Partial payments, reversals, refunds and any change to financial-recognition
+rules remain outside this decision; see ADR-018.
+
+The local schema now contains 12 migrations through
+`20260926120000_sale_payment_recording`; the bootstrap manifest contains 27
+permissions and 27 role grants. No migration, bootstrap, push, Render deployment
+or staging mutation has been performed for this work. The recorded
+staging snapshot below therefore remains historical external evidence and must
+be revalidated before any future write.
+
+Local verification passed Prisma generation and validation, lint (with the
+pre-existing unused-disable warning), typecheck, 68 unit files / 304 tests, 32
+PostgreSQL integration files / 354 tests, the 9-test Chromium sales flow and the
+production build. The first full integration attempt exposed three stale exact
+count expectations and one load-sensitive concurrency retry; after updating
+the expectations, the four focused files passed 43/43 and the complete rerun
+passed 354/354. The separate preceding mobile theme-control commit changes
+`apps/web/app/globals.css`,
+`apps/web/components/layout/authenticated-shell.tsx` and
+`apps/web/e2e/90-responsive.e2e.ts`; the responsive Chromium gate passed 9/9.
 
 ## Consolidation snapshot — 2026-09-20
 

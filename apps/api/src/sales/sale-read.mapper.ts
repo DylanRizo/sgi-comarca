@@ -2,6 +2,7 @@ import type {
   SaleItemView,
   SaleOrigin,
   SalePaymentStatus,
+  SalePaymentView,
   SaleStatus,
   SaleView,
 } from '@sgi/contracts';
@@ -50,6 +51,14 @@ export interface SaleRecord {
   delivererText: string | null;
   deliveryPlace: string | null;
   paymentMethodText: string | null;
+  payment: {
+    amount: DecimalLike;
+    currencyCode: string;
+    id: string;
+    methodText: string;
+    paidAt: Date;
+    recordedBy: { displayName: string; id: string };
+  } | null;
   observations: string | null;
   seller: { displayName: string; id: string } | null;
 }
@@ -97,6 +106,19 @@ function saleItemView(item: SaleItemRecord): SaleItemView {
   };
 }
 
+function salePaymentView(
+  payment: NonNullable<SaleRecord['payment']>,
+): SalePaymentView {
+  return {
+    amount: moneyString(payment.amount),
+    currencyCode: payment.currencyCode,
+    id: payment.id,
+    methodText: payment.methodText,
+    paidAt: payment.paidAt.toISOString(),
+    recordedBy: payment.recordedBy,
+  };
+}
+
 /**
  * Map a persisted sale to its read view.
  *
@@ -120,6 +142,7 @@ export function mapSale(sale: SaleRecord): SaleView {
     observations: sale.observations,
     origin: sale.origin,
     paymentMethodText: sale.paymentMethodText,
+    payment: sale.payment ? salePaymentView(sale.payment) : null,
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
     salesChannelText: sale.salesChannelText,

@@ -4,6 +4,7 @@ import {
   saleCreationStatuses,
   saleStatuses,
   type CreateSaleRequest,
+  type RecordSalePaymentRequest,
   type SaleItemView,
   type SaleView,
 } from '../src/index.js';
@@ -31,6 +32,13 @@ describe('sales contracts', () => {
   it('only allows IN_TRANSIT or COMPLETED as creation statuses', () => {
     expect(saleCreationStatuses).toStrictEqual(['IN_TRANSIT', 'COMPLETED']);
     expect(saleStatuses).toContain('CANCELLED');
+  });
+
+  it('keeps payment recording separate from sale creation', () => {
+    const payment: RecordSalePaymentRequest = {
+      paymentMethodText: 'Transferencia',
+    };
+    expect(payment.paymentMethodText).toBe('Transferencia');
   });
 
   it('does not expose unit cost on the read view', () => {

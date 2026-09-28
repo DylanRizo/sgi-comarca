@@ -46,6 +46,16 @@ export const saleSelect = {
   observations: true,
   origin: true,
   paymentMethodText: true,
+  payment: {
+    select: {
+      amount: true,
+      currencyCode: true,
+      id: true,
+      methodText: true,
+      paidAt: true,
+      recordedBy: { select: { displayName: true, id: true } },
+    },
+  },
   paymentStatus: true,
   saleNumber: true,
   salesChannelText: true,

@@ -14,23 +14,23 @@ Estado vigente: FASE 3B completa, ampliado por las decisiones aprobadas de FASE
 - Ausencia de grant significa denegación.
 - No existen herencia, wildcard, prefijos o bypass de `ADMIN`.
 
-`ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente los
-cuatro grants administrativos más cualquier rol o grant adicional asignado de
-forma explícita.
+`ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente sus
+grants administrativos más cualquier rol o grant adicional asignado de forma
+explícita.
 
 ## Roles y RolePermission iniciales
 
 | Rol | Permisos activos exactos |
 |---|---|
-| `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
+| `ADMIN` | `integrations.manage`, `users.read`, `users.roles.manage`, `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
 | `PARTNER` | Ninguno |
-| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read`, `transfers.create` |
-| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read` |
-| `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen` |
+| `INVENTORY_MANAGER` | `products.manage`, `stock-receipts.create`, `inventory.adjust`, `inventory.read`, `inventory.audit.create`, `transfers.create`, `reports.read`, `analytics.read` |
+| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read`, `sales.record_payment`, `reports.read`, `analytics.read` |
+| `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen`, `inventory.valuation.manage` |
 | `READ_ONLY` | Ninguno |
 
-Existen 20 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, seis
-INVENTORY_MANAGER y cinco SALES. `transfers.create` se concede exclusivamente a
+Existen 27 `RolePermission` activos: siete ADMIN, seis FINANCE, ocho
+INVENTORY_MANAGER y seis SALES. `transfers.create` se concede exclusivamente a
 `INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
 
 El 2026-08-31 el propietario aprobó los grants de FASE 9: `inventory.audit.create`
@@ -79,9 +79,10 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `sales.create` | Sí | Sí | Sí | Sí |
 | `sales.confirm_in_transit` | Sí | Sí | Sí | Sí |
 | `sales.read` | Sí | Sí | Sí | Sí |
+| `sales.record_payment` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
 | `transfers.create` | Sí | Sí | Sí | Sí |
-| Total | 20 | 14 | 9 | 9 |
+| Total | 27 | 18 | 12 | 12 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el
@@ -91,7 +92,9 @@ grant que continúe vigente.
 
 Conceder una capacidad no evita las reglas del recurso. La cancelación exige
 venta elegible y motivo; confirmación solo aplica a tránsito y no vuelve a
-descontar stock. Los módulos futuros deben exigir códigos de permiso exactos,
+descontar stock. Registrar pago exige una venta operacional completada y
+pendiente, crea evidencia inmutable y no toca inventario. Los módulos futuros
+deben exigir códigos de permiso exactos,
 no listas del tipo `FINANCE/ADMIN` o `INVENTORY_MANAGER/ADMIN`.
 
 Asignar otro ADMIN, editar roles/permisos o reactivar usuarios deshabilitados no
