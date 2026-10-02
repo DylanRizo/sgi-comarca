@@ -127,15 +127,19 @@ export {
   type SaleStatus,
   type SaleView,
 } from './sales.js';
-export type {
-  AdminInvitationData,
-  RoleSummary,
-  UpdateUserPermissionsInput,
-  UpdateUserRolesInput,
-  UserAdministrationPublicErrorCode,
-  UserDetail,
-  UserDirectoryEntry,
-  UserPermissionOverride,
+export {
+  administratorOnlyPermissionCodes,
+  administratorRoleCode,
+  panelAccessPermissionCodes,
+  type AdminInvitationData,
+  type PermissionSummary,
+  type RoleSummary,
+  type UpdateUserPermissionsInput,
+  type UpdateUserRolesInput,
+  type UserAdministrationPublicErrorCode,
+  type UserDetail,
+  type UserDirectoryEntry,
+  type UserPermissionOverride,
 } from './user-administration.js';
 export type {
   ProductGroupView,

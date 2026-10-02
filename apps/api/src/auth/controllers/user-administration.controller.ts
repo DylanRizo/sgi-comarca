@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -16,6 +17,7 @@ import type {
   AdminInvitationData,
   ApiSuccess,
   PaginatedData,
+  PermissionSummary,
   RoleSummary,
   UserDetail,
   UserDirectoryEntry,
@@ -27,6 +29,7 @@ import {
   UserAdministrationError,
   UserAdministrationService,
 } from '../application/user-administration.service.js';
+import { UserAccessService } from '../application/user-access.service.js';
 import { UserDirectoryService } from '../application/user-directory.service.js';
 import { LastAdminPolicyError } from '../application/last-admin-policy.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
@@ -36,6 +39,11 @@ import { RequirePermission } from '../decorators/require-permission.decorator.js
 import { EmptyAdminCommandDto } from '../dto/admin-user-command.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UserIdParamDto } from '../dto/user-id-param.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
+  UpdateUserPermissionsDto,
+  UpdateUserRolesDto,
+} from '../dto/update-user-access.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CatalogListQueryDto } from '../../common/dto/read-query.dto.js';
 import type { AuthenticatedRequestContext } from '../http/auth-http-context.js';
@@ -47,8 +55,16 @@ export function mapUserAdministrationError(error: unknown): never {
   }
   if (error instanceof UserAdministrationError) {
     switch (error.code) {
+      case 'ADMIN_ACCESS_PROTECTED':
+        throw AuthHttpException.adminAccessProtected();
       case 'ADMIN_OPERATION_CONFLICT':
         throw AuthHttpException.adminOperationConflict();
+      case 'ADMIN_PERMISSION_RESTRICTED':
+        throw AuthHttpException.adminPermissionRestricted();
+      case 'ADMIN_ROLE_NOT_EDITABLE':
+        throw AuthHttpException.adminRoleNotEditable();
+      case 'ADMIN_UNKNOWN_CODE':
+        throw AuthHttpException.adminUnknownCode();
       case 'ADMIN_USER_NOT_FOUND':
         throw AuthHttpException.adminUserNotFound();
       case 'ADMIN_USER_STATE_CONFLICT':
@@ -72,6 +88,8 @@ export class UserAdministrationController {
     private readonly users: UserAdministrationService,
     @Inject(UserDirectoryService)
     private readonly directory: UserDirectoryService,
+    @Inject(UserAccessService)
+    private readonly access: UserAccessService,
   ) {}
 
   @Post(':id/invitations')
@@ -153,6 +171,68 @@ export class UserAdministrationController {
     }
   }
 
+  @Post(':id/reactivate')
+  @RequirePermission('users.status.manage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async reactivateUser(
+    @Param() params: UserIdParamDto,
+    @Body() _input: EmptyAdminCommandDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    try {
+      await this.users.reactivateUser(current.userId, params.id);
+      this.prepareResponse(request, response);
+    } catch (error) {
+      mapUserAdministrationError(error);
+    }
+  }
+
+  /** Replaces the person's roles with exactly the set sent (ADR-018). */
+  @Put(':id/roles')
+  @RequirePermission('users.roles.manage')
+  async replaceRoles(
+    @Param() params: UserIdParamDto,
+    @Body() input: UpdateUserRolesDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<UserDetail>> {
+    try {
+      await this.access.replaceRoles(
+        current.userId,
+        params.id,
+        input.roleCodes,
+      );
+    } catch (error) {
+      mapUserAdministrationError(error);
+    }
+    return this.respondWithDetail(params.id, request, response);
+  }
+
+  /** Replaces the person's GRANT/DENY exceptions with exactly the set sent. */
+  @Put(':id/permissions')
+  @RequirePermission('users.roles.manage')
+  async replacePermissions(
+    @Param() params: UserIdParamDto,
+    @Body() input: UpdateUserPermissionsDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<UserDetail>> {
+    try {
+      await this.access.replaceOverrides(
+        current.userId,
+        params.id,
+        input.overrides,
+      );
+    } catch (error) {
+      mapUserAdministrationError(error);
+    }
+    return this.respondWithDetail(params.id, request, response);
+  }
+
   @Get()
   @RequirePermission('users.read')
   async list(
@@ -194,6 +274,23 @@ export class UserAdministrationController {
     };
   }
 
+  /**
+   * The detail after the change, read after commit, so the interface shows
+   * the effective permissions the database now computes rather than guessing.
+   */
+  private async respondWithDetail(
+    userId: string,
+    request: Request,
+    response: Response,
+  ): Promise<ApiSuccess<UserDetail>> {
+    const detail = await this.directory.detail(userId);
+    if (!detail) throw AuthHttpException.adminUserNotFound();
+    return {
+      data: detail,
+      meta: { requestId: this.prepareResponse(request, response) },
+    };
+  }
+
   private prepareResponse(request: Request, response: Response): string {
     const suppliedRequestId = request.header('x-request-id')?.trim();
     const requestId =
@@ -228,5 +325,33 @@ export class RolesController {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('x-request-id', requestId);
     return { data: await this.directory.roles(), meta: { requestId } };
+  }
+}
+
+/** The permission catalog, so the panel can offer exceptions by name. */
+@Controller({ path: 'permissions', version: '1' })
+export class PermissionsController {
+  constructor(
+    @Inject(UserDirectoryService)
+    private readonly directory: UserDirectoryService,
+  ) {}
+
+  @Get()
+  @RequirePermission('users.read')
+  async list(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<readonly PermissionSummary[]>> {
+    const suppliedRequestId = request.header('x-request-id')?.trim();
+    const requestId =
+      suppliedRequestId && suppliedRequestId.length <= 128
+        ? suppliedRequestId
+        : randomUUID();
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('x-request-id', requestId);
+    return {
+      data: await this.directory.permissionCatalog(),
+      meta: { requestId },
+    };
   }
 }

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-  AdminInvitationData,
-  ApiSuccess,
-  UserAdministrationPublicErrorCode,
+import {
+  administratorOnlyPermissionCodes,
+  administratorRoleCode,
+  panelAccessPermissionCodes,
+  type AdminInvitationData,
+  type ApiSuccess,
+  type UserAdministrationPublicErrorCode,
 } from '../src/index.js';
 
 describe('user administration contracts', () => {
@@ -17,13 +20,26 @@ describe('user administration contracts', () => {
     expect(response.data).not.toHaveProperty('tokenHash');
   });
 
-  it('defines the four controlled administrative error codes', () => {
+  it('defines the controlled administrative error codes', () => {
     const codes: UserAdministrationPublicErrorCode[] = [
+      'ADMIN_ACCESS_PROTECTED',
       'ADMIN_OPERATION_CONFLICT',
+      'ADMIN_PERMISSION_RESTRICTED',
+      'ADMIN_ROLE_NOT_EDITABLE',
+      'ADMIN_UNKNOWN_CODE',
       'ADMIN_USER_NOT_FOUND',
       'ADMIN_USER_STATE_CONFLICT',
       'LAST_ADMIN_PROTECTED',
     ];
-    expect(codes).toHaveLength(4);
+    expect(codes).toHaveLength(8);
+  });
+
+  it('keeps panel access inside the administrator-only permissions', () => {
+    // ADR-018: the permissions the administrator cannot be denied are a subset
+    // of the ones nobody else may be granted, or the two rules would disagree.
+    for (const code of panelAccessPermissionCodes) {
+      expect(administratorOnlyPermissionCodes).toContain(code);
+    }
+    expect(administratorRoleCode).toBe('ADMIN');
   });
 });
