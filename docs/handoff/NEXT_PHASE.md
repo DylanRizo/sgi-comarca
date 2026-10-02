@@ -1,6 +1,6 @@
 # Next gates — consolidación, baseline verde y primer conteo controlado
 
-Updated: 2026-09-17.
+Updated: 2026-10-02.
 
 Este documento ordena los siguientes gates; no autoriza saltarse ninguno. El
 repositorio consolidado está en `main` (`fa85292`) mediante PR #1. La línea
@@ -93,6 +93,24 @@ Secuencia obligatoria:
 8. crear y verificar el checkpoint posterior;
 9. documentar evidencia sanitizada y detenerse. El gate no concede permiso
    general para conteos posteriores.
+
+## Gate — desplegar la administración de accesos (ADR-018)
+
+Estado: `VERSIONED_PENDING_CI_AND_DEPLOY`. El código vive en la rama
+`claude/user-access-administration` con su PR hacia `main`.
+
+1. exigir CI remoto verde, incluida la suite completa con `xlsx` real;
+2. fusionar a `main` sin reescribir historial;
+3. desplegar API y web a staging con el procedimiento aprobado; no hay
+   migración ni `db:bootstrap` que ejecutar;
+4. verificar de solo lectura health, readiness, `/settings` y que
+   `GET /api/v1/permissions` responde 401 sin sesión;
+5. no cambiar ningún rol ni excepción real en ese despliegue.
+
+El primer cambio real de roles o excepciones en staging es una escritura
+persistente y conserva su propio gate, con preflight y checkpoint. Antes del
+próximo `db:bootstrap` en staging, revisar que la base cumple los invariantes
+de ADR-018 (un solo ADMIN y permisos reservados solo en él).
 
 ## Gates posteriores independientes
 

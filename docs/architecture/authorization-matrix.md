@@ -108,10 +108,28 @@ descontar stock. Los módulos nuevos deben exigir códigos de permiso exactos,
 no listas del tipo `FINANCE/ADMIN` o `INVENTORY_MANAGER/ADMIN`.
 
 `users.read` habilita el directorio de usuarios (`GET /users`, `GET /users/:id`,
-`GET /roles`) del panel de administración. `users.roles.manage` ya está
-concedido a `ADMIN`, pero los endpoints de mutación de roles y excepciones
-descritos en [admin-settings-panel](../plans/admin-settings-panel.md) todavía no
-existen en la API; asignar otro ADMIN, editar roles/permisos o reactivar
-usuarios deshabilitados sigue sin estar disponible. Las llaves de integración (ADR-017) no son permisos de
+`GET /roles`, `GET /permissions`) del panel de administración.
+
+## Asignaciones editadas desde el panel (ADR-018)
+
+Las tablas de este documento describen la **siembra** del manifiesto. Una vez
+que el sistema está en uso, el administrador cambia roles y excepciones de cada
+persona desde `/settings`, así que las asignaciones vigentes se consultan en el
+directorio, no aquí. Reglas que el panel aplica en la API:
+
+- `PUT /users/:id/roles` y `PUT /users/:id/permissions` exigen
+  `users.roles.manage` y reemplazan el conjunto completo; repetirlos no cambia
+  nada. `POST /users/:id/reactivate` exige `users.status.manage`.
+- El rol `ADMIN` no se asigna ni se retira desde el panel. Sigue habiendo
+  exactamente un ADMIN.
+- Los permisos reservados al administrador (`sales.cancel`,
+  `inventory.audit.approve` y los siete permisos del rol `ADMIN`) solo se
+  conceden como excepción `GRANT` a quien tiene `ADMIN`. Denegarlos a cualquiera
+  sí está permitido.
+- A quien tiene `ADMIN` no se le puede denegar `users.read` ni
+  `users.roles.manage`.
+
+Detalle y consecuencias en
+[ADR-018](../decisions/ADR-018-user-access-administration.md). Las llaves de integración (ADR-017) no son permisos de
 usuario: cada petición revalida `inventory.read` del usuario propietario de la
 llave y solo expone `GET /api/v1/integrations/catalog`.

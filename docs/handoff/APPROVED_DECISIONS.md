@@ -125,6 +125,17 @@ and the operational pricing boundary.
 See [authorization-matrix.md](../architecture/authorization-matrix.md) and
 [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
 
+- ADR-018 (2026-10-02): once a database is in use, people's roles and
+  exceptions belong to the administration panel, not to the manifest. The
+  panel never assigns or removes `ADMIN` (exactly one remains); grants
+  administrator-only permissions (`sales.cancel`, `inventory.audit.approve` and
+  the seven `ADMIN` role permissions) only to the ADMIN; and never denies the
+  ADMIN `users.read` or `users.roles.manage`. `db:bootstrap` and
+  `auth:recover-admin` validate the exact catalog plus those invariants instead
+  of per-person assignments. Disabled users can be reactivated with
+  `users.status.manage`. See
+  [ADR-018](../decisions/ADR-018-user-access-administration.md).
+
 ## Authentication and HTTP security
 
 - Activation invitations use a cryptographically random 32-byte, one-time

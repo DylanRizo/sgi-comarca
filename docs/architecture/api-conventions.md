@@ -183,7 +183,9 @@ Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 | counts | `POST /inventory/counts/:id/cancel` | cualquiera de las dos capacidades de conteo |
 | reports | `GET /reports/inventory`, `/movements`, `/sales`, `/finances` | `reports.read` más el permiso de lectura del dominio; columnas monetarias requieren `finances.read` |
 | analytics | `GET /analytics/inventory`, `GET /analytics/sales` | `analytics.read` más el permiso de lectura del dominio |
-| users | `GET /users`, `GET /users/:id`, `GET /roles` | `users.read` |
+| users | `GET /users`, `GET /users/:id`, `GET /roles`, `GET /permissions` | `users.read` |
+| users | `PUT /users/:id/roles`, `PUT /users/:id/permissions` | `users.roles.manage` (ADR-018; reemplazo completo, idempotente) |
+| users | `POST /users/:id/reactivate` | `users.status.manage` |
 | integrations | `GET /integrations/keys` / `POST /integrations/keys` / `POST /integrations/keys/:id/revoke` | `integrations.manage` |
 | integrations | `GET /integrations/catalog` | llave de integración de solo lectura, no sesión |
 
@@ -197,7 +199,7 @@ Conservan su destino arquitectónico pero no existen como rutas:
 
 | Módulo | Endpoints pendientes |
 |---|---|
-| users/roles | edición de perfil y mutación de roles/permisos (`PUT /users/:id/roles`, `PUT /users/:id/permissions`, planificados en [admin-settings-panel](../plans/admin-settings-panel.md)) |
+| users | edición de perfil (nombre, identificador) |
 | catalogs | mutaciones de `/units` y `/warehouses` |
 | imports | `POST /imports/dry-run`, `POST /imports/{id}/commit`, `GET /imports/{id}/report` (el importador legacy es una CLI) |
 | settings/audit | `GET/PATCH /settings`, `GET /audit-logs` |
