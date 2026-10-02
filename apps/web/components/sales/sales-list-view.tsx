@@ -268,6 +268,14 @@ export function SalesListView({
         </ReadState>
       ) : state ? (
         <>
+          <PaginationControls
+            label="Paginación superior"
+            onPage={(next) => {
+              setLoading(true);
+              setPage(next);
+            }}
+            pagination={state.sales.pagination}
+          />
           <div className="data-table-wrap">
             <table className="data-table sales-table">
               <thead>

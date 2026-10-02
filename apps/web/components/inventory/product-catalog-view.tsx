@@ -235,6 +235,11 @@ export function ProductCatalogView() {
         </ReadState>
       ) : rows && state ? (
         <>
+          <PaginationControls
+            label="Paginación superior"
+            onPage={(nextPage) => beginRequest(() => setPage(nextPage))}
+            pagination={state.products.pagination}
+          />
           <div className="data-table-wrap">
             <table className="data-table">
               <thead>

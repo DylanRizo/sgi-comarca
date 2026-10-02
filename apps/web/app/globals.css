@@ -1272,8 +1272,15 @@ a {
 }
 
 .pagination-controls span {
+  display: grid;
+  justify-items: center;
   color: var(--muted);
   font-weight: 600;
+}
+
+.pagination-range {
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .pagination-controls button:disabled {
@@ -1697,6 +1704,14 @@ a {
 .sale-line-product .picker-result {
   grid-template-columns: 1fr;
   gap: 0.15rem;
+}
+
+.picker-results-summary {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0.35rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .sale-line-product .picker-result span:last-child {

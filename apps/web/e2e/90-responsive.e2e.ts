@@ -162,6 +162,63 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     }
   });
 
+  test('offers pagination right after the filters on a long sales list', async ({
+    page,
+    request,
+  }) => {
+    // This suite seeds nothing (see the header), so the long result set is a
+    // stubbed response: what is under test is where the controls render.
+    const requestedPages: string[] = [];
+    await page.route('**/api/v1/sales?*', async (route) => {
+      const url = new URL(route.request().url());
+      const current = Number(url.searchParams.get('page') ?? '1');
+      requestedPages.push(String(current));
+      const items = Array.from({ length: 25 }, (_, index) => {
+        const position = (current - 1) * 25 + index + 1;
+        return {
+          businessDate: '2026-10-01',
+          currencyCode: 'NIO',
+          id: `00000000-0000-4000-8000-${String(position).padStart(12, '0')}`,
+          items: [{ warehouse: { name: 'Casa Dylan' } }],
+          paymentStatus: 'PAID',
+          saleNumber: `VTA-${String(position).padStart(9, '0')}`,
+          status: 'COMPLETED',
+          total: '100.00',
+        };
+      });
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            items,
+            pagination: {
+              page: current,
+              pageSize: 25,
+              totalItems: 60,
+              totalPages: 3,
+            },
+          },
+          meta: { requestId: 'stubbed-sales-page' },
+        }),
+        contentType: 'application/json',
+      });
+    });
+    await activateAndLogin(request, page);
+    await page.goto('/sales');
+
+    // On a phone 25 results become cards several thousand pixels tall, so the
+    // controls must also stand before them, not only after.
+    const top = page.getByRole('navigation', { name: 'Paginación superior' });
+    await expect(top).toContainText('Mostrando 1–25 de 60');
+    const topBox = await top.boundingBox();
+    const tableBox = await page.locator('.sales-table').boundingBox();
+    expect(topBox && tableBox && topBox.y < tableBox.y).toBe(true);
+
+    await top.getByRole('button', { name: 'Siguiente' }).click();
+    await expect(top).toContainText('Mostrando 26–50 de 60');
+    await expect(page.getByText('VTA-000000026')).toBeVisible();
+    expect(requestedPages).toContain('2');
+  });
+
   test('presents tables as cards below the breakpoint', async ({
     page,
     request,
