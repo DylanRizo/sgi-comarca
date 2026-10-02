@@ -166,7 +166,12 @@ export function AuthenticatedShell({
       <a className="skip-link" href="#main-content">
         Saltar al contenido
       </a>
-      <header className="application-header">
+      <header
+        className="application-header"
+        // Below the collapse width an open menu turns the header into a panel
+        // the size of the visible screen; see globals.css.
+        data-menu-open={menuOpen ? 'true' : 'false'}
+      >
         <Link className="brand-link" href={'/app' as Route}>
           <span>SGI La Comarca</span>
           <small>Gestión operativa</small>

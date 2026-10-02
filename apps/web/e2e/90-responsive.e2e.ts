@@ -122,6 +122,46 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     });
   });
 
+  test('keeps the session block on screen while the menu is open', async ({
+    page,
+    request,
+  }) => {
+    const width = page.viewportSize()?.width ?? 0;
+    test.skip(width >= collapseWidth, 'The sidebar shows it without a menu.');
+    await activateAndLogin(request, page);
+
+    // The open menu used to grow a sticky header past the bottom of the
+    // screen, where the appearance control and logout could be neither seen
+    // nor reached. A short phone is the hardest case, so check it as well.
+    for (const height of [page.viewportSize()?.height ?? 844, 600]) {
+      await page.setViewportSize({ width, height });
+      await page.getByRole('button', { name: 'Menú' }).click();
+
+      const appearance = page.getByLabel('Apariencia');
+      await expect(appearance).toBeInViewport({ ratio: 1 });
+      await expect(
+        page.getByRole('button', { name: 'Cerrar sesión' }),
+      ).toBeInViewport({ ratio: 1 });
+      // A real tap, not a programmatic selection: it fails if anything
+      // covers the control.
+      await appearance.click();
+      await appearance.selectOption('dark');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await appearance.selectOption('system');
+
+      // Every destination still scrolls into reach inside the panel.
+      const lastDestination = page
+        .getByRole('navigation', { name: 'Navegación principal' })
+        .getByRole('link')
+        .last();
+      await lastDestination.scrollIntoViewIfNeeded();
+      await expect(lastDestination).toBeInViewport();
+
+      await page.getByRole('button', { name: 'Cerrar menú' }).click();
+      await expect(appearance).toBeHidden();
+    }
+  });
+
   test('presents tables as cards below the breakpoint', async ({
     page,
     request,
