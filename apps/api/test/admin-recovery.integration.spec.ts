@@ -332,6 +332,76 @@ describe.sequential('administrative invitation and recovery', () => {
     expect(serializedAudit).not.toContain(controlledTokenHash);
   });
 
+  it('still recovers after the panel changed people’s roles and exceptions', async () => {
+    // ADR-018: the panel owns per-person assignments, so the last-resort tool
+    // must keep working after ordinary administration, not only on the seed.
+    const [jean, luden, finance, salesCreate, financesRead] = await Promise.all(
+      [
+        client.user.findUniqueOrThrow({ where: { loginIdentifier: 'jean' } }),
+        client.user.findUniqueOrThrow({ where: { loginIdentifier: 'luden' } }),
+        client.role.findUniqueOrThrow({ where: { code: 'FINANCE' } }),
+        client.permission.findUniqueOrThrow({
+          where: { code: 'sales.create' },
+        }),
+        client.permission.findUniqueOrThrow({
+          where: { code: 'finances.read' },
+        }),
+      ],
+    );
+    const panelChanges = await Promise.all([
+      client.userRole.create({ data: { roleId: finance.id, userId: jean.id } }),
+    ]);
+    const overrides = await Promise.all([
+      client.userPermission.create({
+        data: {
+          effect: 'DENY',
+          permissionId: salesCreate.id,
+          userId: luden.id,
+        },
+      }),
+      client.userPermission.create({
+        data: { permissionId: financesRead.id, userId: luden.id },
+      }),
+    ]);
+
+    expect(await createService().createInitialAdminInvitation()).toBe(
+      controlledToken,
+    );
+
+    await client.userPermission.deleteMany({
+      where: { id: { in: overrides.map(({ id }) => id) } },
+    });
+    await client.userRole.deleteMany({
+      where: { id: { in: panelChanges.map(({ id }) => id) } },
+    });
+  });
+
+  it('refuses recovery while an administrator-only permission sits outside the ADMIN', async () => {
+    const [samantha, salesCancel] = await Promise.all([
+      client.user.findUniqueOrThrow({ where: { loginIdentifier: 'samantha' } }),
+      client.permission.findUniqueOrThrow({ where: { code: 'sales.cancel' } }),
+    ]);
+    const misplaced = await client.userPermission.create({
+      data: { permissionId: salesCancel.id, userId: samantha.id },
+    });
+
+    await expect(
+      createService().createInitialAdminInvitation(),
+    ).rejects.toThrow('administrator-only permissions');
+    expect(await client.userInvitation.count()).toBe(0);
+
+    // A DENY of the same permission is a restriction, never a privilege.
+    await client.userPermission.update({
+      data: { effect: 'DENY' },
+      where: { id: misplaced.id },
+    });
+    expect(await createService().createInitialAdminInvitation()).toBe(
+      controlledToken,
+    );
+
+    await client.userPermission.delete({ where: { id: misplaced.id } });
+  });
+
   it('rolls back the complete recovery when the replacement invitation fails', async () => {
     const [dylan, samantha] = await Promise.all([
       client.user.findUniqueOrThrow({ where: { loginIdentifier: 'dylan' } }),
