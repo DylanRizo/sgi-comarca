@@ -19,7 +19,7 @@ Una fase se implementa, prueba, revisa, aprueba y confirma antes de la siguiente
 | 8 | Finanzas y cierres — `COMPLETE` | Reglas de ADR-010 implementadas; primeras operaciones reales siguen gated | no doble conteo; cierres/roles/zona probados |
 | 9 | Auditoría, reportes y analytics — `COMPLETE` | Conteos, reportes, analytics y RBAC implementados; primer conteo real pendiente | KPIs contra SQL y exportaciones verificadas |
 | 10 | Unificación UI — `IMPLEMENTED`, aceptación formal pendiente | Contraste, navegación, Lucide, modales y multi-viewport implementados; identidad visual por confirmar | Playwright desktop/tablet/móvil y accesibilidad |
-| 11 | Hardening — `NEXT` | Consolidar la rama desplegada, observabilidad y política operativa | seguridad, rendimiento, carga moderada y baseline reproducible |
+| 11 | Hardening — `NEXT` | Consolidación de la rama desplegada y baseline verde completos el 2026-09-17 (PR #1); faltan observabilidad, política operativa, carga moderada y backup/restore | seguridad, rendimiento, carga moderada y baseline reproducible |
 | 12 | Staging — piloto gratuito activo, no producción | Render + Neon sustituyen temporalmente el Railway previsto; costo real, backup/RPO/RTO pendientes | deploy, E2E, backup/restore y presupuesto |
 | 13 | Rehearsal | Todas las resoluciones críticas y UAT | cero diferencias inexplicadas, importación repetible |
 | 14 | Cutover | Aprobación humana, ventana, retención/rollback | smoke, reconciliación y legacy solo lectura |

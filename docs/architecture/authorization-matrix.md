@@ -1,9 +1,13 @@
 # Matriz de autorización
 
-Estado vigente: FASE 3B completa, ampliado por las decisiones aprobadas de FASE
-5A para lectura de productos e inventario, FASE 6A para transferencias y FASE
-7A para lectura de ventas. La fuente base es
-[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
+Estado vigente: el manifiesto desplegado contiene 26 permisos, 26 grants por rol
+y 2 grants directos (`packages/database/src/bootstrap/manifest.ts` es la fuente
+ejecutable). La base es
+[ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md),
+ampliada por las decisiones aprobadas de FASE 5A (lectura de inventario), 6A
+(transferencias), 7A (lectura de ventas), 9 (conteos, reportes y analytics), el
+release operativo de productos/entradas/valoraciones, el panel de
+administración ([plan](../plans/admin-settings-panel.md)) y ADR-017 (llaves de integración).
 
 ## Modelo de evaluación
 
@@ -14,24 +18,27 @@ Estado vigente: FASE 3B completa, ampliado por las decisiones aprobadas de FASE
 - Ausencia de grant significa denegación.
 - No existen herencia, wildcard, prefijos o bypass de `ADMIN`.
 
-`ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente los
-cuatro grants administrativos más cualquier rol o grant adicional asignado de
-forma explícita.
+`ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente sus
+siete grants administrativos (cuatro de cuentas, `users.read`,
+`users.roles.manage` e `integrations.manage`) más cualquier rol o grant
+adicional asignado de forma explícita.
 
 ## Roles y RolePermission iniciales
 
 | Rol | Permisos activos exactos |
 |---|---|
-| `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
+| `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage`, `users.read`, `users.roles.manage`, `integrations.manage` |
 | `PARTNER` | Ninguno |
-| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read`, `transfers.create` |
-| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read` |
-| `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen` |
+| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read`, `transfers.create`, `inventory.audit.create`, `reports.read`, `analytics.read`, `products.manage`, `stock-receipts.create` |
+| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read`, `reports.read`, `analytics.read` |
+| `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen`, `inventory.valuation.manage` |
 | `READ_ONLY` | Ninguno |
 
-Existen 20 `RolePermission` activos: cuatro ADMIN, cinco FINANCE, seis
+Existen 26 `RolePermission` activos: siete ADMIN, seis FINANCE, ocho
 INVENTORY_MANAGER y cinco SALES. `transfers.create` se concede exclusivamente a
 `INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
+`inventory.valuation.manage` (completar costos y precios por bodega) pertenece a
+`FINANCE`, y `products.manage` y `stock-receipts.create` a `INVENTORY_MANAGER`.
 
 El 2026-08-31 el propietario aprobó los grants de FASE 9: `inventory.audit.create`
 a `INVENTORY_MANAGER`, y `reports.read` y `analytics.read` a `INVENTORY_MANAGER`
@@ -65,6 +72,12 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `users.credentials.revoke` | Sí | No | No | No |
 | `users.sessions.revoke` | Sí | No | No | No |
 | `users.status.manage` | Sí | No | No | No |
+| `users.read` | Sí | No | No | No |
+| `users.roles.manage` | Sí | No | No | No |
+| `integrations.manage` | Sí | No | No | No |
+| `inventory.valuation.manage` | Sí | Sí | No | No |
+| `products.manage` | Sí | Sí | Sí | Sí |
+| `stock-receipts.create` | Sí | Sí | Sí | Sí |
 | `finances.read` | Sí | Sí | No | No |
 | `finances.manual.create` | Sí | Sí | No | No |
 | `closings.read` | Sí | Sí | No | No |
@@ -81,7 +94,7 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `sales.read` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
 | `transfers.create` | Sí | Sí | Sí | Sí |
-| Total | 20 | 14 | 9 | 9 |
+| Total | 26 | 17 | 11 | 11 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el
@@ -91,8 +104,14 @@ grant que continúe vigente.
 
 Conceder una capacidad no evita las reglas del recurso. La cancelación exige
 venta elegible y motivo; confirmación solo aplica a tránsito y no vuelve a
-descontar stock. Los módulos futuros deben exigir códigos de permiso exactos,
+descontar stock. Los módulos nuevos deben exigir códigos de permiso exactos,
 no listas del tipo `FINANCE/ADMIN` o `INVENTORY_MANAGER/ADMIN`.
 
-Asignar otro ADMIN, editar roles/permisos o reactivar usuarios deshabilitados no
-forma parte de FASE 3B y requiere una decisión posterior.
+`users.read` habilita el directorio de usuarios (`GET /users`, `GET /users/:id`,
+`GET /roles`) del panel de administración. `users.roles.manage` ya está
+concedido a `ADMIN`, pero los endpoints de mutación de roles y excepciones
+descritos en [admin-settings-panel](../plans/admin-settings-panel.md) todavía no
+existen en la API; asignar otro ADMIN, editar roles/permisos o reactivar
+usuarios deshabilitados sigue sin estar disponible. Las llaves de integración (ADR-017) no son permisos de
+usuario: cada petición revalida `inventory.read` del usuario propietario de la
+llave y solo expone `GET /api/v1/integrations/catalog`.

@@ -1095,8 +1095,12 @@ Some versioned documents intentionally preserve earlier snapshots:
   before `inventory.read` and the FASE 6A transfer grant;
 - portions of the FASE 4 readiness documents and roadmap predate the approved
   first persistent staging import;
-- portions of module-boundary/system-context documentation still describe the
-  transfer application as future or GitHub as private;
+- the 2026-10-02 documentation reconciliation updated `README.md`,
+  `authorization-matrix.md`, `module-boundaries.md`, `system-context.md`,
+  `api-conventions.md` and the roadmap against the code (26-permission
+  manifest, implemented endpoints, Render/Neon staging, public repository). The
+  FASE 3B/4/6/7 reviews and `APPROVED_DECISIONS.md` keep their historical
+  wording on purpose;
 - documents written before the FASE 6 closeout may still describe the first
   staging transfer as pending, unauthorized, or never executed, or FASE 6 as
   merely a completion candidate;
