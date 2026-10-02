@@ -17,7 +17,7 @@ export type ApiRequestOptions = {
   body?: unknown;
   csrfToken?: string;
   idempotencyKey?: string;
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT';
   signal?: AbortSignal;
 };
 
@@ -125,7 +125,8 @@ export async function apiRequest<T>(
           | InventoryTransferPublicErrorCode
           | SalesPublicErrorCode
           | StockOperationErrorCode
-          | InventoryCountPublicErrorCode,
+          | InventoryCountPublicErrorCode
+          | UserAdministrationPublicErrorCode,
         parsed.error.message,
         parsed.error.requestId,
       );

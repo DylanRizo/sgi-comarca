@@ -3,6 +3,7 @@
 import type { UserDirectoryEntry } from '@sgi/contracts';
 import { useState } from 'react';
 
+import { UserAccessDialog } from '@/components/settings/user-access-dialog';
 import { ApiHttpError } from '@/lib/http/api-client';
 import { userAdminApi } from '@/lib/http/user-admin-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -30,6 +31,7 @@ export function UserActions({
    */
   const [invitation, setInvitation] = useState('');
   const [copied, setCopied] = useState(false);
+  const [editingAccess, setEditingAccess] = useState(false);
 
   async function run(
     action: string,
@@ -135,6 +137,37 @@ export function UserActions({
           </button>
         ) : null}
 
+        {permissions.includes('users.roles.manage') ? (
+          <button
+            className="link-button"
+            disabled={busy !== ''}
+            onClick={() => setEditingAccess(true)}
+            type="button"
+          >
+            Editar acceso
+          </button>
+        ) : null}
+
+        {permissions.includes('users.status.manage') &&
+        entry.status === 'DISABLED' ? (
+          <button
+            className="link-button"
+            disabled={busy !== ''}
+            onClick={() => {
+              void run(
+                'reactivate',
+                (csrf, key) => userAdminApi.reactivate(entry.id, csrf, key),
+                entry.hasActiveCredential && entry.activatedAt
+                  ? `${entry.displayName} recuperó el acceso.`
+                  : `${entry.displayName} quedó pendiente de activación. Necesita una invitación.`,
+              );
+            }}
+            type="button"
+          >
+            {busy === 'reactivate' ? 'Reactivando…' : 'Reactivar'}
+          </button>
+        ) : null}
+
         {permissions.includes('users.status.manage') &&
         entry.status !== 'DISABLED' ? (
           <button
@@ -158,6 +191,16 @@ export function UserActions({
         <p className="inline-error" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {editingAccess ? (
+        <UserAccessDialog
+          entry={entry}
+          onClose={(changed) => {
+            setEditingAccess(false);
+            if (changed) onDone(`Acceso de ${entry.displayName} actualizado.`);
+          }}
+        />
       ) : null}
 
       {invitation ? (
