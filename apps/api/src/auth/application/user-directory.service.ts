@@ -1,4 +1,5 @@
 import type {
+  PermissionSummary,
   RoleSummary,
   UserDetail,
   UserDirectoryEntry,
@@ -26,9 +27,29 @@ export class UserDirectoryService {
   async roles(): Promise<readonly RoleSummary[]> {
     const roles = await this.client.role.findMany({
       orderBy: { code: 'asc' },
-      select: { code: true, name: true, description: true },
+      select: {
+        code: true,
+        name: true,
+        description: true,
+        rolePermissions: {
+          where: { revokedAt: null },
+          select: { permission: { select: { code: true } } },
+        },
+      },
     });
-    return roles;
+    return roles.map(({ rolePermissions, ...role }) => ({
+      ...role,
+      permissions: rolePermissions
+        .map(({ permission }) => permission.code)
+        .sort(),
+    }));
+  }
+
+  async permissionCatalog(): Promise<readonly PermissionSummary[]> {
+    return this.client.permission.findMany({
+      orderBy: { code: 'asc' },
+      select: { code: true, description: true },
+    });
   }
 
   async list(

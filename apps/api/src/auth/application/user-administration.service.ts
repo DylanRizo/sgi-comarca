@@ -1,6 +1,7 @@
 import type { DatabaseClient } from '@sgi/database';
 
 import type { Clock } from '../domain/authentication.ports.js';
+import type { UserAccessViolation } from '../domain/user-access-policy.js';
 import { SystemClock } from '../domain/authentication.ports.js';
 import {
   AuthTokenService,
@@ -16,7 +17,9 @@ import { SessionService } from './session.service.js';
 const INVITATION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 export type UserAdministrationFailure =
+  | UserAccessViolation
   | 'ADMIN_OPERATION_CONFLICT'
+  | 'ADMIN_UNKNOWN_CODE'
   | 'ADMIN_USER_NOT_FOUND'
   | 'ADMIN_USER_STATE_CONFLICT';
 
@@ -37,7 +40,7 @@ type LockedUser = {
   status: 'ACTIVE' | 'DISABLED' | 'PENDING_ACTIVATION';
 };
 
-function isTransactionConflict(error: unknown): boolean {
+export function isTransactionConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   if ('code' in error && error.code === 'P2034') return true;
   const serialized = JSON.stringify(error);
@@ -289,6 +292,56 @@ export class UserAdministrationService {
               operationType: 'DEACTIVATE',
               revokedSessionCount,
             },
+            occurredAt: now,
+          });
+        },
+        { isolationLevel: 'Serializable' },
+      );
+    } catch (error) {
+      if (error instanceof UserAdministrationError) throw error;
+      if (isTransactionConflict(error)) {
+        throw new UserAdministrationError('ADMIN_OPERATION_CONFLICT');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Undoes a deactivation. A person who still holds their credential and had
+   * activated the account signs in again as before; anyone else returns to
+   * PENDING_ACTIVATION and needs a new invitation, exactly as if never
+   * activated. Sessions and invitations were revoked on deactivation and are
+   * not restored. Reactivating someone who is not disabled changes nothing.
+   */
+  async reactivateUser(
+    actorUserId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    try {
+      await this.client.$transaction(
+        async (transaction) => {
+          const user = await this.lockUser(transaction, targetUserId);
+          if (user.status !== 'DISABLED') return;
+
+          const credential = await transaction.passwordCredential.findUnique({
+            where: { userId: targetUserId },
+            select: { revokedAt: true },
+          });
+          const canSignIn =
+            user.activatedAt !== null &&
+            credential !== null &&
+            credential.revokedAt === null;
+          const status = canSignIn ? 'ACTIVE' : 'PENDING_ACTIVATION';
+          const now = this.clock.now();
+          await transaction.user.update({
+            where: { id: targetUserId },
+            data: canSignIn ? { status } : { activatedAt: null, status },
+          });
+          await this.audit.record(transaction, {
+            action: 'ADMIN_USER_REACTIVATED',
+            actorUserId,
+            entityId: targetUserId,
+            metadata: { operationType: 'REACTIVATE', resultingStatus: status },
             occurredAt: now,
           });
         },

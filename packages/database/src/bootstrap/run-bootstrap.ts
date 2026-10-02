@@ -4,6 +4,8 @@ import {
   type PrismaClient,
 } from '../generated/prisma/client.js';
 import {
+  administratorOnlyPermissionCodes,
+  administratorRoleCode,
   bootstrapPermissions,
   bootstrapRolePermissions,
   bootstrapRoles,
@@ -133,38 +135,49 @@ async function assertLiveAuthorizationUpgradeBaseline(
       [code, name, 'active'].join(':'),
     ),
   );
-  assertExactRecords(
-    'live bootstrap user roles',
-    userRoles.map(({ role, user }) =>
-      grantKey(user.loginIdentifier, role.code),
-    ),
-    bootstrapUserRoles.map(({ loginIdentifier, roleCode }) =>
-      grantKey(loginIdentifier, roleCode),
-    ),
+  assertLiveAssignmentInvariants(userRoles, userPermissions);
+}
+
+/**
+ * Once a database is in use, who holds which role or exception belongs to the
+ * administration panel (ADR-018), so bootstrap no longer compares people
+ * against the manifest. It still refuses a state the panel itself can never
+ * produce: anything other than exactly one ADMIN, or an administrator-only
+ * permission granted directly to someone who is not that ADMIN. Either means
+ * a privilege was handed out outside every approved path, and bootstrap must
+ * never build on top of it.
+ */
+function assertLiveAssignmentInvariants(
+  userRoles: readonly { role: { code: string }; userId: string }[],
+  userPermissions: readonly {
+    effect: 'DENY' | 'GRANT';
+    permission: { code: string };
+    userId: string;
+  }[],
+): void {
+  const administrators = new Set(
+    userRoles
+      .filter(({ role }) => role.code === administratorRoleCode)
+      .map(({ userId }) => userId),
   );
-  // Direct grants are checked for extras only, not for exact equality, and the
-  // asymmetry with the identity records above is deliberate.
-  //
-  // An unexpected active grant still blocks the run: it means someone handed
-  // out a privilege outside the manifest, and bootstrap must never build on
-  // that. A *missing* grant is different — it is the manifest declaring a new
-  // one, which the main body then creates additively under its own guards,
-  // including its refusal to reactivate a revoked grant.
-  //
-  // Requiring exact equality here made the manifest unable to express "add this
-  // direct grant" against a database already in use: the run aborted before
-  // creating the permission the grant refers to, so no ordering of steps could
-  // satisfy it. That surfaced when FASE 9 added the first new direct grant
-  // since the live database was seeded.
-  assertNoUnexpectedRecords(
-    'live bootstrap user permissions',
-    userPermissions.map(({ permission, user }) =>
-      grantKey(user.loginIdentifier, permission.code),
-    ),
-    bootstrapUserPermissions.map(({ loginIdentifier, permissionCode }) =>
-      grantKey(loginIdentifier, permissionCode),
-    ),
+  if (administrators.size !== 1) {
+    throw new BootstrapConflictError(
+      'Bootstrap conflict for live administrators: exactly one ADMIN is required.',
+    );
+  }
+
+  const restricted = new Set<string>(administratorOnlyPermissionCodes);
+  const misplaced = userPermissions.some(
+    ({ effect, permission, userId }) =>
+      effect === 'GRANT' &&
+      restricted.has(permission.code) &&
+      !administrators.has(userId),
   );
+  if (misplaced) {
+    throw new BootstrapConflictError(
+      'Bootstrap conflict for live user permissions: an administrator-only permission is granted outside the ADMIN.',
+    );
+  }
 }
 
 export async function runBootstrap(
@@ -310,50 +323,6 @@ export async function runBootstrap(
         created.warehouses += 1;
       }
 
-      const expectedUserRoleKeys = new Set(
-        bootstrapUserRoles.map(({ loginIdentifier, roleCode }) =>
-          grantKey(loginIdentifier, roleCode),
-        ),
-      );
-      const activeUserRoles = await transaction.userRole.findMany({
-        where: { revokedAt: null },
-        include: { role: true, user: true },
-      });
-      assertNoUnexpectedRecords(
-        'active user roles',
-        activeUserRoles.map(({ role, user }) =>
-          grantKey(user.loginIdentifier, role.code),
-        ),
-        expectedUserRoleKeys,
-      );
-
-      for (const expected of bootstrapUserRoles) {
-        const userId = usersByLogin.get(expected.loginIdentifier);
-        const roleId = rolesByCode.get(expected.roleCode);
-        if (!userId || !roleId) {
-          throw new BootstrapConflictError(
-            'Bootstrap manifest references an unknown user or role.',
-          );
-        }
-
-        const active = await transaction.userRole.findFirst({
-          where: { roleId, userId, revokedAt: null },
-        });
-        if (active) continue;
-
-        const historical = await transaction.userRole.findFirst({
-          where: { roleId, userId, revokedAt: { not: null } },
-        });
-        if (historical) {
-          throw new BootstrapConflictError(
-            'Bootstrap will not reactivate a revoked user role.',
-          );
-        }
-
-        await transaction.userRole.create({ data: { roleId, userId } });
-        created.userRoles += 1;
-      }
-
       const expectedRolePermissionKeys = new Set(
         bootstrapRolePermissions.map(({ roleCode, permissionCode }) =>
           grantKey(roleCode, permissionCode),
@@ -400,50 +369,102 @@ export async function runBootstrap(
         created.rolePermissions += 1;
       }
 
-      const expectedUserPermissionKeys = new Set(
-        bootstrapUserPermissions.map(({ loginIdentifier, permissionCode }) =>
-          grantKey(loginIdentifier, permissionCode),
-        ),
-      );
-      const activeUserPermissions = await transaction.userPermission.findMany({
-        where: { revokedAt: null },
-        include: { permission: true, user: true },
-      });
-      assertNoUnexpectedRecords(
-        'active user permissions',
-        activeUserPermissions.map(({ permission, user }) =>
-          grantKey(user.loginIdentifier, permission.code),
-        ),
-        expectedUserPermissionKeys,
-      );
+      // People's roles and exceptions are seeded only into a database nobody
+      // uses yet. Afterwards the administration panel owns them (ADR-018):
+      // re-creating a manifest assignment the administrator removed, or
+      // refusing one they added, would make bootstrap fight the panel.
+      if (!liveAuthorizationUpgrade) {
+        const expectedUserRoleKeys = new Set(
+          bootstrapUserRoles.map(({ loginIdentifier, roleCode }) =>
+            grantKey(loginIdentifier, roleCode),
+          ),
+        );
+        const activeUserRoles = await transaction.userRole.findMany({
+          where: { revokedAt: null },
+          include: { role: true, user: true },
+        });
+        assertNoUnexpectedRecords(
+          'active user roles',
+          activeUserRoles.map(({ role, user }) =>
+            grantKey(user.loginIdentifier, role.code),
+          ),
+          expectedUserRoleKeys,
+        );
 
-      for (const expected of bootstrapUserPermissions) {
-        const userId = usersByLogin.get(expected.loginIdentifier);
-        const permissionId = permissionsByCode.get(expected.permissionCode);
-        if (!userId || !permissionId) {
-          throw new BootstrapConflictError(
-            'Bootstrap manifest references an unknown user or permission.',
-          );
+        for (const expected of bootstrapUserRoles) {
+          const userId = usersByLogin.get(expected.loginIdentifier);
+          const roleId = rolesByCode.get(expected.roleCode);
+          if (!userId || !roleId) {
+            throw new BootstrapConflictError(
+              'Bootstrap manifest references an unknown user or role.',
+            );
+          }
+
+          const active = await transaction.userRole.findFirst({
+            where: { roleId, userId, revokedAt: null },
+          });
+          if (active) continue;
+
+          const historical = await transaction.userRole.findFirst({
+            where: { roleId, userId, revokedAt: { not: null } },
+          });
+          if (historical) {
+            throw new BootstrapConflictError(
+              'Bootstrap will not reactivate a revoked user role.',
+            );
+          }
+
+          await transaction.userRole.create({ data: { roleId, userId } });
+          created.userRoles += 1;
         }
 
-        const active = await transaction.userPermission.findFirst({
-          where: { permissionId, userId, revokedAt: null },
-        });
-        if (active) continue;
+        const expectedUserPermissionKeys = new Set(
+          bootstrapUserPermissions.map(({ loginIdentifier, permissionCode }) =>
+            grantKey(loginIdentifier, permissionCode),
+          ),
+        );
+        const activeUserPermissions = await transaction.userPermission.findMany(
+          {
+            where: { revokedAt: null },
+            include: { permission: true, user: true },
+          },
+        );
+        assertNoUnexpectedRecords(
+          'active user permissions',
+          activeUserPermissions.map(({ permission, user }) =>
+            grantKey(user.loginIdentifier, permission.code),
+          ),
+          expectedUserPermissionKeys,
+        );
 
-        const historical = await transaction.userPermission.findFirst({
-          where: { permissionId, userId, revokedAt: { not: null } },
-        });
-        if (historical) {
-          throw new BootstrapConflictError(
-            'Bootstrap will not reactivate a revoked user permission.',
-          );
+        for (const expected of bootstrapUserPermissions) {
+          const userId = usersByLogin.get(expected.loginIdentifier);
+          const permissionId = permissionsByCode.get(expected.permissionCode);
+          if (!userId || !permissionId) {
+            throw new BootstrapConflictError(
+              'Bootstrap manifest references an unknown user or permission.',
+            );
+          }
+
+          const active = await transaction.userPermission.findFirst({
+            where: { permissionId, userId, revokedAt: null },
+          });
+          if (active) continue;
+
+          const historical = await transaction.userPermission.findFirst({
+            where: { permissionId, userId, revokedAt: { not: null } },
+          });
+          if (historical) {
+            throw new BootstrapConflictError(
+              'Bootstrap will not reactivate a revoked user permission.',
+            );
+          }
+
+          await transaction.userPermission.create({
+            data: { permissionId, userId },
+          });
+          created.userPermissions += 1;
         }
-
-        await transaction.userPermission.create({
-          data: { permissionId, userId },
-        });
-        created.userPermissions += 1;
       }
 
       const mutationCount = Object.entries(created)

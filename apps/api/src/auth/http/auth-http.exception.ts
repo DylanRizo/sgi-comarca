@@ -2,7 +2,11 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 export type AuthPublicErrorCode =
   | 'ACTIVATION_FAILED'
+  | 'ADMIN_ACCESS_PROTECTED'
   | 'ADMIN_OPERATION_CONFLICT'
+  | 'ADMIN_PERMISSION_RESTRICTED'
+  | 'ADMIN_ROLE_NOT_EDITABLE'
+  | 'ADMIN_UNKNOWN_CODE'
   | 'ADMIN_USER_NOT_FOUND'
   | 'ADMIN_USER_STATE_CONFLICT'
   | 'AUTHENTICATION_FAILED'
@@ -34,6 +38,38 @@ export class AuthHttpException extends HttpException {
       HttpStatus.CONFLICT,
       'ADMIN_OPERATION_CONFLICT',
       'La operacion administrativa entro en conflicto.',
+    );
+  }
+
+  static adminAccessProtected(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'ADMIN_ACCESS_PROTECTED',
+      'La cuenta administradora no puede perder el acceso al panel.',
+    );
+  }
+
+  static adminPermissionRestricted(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'ADMIN_PERMISSION_RESTRICTED',
+      'Ese permiso solo puede concederse a la cuenta administradora.',
+    );
+  }
+
+  static adminRoleNotEditable(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'ADMIN_ROLE_NOT_EDITABLE',
+      'El rol ADMIN no se asigna ni se retira desde el panel.',
+    );
+  }
+
+  static adminUnknownCode(): AuthHttpException {
+    return new AuthHttpException(
+      HttpStatus.BAD_REQUEST,
+      'ADMIN_UNKNOWN_CODE',
+      'Algun rol o permiso solicitado no existe.',
     );
   }
 

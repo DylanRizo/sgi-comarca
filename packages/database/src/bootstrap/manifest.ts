@@ -232,6 +232,28 @@ export const bootstrapUserPermissions = [
   { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
 ] as const;
 
+export const administratorRoleCode = 'ADMIN';
+
+/**
+ * Permissions that only the holder of the ADMIN role may receive as a direct
+ * GRANT (ADR-018). `sales.cancel` and `inventory.audit.approve` keep DEC-021
+ * and the count/approve separation; the rest are the ADMIN role's own
+ * permissions, because handing them out one by one would build a second
+ * administrator piecemeal. Once a database is in use the panel owns who holds
+ * what, so bootstrap enforces this invariant instead of the per-person list.
+ */
+export const administratorOnlyPermissionCodes = [
+  'inventory.audit.approve',
+  'integrations.manage',
+  'sales.cancel',
+  'users.credentials.revoke',
+  'users.invitations.create',
+  'users.read',
+  'users.roles.manage',
+  'users.sessions.revoke',
+  'users.status.manage',
+] as const;
+
 export function grantKey(left: string, right: string): string {
   return left + ':' + right;
 }

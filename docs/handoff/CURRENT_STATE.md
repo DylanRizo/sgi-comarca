@@ -1,6 +1,6 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-17.
+Updated: 2026-10-02.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
@@ -57,6 +57,46 @@ historical workbook must not be presented as a new physical observation. No
 count session, backup, adjustment or other staging write was created during
 this preflight; the private pre-write checkpoint remains immediately before
 the first authorized write after a real observation is supplied.
+
+## User access administration (versioned; not deployed)
+
+On 2026-10-02 the owner approved completing Phase A of the
+[administration panel plan](../plans/admin-settings-panel.md) and the two
+decisions recorded in
+[ADR-018](../decisions/ADR-018-user-access-administration.md): once a database
+is in use the panel, not the manifest, owns people's roles and exceptions; and
+the panel applies conservative limits (no assigning or removing `ADMIN`,
+administrator-only permissions granted only to the ADMIN, and the ADMIN never
+denied `users.read` or `users.roles.manage`).
+
+The change adds `PUT /api/v1/users/:id/roles`, `PUT /api/v1/users/:id/permissions`
+(both `users.roles.manage`, complete-set replacement, idempotent),
+`POST /api/v1/users/:id/reactivate` (`users.status.manage`) and
+`GET /api/v1/permissions` (`users.read`), plus the "Editar acceso" dialog and the
+"Reactivar" action in `/settings`. Every effective change revokes or inserts
+rows (never deletes) and writes one audit event inside a `Serializable`
+transaction that locks the ADMIN role and the target user. No migration and no
+new permission: the manifest still holds 26 permissions and 26 role grants.
+
+**Operational consequence:** on a live database `db:bootstrap` no longer
+compares or creates per-person roles and direct grants. It validates the exact
+catalog, exactly one ADMIN, and that administrator-only direct grants belong
+only to that ADMIN. `auth:recover-admin` validates the same instead of the four
+pinned role profiles. Granting a newly added permission to a person in staging
+is now done from the panel, not by bootstrap.
+
+Local verification on 2026-10-02, with the limits of this environment stated:
+API/database/contracts typecheck and lint (only the pre-existing unused-disable
+warning), 193 unit tests in those packages plus 44 web unit tests, and
+PostgreSQL integration 346/346 across 30 files, including the new
+`user-access.integration.spec.ts` (9 cases) and the updated bootstrap and
+admin-recovery specs. The three legacy-importer/profiler integration files
+could not load because this sandbox's network policy blocks `cdn.sheetjs.com`,
+from which `xlsx` is installed. The web typecheck, production build and the
+complete Playwright suite ran in a temporary copy where only `xlsx` was replaced
+by a local stub: 55/56 passed, the single failure being the workbook-import case
+that calls `xlsx` itself. Remote CI with the real dependency is the gate for
+those three areas. Nothing was deployed and staging was not touched.
 
 ## Read-only integration keys (deployed and enabled; first key not recorded)
 
