@@ -415,11 +415,36 @@ export class SaleLifecycleService {
     });
     if (items.length === 0) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
 
-    // Lock the original balances in the same global order used on creation.
+    // Match the complete global lock order used by sale creation before
+    // touching balances. Cancellation later inserts movements whose foreign
+    // keys need KEY SHARE locks on these product and warehouse rows. If it
+    // held a balance first while a concurrent creation held the referenced
+    // rows and waited for that balance, PostgreSQL could form a real deadlock.
     const productIds = [...new Set(items.map((item) => item.productId))].sort();
     const warehouseIds = [
       ...new Set(items.map((item) => item.warehouseId)),
     ].sort();
+    const lockedProducts = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM products
+      WHERE id = ANY(${productIds}::uuid[])
+      ORDER BY id
+      FOR UPDATE
+    `;
+    const lockedWarehouses = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM warehouses
+      WHERE id = ANY(${warehouseIds}::uuid[])
+      ORDER BY id
+      FOR UPDATE
+    `;
+    if (
+      lockedProducts.length !== productIds.length ||
+      lockedWarehouses.length !== warehouseIds.length
+    ) {
+      throw new SaleError('SALE_CONCURRENCY_CONFLICT');
+    }
+
     const balanceRows = await transaction.$queryRaw<
       {
         id: string;

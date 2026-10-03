@@ -353,7 +353,8 @@ require sales.cancel (Dylan initially) and non-empty reason
 lock sale row
 if CANCELLED: return existing cancellation without effects
 require status=IN_TRANSIT and paid=false; completed/paid sales are rejected
-load sale_items and lock every original product–warehouse balance ordered
+load sale_items
+lock referenced products, then warehouses, then original balances in global order
 for each item:
   increment its original warehouse exactly by item.quantity
   append stock_movement(SALE_CANCELLATION, +quantity, sale_item_id)
