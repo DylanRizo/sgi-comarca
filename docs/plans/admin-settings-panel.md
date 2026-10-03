@@ -1,5 +1,13 @@
 # Plan — Panel de administración y configuración (`/settings`)
 
+> **Estado (2026-10-02):** la Fase A está implementada en el repositorio:
+> directorio, comandos de cuenta, edición de roles y excepciones y
+> reactivación, con las reglas de
+> [ADR-020](../decisions/ADR-020-user-access-administration.md). No incluye el
+> `Idempotency-Key` persistido que proponía este plan: `PUT` reemplaza el
+> conjunto completo y repetirlo no cambia nada. Las fases B y C siguen
+> pendientes de D1–D3.
+
 Reescritura del plan propuesto, ajustada al repositorio real. El objetivo se
 mantiene: administrar usuarios, bodegas y parámetros desde la interfaz, sin
 consola ni scripts. Lo que cambia es el punto de partida, porque una parte ya

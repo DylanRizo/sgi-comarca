@@ -99,13 +99,21 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     const width = page.viewportSize()?.width ?? 0;
     const toggle = page.getByRole('button', { name: 'Menú' });
     const analytics = page.getByRole('link', { name: 'Análisis', exact: true });
+    const appearance = page.getByLabel('Apariencia', { exact: true });
 
     if (width < collapseWidth) {
       // Collapsed: the toggle is the only entry point, and it must reveal the
-      // full list rather than a subset.
+      // account controls and full destination list rather than a subset.
       await expect(toggle).toBeVisible();
       await expect(analytics).toBeHidden();
+      await expect(appearance).toBeHidden();
       await toggle.click();
+      await expect(appearance).toBeVisible();
+      await expect(appearance).toBeInViewport();
+      await appearance.selectOption('dark');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await appearance.selectOption('light');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
       await expect(analytics).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Cerrar menú' }),

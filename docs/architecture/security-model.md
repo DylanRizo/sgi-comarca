@@ -110,6 +110,15 @@ administrativamente su credencial. Permite revocar sus sesiones, logout y
 cambio normal de contraseña. La CLI local `auth:recover-admin` es la única
 excepción break-glass y no crea otro ADMIN.
 
+Desde [ADR-020](../decisions/ADR-020-user-access-administration.md) el panel
+edita roles y excepciones de cada persona con `users.roles.manage`, y reactiva
+cuentas con `users.status.manage`. El panel nunca asigna ni retira `ADMIN`,
+solo concede permisos reservados al administrador a quien tiene `ADMIN`, y no
+puede denegarle `users.read` ni `users.roles.manage`. En una base en uso,
+`db:bootstrap` y `auth:recover-admin` validan el catálogo exacto, exactamente
+un ADMIN y esos permisos reservados, en lugar de las asignaciones por persona
+del manifiesto.
+
 ## Auditoría, secretos y errores
 
 `audit_logs` registra actor, acción, entidad, timestamp UTC y metadatos

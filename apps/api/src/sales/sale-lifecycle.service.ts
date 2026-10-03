@@ -39,13 +39,14 @@ function transactionConflict(error: unknown): boolean {
 }
 
 /**
- * In-transit confirmation and total cancellation (plan §10 and §11).
+ * In-transit confirmation, payment recording and total cancellation.
  *
  * Both flows insert their document before the status UPDATE, because
  * `guard_sale_write()` requires the document to authorize the transition.
- * Confirmation never touches inventory or payment; cancellation restores each
- * original balance exactly once and appends one coherent SALE_CANCELLATION
- * per line.
+ * Confirmation never touches inventory or payment. Payment records one
+ * immutable document without touching inventory. Cancellation restores each
+ * original balance exactly once and appends one coherent SALE_CANCELLATION per
+ * line.
  */
 export class SaleLifecycleService {
   private readonly permissions: EffectivePermissionsService;
@@ -89,6 +90,31 @@ export class SaleLifecycleService {
         actorUserId,
         saleId,
         reason,
+        hashes,
+      ),
+    );
+  }
+
+  async recordPayment(
+    actorUserId: string,
+    saleId: string,
+    rawPaymentMethodText: string,
+    idempotencyKey: string | undefined,
+  ): Promise<SaleView> {
+    const paymentMethodText = rawPaymentMethodText?.trim() ?? '';
+    if (!paymentMethodText || paymentMethodText.length > 160) {
+      throw new SaleError('SALES_REQUEST_INVALID');
+    }
+    const hashes = this.hashes(
+      idempotencyKey,
+      JSON.stringify({ paymentMethodText, saleId }),
+    );
+    return this.run((transaction) =>
+      this.recordPaymentInTransaction(
+        transaction,
+        actorUserId,
+        saleId,
+        paymentMethodText,
         hashes,
       ),
     );
@@ -154,18 +180,110 @@ export class SaleLifecycleService {
   private async lockSale(
     transaction: TransactionClient,
     saleId: string,
-  ): Promise<{ status: string; paymentStatus: string }> {
+  ): Promise<{
+    currencyCode: string;
+    paymentStatus: string;
+    status: string;
+    total: string;
+  }> {
     const rows = await transaction.$queryRaw<
-      { status: string; payment_status: string }[]
+      {
+        currency_code: string;
+        payment_status: string;
+        status: string;
+        total: string;
+      }[]
     >`
-      SELECT status::text AS status, payment_status::text AS payment_status
+      SELECT currency_code,
+             payment_status::text AS payment_status,
+             status::text AS status,
+             total::text AS total
       FROM sales
       WHERE id = ${saleId}::uuid
       FOR UPDATE
     `;
     const row = rows[0];
     if (!row) throw new SaleError('SALE_NOT_FOUND');
-    return { paymentStatus: row.payment_status, status: row.status };
+    return {
+      currencyCode: row.currency_code,
+      paymentStatus: row.payment_status,
+      status: row.status,
+      total: row.total,
+    };
+  }
+
+  private async recordPaymentInTransaction(
+    transaction: TransactionClient,
+    actorUserId: string,
+    saleId: string,
+    paymentMethodText: string,
+    hashes: { idempotencyKeyHash: string; requestHash: string },
+  ): Promise<SaleView> {
+    await this.authorize(transaction, actorUserId, 'sales.record_payment');
+
+    const scope = `sales.payment:${actorUserId}:${hashes.idempotencyKeyHash}`;
+    await transaction.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))
+    `;
+    const claimed = await transaction.salePayment.findUnique({
+      select: { requestHash: true, saleId: true },
+      where: {
+        recordedByUserId_idempotencyKeyHash: {
+          idempotencyKeyHash: hashes.idempotencyKeyHash,
+          recordedByUserId: actorUserId,
+        },
+      },
+    });
+    if (claimed) {
+      if (claimed.requestHash !== hashes.requestHash) {
+        throw new SaleError('IDEMPOTENCY_KEY_REUSED');
+      }
+      return mapSale(await this.loadSale(transaction, claimed.saleId));
+    }
+
+    const current = await this.lockSale(transaction, saleId);
+    const existing = await transaction.salePayment.findUnique({
+      select: { id: true },
+      where: { saleId },
+    });
+    if (existing) {
+      if (current.paymentStatus !== 'PAID') {
+        throw new SaleError('SALE_CONCURRENCY_CONFLICT');
+      }
+      return mapSale(await this.loadSale(transaction, saleId));
+    }
+    if (current.status !== 'COMPLETED' || current.paymentStatus !== 'PENDING') {
+      throw new SaleError('SALE_INVALID_STATE');
+    }
+
+    const paidAt = this.clock.now();
+    const payment = await transaction.salePayment.create({
+      data: {
+        amount: current.total,
+        currencyCode: current.currencyCode,
+        idempotencyKeyHash: hashes.idempotencyKeyHash,
+        methodText: paymentMethodText,
+        paidAt,
+        recordedByUserId: actorUserId,
+        requestHash: hashes.requestHash,
+        saleId,
+      },
+      select: { id: true },
+    });
+    await transaction.sale.update({
+      data: { paymentStatus: 'PAID' },
+      where: { id: saleId },
+    });
+    await this.audit.recordPaid(transaction, {
+      actorUserId,
+      amount: current.total,
+      currencyCode: current.currencyCode,
+      occurredAt: paidAt,
+      paymentId: payment.id,
+      saleId,
+    });
+
+    return mapSale(await this.loadSale(transaction, saleId));
   }
 
   private async confirmInTransaction(
@@ -297,11 +415,36 @@ export class SaleLifecycleService {
     });
     if (items.length === 0) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
 
-    // Lock the original balances in the same global order used on creation.
+    // Match the complete global lock order used by sale creation before
+    // touching balances. Cancellation later inserts movements whose foreign
+    // keys need KEY SHARE locks on these product and warehouse rows. If it
+    // held a balance first while a concurrent creation held the referenced
+    // rows and waited for that balance, PostgreSQL could form a real deadlock.
     const productIds = [...new Set(items.map((item) => item.productId))].sort();
     const warehouseIds = [
       ...new Set(items.map((item) => item.warehouseId)),
     ].sort();
+    const lockedProducts = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM products
+      WHERE id = ANY(${productIds}::uuid[])
+      ORDER BY id
+      FOR UPDATE
+    `;
+    const lockedWarehouses = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM warehouses
+      WHERE id = ANY(${warehouseIds}::uuid[])
+      ORDER BY id
+      FOR UPDATE
+    `;
+    if (
+      lockedProducts.length !== productIds.length ||
+      lockedWarehouses.length !== warehouseIds.length
+    ) {
+      throw new SaleError('SALE_CONCURRENCY_CONFLICT');
+    }
+
     const balanceRows = await transaction.$queryRaw<
       {
         id: string;

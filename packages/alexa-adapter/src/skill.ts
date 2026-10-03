@@ -28,6 +28,63 @@ export const PRODUCT_SLOT = 'producto';
 export const WAREHOUSE_SLOT = 'bodega';
 export const SALE_NUMBER_SLOT = 'numeroVenta';
 
+const MINIMUM_REPEATED_PHRASE_WORDS = 3;
+const SPOKEN_FINAL_SIZE_CODES = new Map([
+  ['ele', 'L'],
+  ['eme', 'M'],
+  ['ese', 'S'],
+  ['equis', 'X'],
+]);
+const WAREHOUSE_PREFIXES = new Set(['almacen', 'bodega']);
+
+function collapseRepeatedPhrase(value: string): string {
+  const words = value.trim().split(/\s+/u);
+  for (
+    let phraseLength = MINIMUM_REPEATED_PHRASE_WORDS;
+    phraseLength <= Math.floor(words.length / 2);
+    phraseLength += 1
+  ) {
+    if (words.length % phraseLength !== 0) continue;
+    const phrase = words.slice(0, phraseLength);
+    const normalizedPhrase = normalizeSpokenValue(phrase.join(' '));
+    const repetitions = words.length / phraseLength;
+    const everyPhraseMatches = Array.from(
+      { length: repetitions },
+      (_, index) =>
+        normalizeSpokenValue(
+          words
+            .slice(index * phraseLength, (index + 1) * phraseLength)
+            .join(' '),
+        ) === normalizedPhrase,
+    ).every(Boolean);
+    if (everyPhraseMatches) return phrase.join(' ');
+  }
+  return value.trim();
+}
+
+function productLookupValue(value: string): string {
+  const collapsed = collapseRepeatedPhrase(value);
+  const words = collapsed.split(/\s+/u);
+  const finalWord = words.at(-1);
+  const sizeCode = finalWord
+    ? SPOKEN_FINAL_SIZE_CODES.get(normalizeSpokenValue(finalWord))
+    : undefined;
+  if (sizeCode) words[words.length - 1] = sizeCode;
+  return words.join(' ');
+}
+
+function warehouseLookupValue(value: string): string {
+  const collapsed = collapseRepeatedPhrase(value);
+  const words = collapsed.split(/\s+/u);
+  if (
+    words.length > 1 &&
+    WAREHOUSE_PREFIXES.has(normalizeSpokenValue(words[0]!))
+  ) {
+    return words.slice(1).join(' ');
+  }
+  return collapsed;
+}
+
 function plainText(text: string) {
   return { text, type: 'PlainText' as const };
 }
@@ -140,25 +197,28 @@ async function inventoryIntent(
     return elicitSlot(intent, PRODUCT_SLOT, '¿Qué producto quieres consultar?');
   }
 
+  const productQuery = productLookupValue(spokenProduct);
+  const product = resolveCatalogCandidate(
+    productQuery,
+    await inventory.searchProducts(productQuery),
+  );
+  if (product.kind !== 'found') {
+    return productResolutionResponse(intent, productQuery, product);
+  }
+
   const spokenWarehouse = resolvedSlotValue(intent.slots?.[WAREHOUSE_SLOT]);
   if (!spokenWarehouse) {
     return elicitSlot(intent, WAREHOUSE_SLOT, '¿En qué bodega?');
   }
 
-  const product = resolveCatalogCandidate(
-    spokenProduct,
-    await inventory.searchProducts(spokenProduct),
-  );
-  if (product.kind !== 'found') {
-    return productResolutionResponse(intent, spokenProduct, product);
-  }
+  const warehouseQuery = warehouseLookupValue(spokenWarehouse);
 
   const warehouse = resolveCatalogCandidate(
-    spokenWarehouse,
-    await inventory.searchWarehouses(spokenWarehouse),
+    warehouseQuery,
+    await inventory.searchWarehouses(warehouseQuery),
   );
   if (warehouse.kind !== 'found') {
-    return warehouseResolutionResponse(intent, spokenWarehouse, warehouse);
+    return warehouseResolutionResponse(intent, warehouseQuery, warehouse);
   }
 
   const stock = await inventory.getProductInventory(
@@ -177,8 +237,12 @@ async function inventoryIntent(
 
   const unit = product.value.unit?.name;
   const amount = unit ? `${balance.quantity} ${unit}` : balance.quantity;
+  const interpretation =
+    product.match === 'inferred' || warehouse.match === 'inferred'
+      ? `Entendí ${product.value.name} en ${warehouse.value.name}. `
+      : '';
   return response(
-    `Hay ${amount} de ${product.value.name} en ${warehouse.value.name}.`,
+    `${interpretation}Hay ${amount} de ${product.value.name} en ${warehouse.value.name}.`,
     true,
   );
 }
@@ -336,9 +400,9 @@ export async function handleAlexaRequest(
   try {
     if (envelope.request.type === 'LaunchRequest') {
       return response(
-        'Puedes consultar existencias por producto y bodega, pedir el resumen de ventas en tránsito, o consultar una venta por número.',
+        'Puedes decir consultar existencias y te preguntaré primero el producto y después la bodega. También puedes pedir el resumen de ventas en tránsito o consultar una venta por número.',
         false,
-        'Dime el producto y la bodega, pide el resumen de ventas en tránsito, o dime el número de venta.',
+        'Di consultar existencias, pide el resumen de ventas en tránsito, o dime el número de venta.',
       );
     }
     if (envelope.request.type === 'SessionEndedRequest') return emptyResponse();
@@ -360,9 +424,9 @@ export async function handleAlexaRequest(
     }
     if (intent.name === 'AMAZON.HelpIntent') {
       return response(
-        'Pregunta cuántas existencias hay de un producto en una bodega, pide el resumen de ventas en tránsito, o consulta una venta por número.',
+        'Di consultar existencias y te preguntaré el producto y la bodega por separado. También puedes pedir el resumen de ventas en tránsito o consultar una venta por número.',
         false,
-        'Dime el producto y la bodega, pide el resumen de ventas en tránsito, o dime el número de venta.',
+        'Di consultar existencias, pide el resumen de ventas en tránsito, o dime el número de venta.',
       );
     }
     if (

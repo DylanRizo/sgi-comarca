@@ -4,6 +4,10 @@ import {
   createDatabaseClient,
   type DatabaseClient,
 } from '../../../../packages/database/src/client.js';
+import {
+  bootstrapUserPermissions,
+  bootstrapUserRoles,
+} from '../../../../packages/database/src/bootstrap/manifest.js';
 import { prepareOperationalCatalogs } from '../../../../packages/database/src/bootstrap/operational-catalogs.js';
 
 function requireDatabaseUrl(): string {
@@ -79,17 +83,61 @@ export class AuthenticationDatabase {
       await transaction.financialCategory.deleteMany({
         where: { code: { startsWith: 'E2E-FIN-' }, entries: { none: {} } },
       });
-      await transaction.userPermission.deleteMany({
-        where: { effect: 'DENY' },
-      });
+      await this.restoreManifestAssignments(transaction);
       await transaction.session.deleteMany();
       await transaction.loginThrottle.deleteMany();
       await transaction.userInvitation.deleteMany();
       await transaction.passwordCredential.deleteMany();
-      await transaction.user.update({
+      // Credentials are gone for everyone, so nobody can be ACTIVE; the
+      // settings suite also deactivates accounts it must hand back.
+      await transaction.user.updateMany({
         data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
-        where: { loginIdentifier: 'dylan' },
       });
+    });
+  }
+
+  /**
+   * ADR-020 lets the settings suite change people's roles and exceptions from
+   * the panel, and other suites add DENY exceptions. Every suite starts from
+   * the manifest's assignments instead of inheriting them. The E2E database is
+   * temporary, so the rows are replaced rather than revoked.
+   */
+  private async restoreManifestAssignments(
+    transaction: TransactionClient,
+  ): Promise<void> {
+    const [users, roles, permissions] = await Promise.all([
+      transaction.user.findMany({
+        select: { id: true, loginIdentifier: true },
+      }),
+      transaction.role.findMany({ select: { code: true, id: true } }),
+      transaction.permission.findMany({ select: { code: true, id: true } }),
+    ]);
+    const userId = new Map(
+      users.map(({ id, loginIdentifier }) => [loginIdentifier, id]),
+    );
+    const roleId = new Map(roles.map(({ code, id }) => [code, id]));
+    const permissionId = new Map(permissions.map(({ code, id }) => [code, id]));
+    const required = (map: Map<string, string>, key: string): string => {
+      const value = map.get(key);
+      if (!value) throw new Error(`Bootstrap record ${key} is missing.`);
+      return value;
+    };
+
+    await transaction.userRole.deleteMany();
+    await transaction.userPermission.deleteMany();
+    await transaction.userRole.createMany({
+      data: bootstrapUserRoles.map(({ loginIdentifier, roleCode }) => ({
+        roleId: required(roleId, roleCode),
+        userId: required(userId, loginIdentifier),
+      })),
+    });
+    await transaction.userPermission.createMany({
+      data: bootstrapUserPermissions.map(
+        ({ loginIdentifier, permissionCode }) => ({
+          permissionId: required(permissionId, permissionCode),
+          userId: required(userId, loginIdentifier),
+        }),
+      ),
     });
   }
 
@@ -530,6 +578,7 @@ export class AuthenticationDatabase {
     cancellations: number;
     confirmations: number;
     items: number;
+    payments: number;
     saleCancellationMovements: number;
     saleMovements: number;
     sales: number;
@@ -539,6 +588,7 @@ export class AuthenticationDatabase {
       items,
       cancellations,
       confirmations,
+      payments,
       saleMovements,
       saleCancellationMovements,
     ] = await Promise.all([
@@ -546,6 +596,7 @@ export class AuthenticationDatabase {
       this.client.saleItem.count(),
       this.client.saleCancellation.count(),
       this.client.inTransitConfirmation.count(),
+      this.client.salePayment.count(),
       this.client.inventoryMovement.count({ where: { type: 'SALE' } }),
       this.client.inventoryMovement.count({
         where: { type: 'SALE_CANCELLATION' },
@@ -555,6 +606,7 @@ export class AuthenticationDatabase {
       cancellations,
       confirmations,
       items,
+      payments,
       saleCancellationMovements,
       saleMovements,
       sales,
@@ -576,7 +628,8 @@ export class AuthenticationDatabase {
   }
 
   async denySalesPermission(
-    code: 'sales.cancel' | 'sales.create' | 'sales.read',
+    code:
+      'sales.cancel' | 'sales.create' | 'sales.read' | 'sales.record_payment',
   ): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({ where: { code } }),

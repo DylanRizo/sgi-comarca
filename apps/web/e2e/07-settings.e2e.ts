@@ -95,6 +95,75 @@ test.describe('Administration settings', () => {
     await expect(jeanRow).toContainText('Invitación vigente sin usar');
   });
 
+  test('edits a person’s roles and exceptions from the panel', async ({
+    page,
+    request,
+  }) => {
+    await login(request, page);
+    await page.goto('/settings');
+    const jeanRow = page.getByRole('row').filter({ hasText: 'jean' });
+    await jeanRow.getByRole('button', { name: 'Editar acceso' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Acceso de Jean' });
+    await expect(dialog).toBeVisible();
+    // ADR-020: ADMIN is never assigned from the panel, and an
+    // administrator-only permission cannot be granted to Jean.
+    await expect(
+      dialog.getByRole('checkbox', { name: /Administración/u }),
+    ).toBeDisabled();
+    const cancelException = dialog.getByLabel('Excepción para sales.cancel');
+    await expect(
+      cancelException.locator('option[value="GRANT"]'),
+    ).toBeDisabled();
+
+    // Exact match on the code: descriptions may mention other permissions.
+    const permissionRow = (code: string) =>
+      dialog
+        .getByRole('row')
+        .filter({ has: page.getByText(code, { exact: true }) });
+    const financeRow = permissionRow('finances.read');
+    await expect(financeRow).toContainText('No');
+    await dialog.getByRole('checkbox', { name: /Finanzas/u }).check();
+    // The preview follows the unsaved roles before anything is sent.
+    await expect(financeRow).toContainText('Permitido');
+    await dialog.getByRole('button', { name: 'Guardar roles' }).click();
+    await expect(dialog.getByRole('status')).toContainText(
+      'Roles de Jean actualizados.',
+    );
+
+    await dialog.getByLabel('Excepción para sales.create').selectOption('DENY');
+    await dialog.getByRole('button', { name: 'Guardar excepciones' }).click();
+    await expect(dialog.getByRole('status')).toContainText(
+      'Excepciones de Jean actualizadas.',
+    );
+    await expect(permissionRow('sales.create')).toContainText('Sin acceso');
+
+    await dialog.getByRole('button', { name: 'Cerrar' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(jeanRow).toContainText('FINANCE');
+    await expect(page.getByRole('status')).toContainText(
+      'Acceso de Jean actualizado.',
+    );
+  });
+
+  test('reactivates an account that was deactivated', async ({
+    page,
+    request,
+  }) => {
+    await login(request, page);
+    await page.goto('/settings');
+    const ludenRow = page.getByRole('row').filter({ hasText: 'luden' });
+    await ludenRow.getByRole('button', { name: 'Desactivar' }).click();
+    await expect(ludenRow).toContainText('Desactivada');
+
+    await ludenRow.getByRole('button', { name: 'Reactivar' }).click();
+    // Luden never activated, so the account waits for an invitation again.
+    await expect(ludenRow).toContainText('Pendiente de activación');
+    await expect(
+      ludenRow.getByRole('button', { name: 'Crear invitación' }),
+    ).toBeVisible();
+  });
+
   test('hides the panel from an account without the permission', async ({
     page,
     request,

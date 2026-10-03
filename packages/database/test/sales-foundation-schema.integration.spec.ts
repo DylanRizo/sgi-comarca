@@ -206,6 +206,24 @@ async function insertCancellation(
   return id;
 }
 
+async function insertPayment(
+  client: PoolClient,
+  fixture: SaleFixture,
+  amount = '25.00',
+): Promise<string> {
+  const id = randomUUID();
+  await client.query(
+    [
+      'INSERT INTO sale_payments',
+      '(id, sale_id, amount, currency_code, method_text, recorded_by_user_id,',
+      'paid_at, idempotency_key_hash, request_hash)',
+      "VALUES ($1, $2, $3, 'NIO', 'Transferencia', $4, now(), $5, $6)",
+    ].join(' '),
+    [id, fixture.saleId, amount, fixture.actorId, digest(), digest()],
+  );
+  return id;
+}
+
 async function withRollback(
   callback: (client: PoolClient) => Promise<void>,
 ): Promise<void> {
@@ -320,6 +338,56 @@ describe.sequential('PHASE 7A sales persistence foundation', () => {
         [fixture.itemId],
       );
       expect(result.rows[0]?.movement_count).toBe('1');
+    });
+  });
+
+  it('requires one immutable full-payment document before marking a sale paid', async () => {
+    await withRollback(async (client) => {
+      const fixture = await insertOperationalSale(client);
+      await expect(
+        client.query(
+          "UPDATE sales SET payment_status = 'PAID', updated_at = now() WHERE id = $1",
+          [fixture.saleId],
+        ),
+      ).rejects.toMatchObject({ constraint: 'sales_payment_transition' });
+    });
+
+    await withRollback(async (client) => {
+      const fixture = await insertOperationalSale(client);
+      await expect(
+        insertPayment(client, fixture, '24.99'),
+      ).rejects.toMatchObject({
+        constraint: 'sale_payment_matches_sale_total',
+      });
+    });
+
+    await withRollback(async (client) => {
+      const fixture = await insertOperationalSale(client);
+      const paymentId = await insertPayment(client, fixture);
+      await client.query(
+        "UPDATE sales SET payment_status = 'PAID', updated_at = now() WHERE id = $1",
+        [fixture.saleId],
+      );
+      const result = await client.query<{ payment_status: string }>(
+        'SELECT payment_status::text FROM sales WHERE id = $1',
+        [fixture.saleId],
+      );
+      expect(result.rows[0]?.payment_status).toBe('PAID');
+      await expect(
+        client.query(
+          "UPDATE sale_payments SET method_text = 'Efectivo' WHERE id = $1",
+          [paymentId],
+        ),
+      ).rejects.toMatchObject({ code: '55000' });
+    });
+
+    await withRollback(async (client) => {
+      const fixture = await insertOperationalSale(client, {
+        status: 'IN_TRANSIT',
+      });
+      await expect(insertPayment(client, fixture)).rejects.toMatchObject({
+        constraint: 'sale_payment_source_state',
+      });
     });
   });
 

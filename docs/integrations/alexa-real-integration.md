@@ -148,10 +148,25 @@ Probar primero en el simulador y luego en el Echo:
 
 ```text
 Alexa, abre inventario comarca.
+Usuario: consultar existencias.
+Alexa: ¿Qué producto quieres consultar?
+Usuario: camisa de compresión manga larga blanca, talla mediana.
+Alexa: ¿En qué bodega?
+Usuario: Dylan.
+
 Alexa, pregúntale a inventario comarca cuántas existencias hay de <producto> en <bodega>.
 Alexa, pregúntale a inventario comarca el resumen de ventas en tránsito.
 Alexa, pregúntale a inventario comarca por la venta 123.
 ```
+
+La consulta guiada valida primero el producto y después solicita la bodega. La
+búsqueda de voz compara palabras normalizadas sin depender del orden exacto,
+tolera una proporción acotada de palabras mal reconocidas y entiende alias
+comunes de color y talla. Si varias variantes obtienen la misma coincidencia,
+la Skill debe enumerarlas y pedir aclaración; no debe elegir una silenciosamente.
+Cuando una coincidencia única no es textual, la respuesta comienza con
+`Entendí <producto> en <bodega>` para que el usuario pueda detectar una
+interpretación incorrecta.
 
 Verificar que:
 

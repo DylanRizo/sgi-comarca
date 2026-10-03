@@ -60,6 +60,7 @@ describe('FASE 7B.4 sale lifecycle', () => {
   let databaseName: string;
   let sellerId: string;
   let cancellerId: string;
+  let outsiderId: string;
   let warehouseId: string;
   let productId: string;
   const originalDatabaseUrl = process.env.DATABASE_URL;
@@ -151,6 +152,17 @@ describe('FASE 7B.4 sale lifecycle', () => {
       },
     });
 
+    const outsider = await client.user.create({
+      data: {
+        activatedAt: new Date(),
+        displayName: 'Synthetic outsider',
+        loginIdentifier: 'phase7b4-outsider',
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+    outsiderId = outsider.id;
+
     const warehouse = await client.warehouse.create({
       data: { active: true, code: 'P7B4-W', name: 'Phase 7B4 warehouse' },
       select: { id: true },
@@ -208,6 +220,99 @@ describe('FASE 7B.4 sale lifecycle', () => {
       where: { action: 'sales.in_transit_confirmed', entityId: saleId },
     });
     expect(audits).toHaveLength(1);
+  });
+
+  it('records one full payment for a completed sale without touching inventory', async () => {
+    const saleId = await newSale();
+    await lifecycle.confirmInTransit(sellerId, saleId, key());
+    const stockBefore = await balanceQuantity();
+    const movementsBefore = await client.inventoryMovement.count();
+    const paidAt = new Date('2026-08-28T14:30:00.000Z');
+    const paymentLifecycle = new SaleLifecycleService(client, undefined, {
+      now: () => paidAt,
+    });
+
+    const paid = await paymentLifecycle.recordPayment(
+      sellerId,
+      saleId,
+      '  Transferencia  ',
+      key(),
+    );
+
+    expect(paid.paymentStatus).toBe('PAID');
+    expect(paid.payment).toEqual({
+      amount: '10.00',
+      currencyCode: 'NIO',
+      id: expect.any(String),
+      methodText: 'Transferencia',
+      paidAt: paidAt.toISOString(),
+      recordedBy: {
+        displayName: 'Synthetic seller',
+        id: sellerId,
+      },
+    });
+    expect(await balanceQuantity()).toBe(stockBefore);
+    expect(await client.inventoryMovement.count()).toBe(movementsBefore);
+    expect(
+      await client.auditLog.count({
+        where: { action: 'sales.payment_recorded', entityId: saleId },
+      }),
+    ).toBe(1);
+  });
+
+  it('replays payment idempotently and does not create a second document', async () => {
+    const saleId = await newSale();
+    await lifecycle.confirmInTransit(sellerId, saleId, key());
+    const idempotencyKey = key();
+
+    await lifecycle.recordPayment(sellerId, saleId, 'Efectivo', idempotencyKey);
+    const replay = await lifecycle.recordPayment(
+      sellerId,
+      saleId,
+      'Efectivo',
+      idempotencyKey,
+    );
+
+    expect(replay.paymentStatus).toBe('PAID');
+    expect(await client.salePayment.count({ where: { saleId } })).toBe(1);
+    expect(
+      await client.auditLog.count({
+        where: { action: 'sales.payment_recorded', entityId: saleId },
+      }),
+    ).toBe(1);
+  });
+
+  it('rejects payment before completion and rejects a reused key with another payload', async () => {
+    const inTransitSaleId = await newSale();
+    await expect(
+      lifecycle.recordPayment(sellerId, inTransitSaleId, 'Efectivo', key()),
+    ).rejects.toThrow(new SaleError('SALE_INVALID_STATE'));
+
+    await lifecycle.confirmInTransit(sellerId, inTransitSaleId, key());
+    const idempotencyKey = key();
+    await lifecycle.recordPayment(
+      sellerId,
+      inTransitSaleId,
+      'Efectivo',
+      idempotencyKey,
+    );
+    await expect(
+      lifecycle.recordPayment(
+        sellerId,
+        inTransitSaleId,
+        'Transferencia',
+        idempotencyKey,
+      ),
+    ).rejects.toThrow(new SaleError('IDEMPOTENCY_KEY_REUSED'));
+  });
+
+  it('denies payment recording without the explicit permission', async () => {
+    const saleId = await newSale();
+    await lifecycle.confirmInTransit(sellerId, saleId, key());
+    await expect(
+      lifecycle.recordPayment(outsiderId, saleId, 'Efectivo', key()),
+    ).rejects.toThrow(new SaleError('SALES_PERMISSION_DENIED'));
+    expect(await client.salePayment.count({ where: { saleId } })).toBe(0);
   });
 
   it('replays a confirmation without a second document or audit event', async () => {

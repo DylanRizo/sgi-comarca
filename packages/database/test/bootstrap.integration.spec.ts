@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabaseClient, type DatabaseClient } from '../src/client.js';
 import { runBootstrap } from '../src/bootstrap/run-bootstrap.js';
 import {
+  administratorOnlyPermissionCodes,
+  administratorRoleCode,
   bootstrapPermissions,
   bootstrapRolePermissions,
   bootstrapRoles,
@@ -166,9 +168,9 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
     expect(invitationCount).toBe(0);
-    expect(permissions).toHaveLength(26);
+    expect(permissions).toHaveLength(27);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(26);
+    expect(rolePermissions).toHaveLength(27);
     expect(userPermissions).toHaveLength(2);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
@@ -180,7 +182,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 78, phase: '7A-RBAC' },
+      metadata: { createdRecordCount: 80, phase: '7A-RBAC' },
     });
   });
 
@@ -321,15 +323,15 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(administrativeRoleAssignments).toBe(1);
     expect(administrativeRolePermissions).toBe(7);
     expect(salesRoleAssignments).toBe(4);
-    expect(salesRolePermissions).toBe(5);
+    expect(salesRolePermissions).toBe(6);
     expect(transferGrants).toEqual([1, 0]);
   });
 
-  it('adds a manifest direct grant that a live database is missing', async () => {
-    // The FASE 9 staging gate hit this exact shape: a database already in use,
-    // whose direct grants matched the manifest except for one the manifest had
-    // newly added. Requiring exact equality made it unreachable, because the
-    // run aborted before creating the permission the grant refers to.
+  it('adds a new catalog permission to a live database but leaves who holds it to the panel', async () => {
+    // The FASE 9 staging gate hit this shape: a database already in use whose
+    // catalog lacked a permission the manifest had newly added. Bootstrap must
+    // still create the permission. Since ADR-020 it no longer grants it to a
+    // person in a live database: the administration panel owns that.
     const dylan = await client.user.findUniqueOrThrow({
       where: { loginIdentifier: 'dylan' },
     });
@@ -369,7 +371,7 @@ describe.sequential('FASE 3B bootstrap', () => {
 
     expect(result.created).toMatchObject({
       permissions: 1,
-      userPermissions: 1,
+      userPermissions: 0,
       users: 0,
       userRoles: 0,
     });
@@ -381,7 +383,7 @@ describe.sequential('FASE 3B bootstrap', () => {
           userId: dylan.id,
         },
       }),
-    ).toBe(1);
+    ).toBe(0);
 
     // The live authentication it was upgrading around is untouched.
     expect(
@@ -398,6 +400,19 @@ describe.sequential('FASE 3B bootstrap', () => {
       userPermissions: 0,
     });
 
+    // The administrator would grant it from the panel; restore the manifest
+    // state the later cases start from.
+    await client.userPermission.create({
+      data: {
+        permissionId: (
+          await client.permission.findUniqueOrThrow({
+            where: { code: 'inventory.audit.approve' },
+          })
+        ).id,
+        userId: dylan.id,
+      },
+    });
+
     await client.session.deleteMany({ where: { userId: dylan.id } });
     await client.passwordCredential.deleteMany({ where: { userId: dylan.id } });
     await client.user.update({
@@ -406,10 +421,11 @@ describe.sequential('FASE 3B bootstrap', () => {
     });
   });
 
-  it('still refuses a direct grant nobody approved, on a live database', async () => {
-    // The relaxation above must not become a way in: an extra grant means a
-    // privilege was handed out outside the manifest, and bootstrap may not
-    // build on top of that.
+  it('still refuses an administrator-only grant outside the ADMIN, on a live database', async () => {
+    // The panel owns people's grants, but it can never hand an
+    // administrator-only permission to anyone but the ADMIN (ADR-020). Finding
+    // one means a privilege was handed out outside every approved path, and
+    // bootstrap may not build on top of that.
     const dylan = await client.user.findUniqueOrThrow({
       where: { loginIdentifier: 'dylan' },
     });
@@ -436,7 +452,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     });
 
     await expect(runBootstrap(client)).rejects.toThrow(
-      'unexpected active records exist',
+      'administrator-only permission is granted outside the ADMIN',
     );
 
     await client.userPermission.delete({ where: { id: unexpected.id } });
@@ -446,6 +462,162 @@ describe.sequential('FASE 3B bootstrap', () => {
       where: { id: dylan.id },
     });
     await runBootstrap(client);
+  });
+
+  /**
+   * Credentials are what put runBootstrap into its live path. Returns the
+   * cleanup that takes the database back to an unused one.
+   */
+  async function enterLiveMode(): Promise<() => Promise<void>> {
+    const dylan = await client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    await client.user.update({
+      data: {
+        activatedAt: new Date('2026-08-15T12:00:00.000Z'),
+        status: 'ACTIVE',
+      },
+      where: { id: dylan.id },
+    });
+    const credential = await client.passwordCredential.create({
+      data: {
+        passwordHash: 'CONTROLLED_ARGON2ID_BOOTSTRAP_TEST_HASH',
+        userId: dylan.id,
+      },
+    });
+    return async () => {
+      await client.passwordCredential.delete({ where: { id: credential.id } });
+      await client.user.update({
+        data: { activatedAt: null, status: 'PENDING_ACTIVATION' },
+        where: { id: dylan.id },
+      });
+    };
+  }
+
+  it('leaves the assignments the panel made alone on a live database', async () => {
+    const [jean, samantha, luden, finance, sales, salesCreate, financesRead] =
+      await Promise.all([
+        client.user.findUniqueOrThrow({ where: { loginIdentifier: 'jean' } }),
+        client.user.findUniqueOrThrow({
+          where: { loginIdentifier: 'samantha' },
+        }),
+        client.user.findUniqueOrThrow({ where: { loginIdentifier: 'luden' } }),
+        client.role.findUniqueOrThrow({ where: { code: 'FINANCE' } }),
+        client.role.findUniqueOrThrow({ where: { code: 'SALES' } }),
+        client.permission.findUniqueOrThrow({
+          where: { code: 'sales.create' },
+        }),
+        client.permission.findUniqueOrThrow({
+          where: { code: 'finances.read' },
+        }),
+      ]);
+    const leave = await enterLiveMode();
+
+    // What the panel can do: add and remove ordinary roles, and set ordinary
+    // exceptions in both directions.
+    const addedRole = await client.userRole.create({
+      data: { roleId: finance.id, userId: jean.id },
+    });
+    const removedRole = await client.userRole.findFirstOrThrow({
+      where: { revokedAt: null, roleId: sales.id, userId: samantha.id },
+    });
+    await client.userRole.update({
+      data: { revokedAt: new Date() },
+      where: { id: removedRole.id },
+    });
+    const overrides = await Promise.all([
+      client.userPermission.create({
+        data: {
+          effect: 'DENY',
+          permissionId: salesCreate.id,
+          userId: luden.id,
+        },
+      }),
+      client.userPermission.create({
+        data: { permissionId: financesRead.id, userId: luden.id },
+      }),
+    ]);
+    const auditBefore = await client.auditLog.count();
+
+    const first = await runBootstrap(client);
+    const second = await runBootstrap(client);
+
+    expect(Object.values(first.created).every((count) => count === 0)).toBe(
+      true,
+    );
+    expect(Object.values(second.created).every((count) => count === 0)).toBe(
+      true,
+    );
+    expect(await client.auditLog.count()).toBe(auditBefore);
+    expect(
+      await client.userRole.count({
+        where: { revokedAt: null, roleId: sales.id, userId: samantha.id },
+      }),
+    ).toBe(0);
+    expect(
+      await client.userRole.findUniqueOrThrow({ where: { id: addedRole.id } }),
+    ).toMatchObject({ revokedAt: null });
+
+    await leave();
+    await client.userPermission.deleteMany({
+      where: { id: { in: overrides.map(({ id }) => id) } },
+    });
+    await client.userRole.delete({ where: { id: addedRole.id } });
+    await client.userRole.update({
+      data: { revokedAt: null },
+      where: { id: removedRole.id },
+    });
+    await runBootstrap(client);
+  });
+
+  it('refuses a live database without exactly one ADMIN', async () => {
+    const [samantha, admin] = await Promise.all([
+      client.user.findUniqueOrThrow({ where: { loginIdentifier: 'samantha' } }),
+      client.role.findUniqueOrThrow({ where: { code: 'ADMIN' } }),
+    ]);
+    const leave = await enterLiveMode();
+
+    const secondAdmin = await client.userRole.create({
+      data: { roleId: admin.id, userId: samantha.id },
+    });
+    await expect(runBootstrap(client)).rejects.toThrow(
+      'exactly one ADMIN is required',
+    );
+    await client.userRole.delete({ where: { id: secondAdmin.id } });
+
+    const soleAdmin = await client.userRole.findFirstOrThrow({
+      where: { revokedAt: null, roleId: admin.id },
+    });
+    await client.userRole.update({
+      data: { revokedAt: new Date() },
+      where: { id: soleAdmin.id },
+    });
+    await expect(runBootstrap(client)).rejects.toThrow(
+      'exactly one ADMIN is required',
+    );
+    await client.userRole.update({
+      data: { revokedAt: null },
+      where: { id: soleAdmin.id },
+    });
+
+    await leave();
+    await runBootstrap(client);
+  });
+
+  it('declares every ADMIN role permission as administrator-only', () => {
+    // ADR-020: granting an ADMIN permission directly to someone else would
+    // build a second administrator piecemeal, so the restricted list must
+    // cover the whole role, including permissions added to it later.
+    const adminPermissions = bootstrapRolePermissions
+      .filter(({ roleCode }) => roleCode === administratorRoleCode)
+      .map(({ permissionCode }) => permissionCode);
+    expect(adminPermissions.length).toBeGreaterThan(0);
+    for (const code of adminPermissions) {
+      expect(administratorOnlyPermissionCodes).toContain(code);
+    }
+    for (const { permissionCode } of bootstrapUserPermissions) {
+      expect(administratorOnlyPermissionCodes).toContain(permissionCode);
+    }
   });
 
   it('rolls back every partial change when the matrix is incompatible', async () => {

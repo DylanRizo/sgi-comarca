@@ -77,6 +77,7 @@ health, ready, activación, login y `POST /api/v1/alexa/oauth/token` (ver
 | users | `POST /api/v1/users/:id/credentials/revoke` | `users.credentials.revoke` |
 | users | `POST /api/v1/users/:id/sessions/revoke` | `users.sessions.revoke` |
 | users | `POST /api/v1/users/:id/deactivate` | `users.status.manage` |
+| users | `POST /api/v1/users/:id/reactivate` | `users.status.manage` |
 
 Las respuestas sensibles usan `Cache-Control: no-store`. La invitación
 administrativa devuelve exclusivamente el token de un uso después del commit;
@@ -141,7 +142,9 @@ La clave original nunca se persiste ni registra. Misma clave, actor y payload
 canónico devuelve la transferencia existente sin nuevo stock, ledger o
 auditoría; payload distinto devuelve `IDEMPOTENCY_KEY_REUSED`. Cada transferencia
 crea exactamente un `AuditLog` `inventory.transferred` y no crea ni copia
-`ProductWarehouseValuation`.
+`ProductWarehouseValuation`. Cuando el balance destino no tiene costo o precio,
+hereda los del origen con su flag de revisión, sin sobrescribir valores
+existentes (ADR-019); el contrato de respuesta no cambia.
 
 ## Integración Alexa de solo lectura
 
@@ -173,6 +176,7 @@ Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 | valuations | `GET /inventory/valuations`, `GET /inventory/valuations/pending`, `POST /inventory/valuations/:id` | `inventory.valuation.manage` |
 | sales | `GET /sales`, `GET /sales/:id` | `sales.read` |
 | sales | `POST /sales` / `POST /sales/:id/confirm-in-transit` / `POST /sales/:id/cancel` | `sales.create` / `sales.confirm_in_transit` / `sales.cancel` |
+| sales | `POST /sales/:id/payment` | `sales.record_payment` (ADR-018; pago total de una venta completada, idempotente) |
 | finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories` | `finances.read` |
 | finances | `POST /finances` | `finances.manual.create` |
 | closings | `GET /closings`, `GET /closings/:id`, `GET /closings/preview` | `closings.read` |
@@ -183,7 +187,9 @@ Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 | counts | `POST /inventory/counts/:id/cancel` | cualquiera de las dos capacidades de conteo |
 | reports | `GET /reports/inventory`, `/movements`, `/sales`, `/finances` | `reports.read` más el permiso de lectura del dominio; columnas monetarias requieren `finances.read` |
 | analytics | `GET /analytics/inventory`, `GET /analytics/sales` | `analytics.read` más el permiso de lectura del dominio |
-| users | `GET /users`, `GET /users/:id`, `GET /roles` | `users.read` |
+| users | `GET /users`, `GET /users/:id`, `GET /roles`, `GET /permissions` | `users.read` |
+| users | `PUT /users/:id/roles`, `PUT /users/:id/permissions` | `users.roles.manage` (ADR-020; reemplazo completo, idempotente) |
+| users | `POST /users/:id/reactivate` | `users.status.manage` |
 | integrations | `GET /integrations/keys` / `POST /integrations/keys` / `POST /integrations/keys/:id/revoke` | `integrations.manage` |
 | integrations | `GET /integrations/catalog` | llave de integración de solo lectura, no sesión |
 
@@ -197,7 +203,7 @@ Conservan su destino arquitectónico pero no existen como rutas:
 
 | Módulo | Endpoints pendientes |
 |---|---|
-| users/roles | edición de perfil y mutación de roles/permisos (`PUT /users/:id/roles`, `PUT /users/:id/permissions`, planificados en [admin-settings-panel](../plans/admin-settings-panel.md)) |
+| users | edición de perfil (nombre, identificador) |
 | catalogs | mutaciones de `/units` y `/warehouses` |
 | imports | `POST /imports/dry-run`, `POST /imports/{id}/commit`, `GET /imports/{id}/report` (el importador legacy es una CLI) |
 | settings/audit | `GET/PATCH /settings`, `GET /audit-logs` |
