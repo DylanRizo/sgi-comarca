@@ -255,8 +255,7 @@ export function AuthenticatedShell({
         <div
           className="application-user"
           // Below the collapse width this block lives inside the menu panel,
-          // so it follows the same toggle instead of standing permanently on
-          // top of the page.
+          // pinned under the scrolling destinations so it stays on screen.
           data-open={menuOpen ? 'true' : 'false'}
         >
           <div

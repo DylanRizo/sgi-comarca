@@ -38,6 +38,7 @@ const approvedPermissionCodes = [
   'sales.confirm_in_transit',
   'sales.create',
   'sales.read',
+  'sales.record_payment',
   'stock-receipts.create',
   'transfers.create',
   'users.credentials.revoke',
@@ -75,25 +76,29 @@ const approvedRolePermissionKeys = [
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
   'SALES:sales.read',
+  'SALES:sales.record_payment',
 ] as const;
 
 /**
- * Direct grants belong exclusively to the sole ADMIN and carry only what no
- * role provides. On 2026-08-31 the owner moved counting, reports and analytics
- * onto roles; approving a count stayed here, because it writes stock through
- * the FASE 5C adjustment path and must not be held by whoever counted.
+ * Who holds which role or exception belongs to the administration panel once
+ * the system is in use (ADR-020), so recovery no longer pins each person's
+ * roles. What it still pins is what the panel can never change: the catalog
+ * above, exactly one ADMIN (checked by `LastAdminPolicy`), and the
+ * administrator-only permissions held as direct grants by nobody but that
+ * ADMIN. This list is deliberately duplicated from the manifest: recovery is
+ * the last-resort tool and must not trust the code it is recovering around.
  */
-const approvedDirectPermissionCodes = [
+const administratorOnlyPermissionCodes = new Set([
   'inventory.audit.approve',
+  'integrations.manage',
   'sales.cancel',
-] as const;
-
-const approvedUserRoleSignatures = [
-  'ADMIN,FINANCE,INVENTORY_MANAGER,SALES',
-  'FINANCE,INVENTORY_MANAGER,SALES',
-  'INVENTORY_MANAGER,SALES',
-  'INVENTORY_MANAGER,SALES',
-] as const;
+  'users.credentials.revoke',
+  'users.invitations.create',
+  'users.read',
+  'users.roles.manage',
+  'users.sessions.revoke',
+  'users.status.manage',
+]);
 
 export class AdminRecoveryError extends Error {
   constructor(message: string) {
@@ -127,7 +132,7 @@ async function assertApprovedAuthorizationMatrix(
   transaction: TransactionClient,
   adminUserId: string,
 ): Promise<void> {
-  const [roles, permissions, rolePermissions, userRoles, userPermissions] =
+  const [roles, permissions, rolePermissions, userPermissions] =
     await Promise.all([
       transaction.role.findMany({ select: { code: true } }),
       transaction.permission.findMany({ select: { code: true } }),
@@ -138,15 +143,8 @@ async function assertApprovedAuthorizationMatrix(
           role: { select: { code: true } },
         },
       }),
-      transaction.userRole.findMany({
-        where: { revokedAt: null },
-        select: {
-          role: { select: { code: true } },
-          userId: true,
-        },
-      }),
       transaction.userPermission.findMany({
-        where: { revokedAt: null },
+        where: { effect: 'GRANT', revokedAt: null },
         select: {
           permission: { select: { code: true } },
           userId: true,
@@ -172,28 +170,16 @@ async function assertApprovedAuthorizationMatrix(
     approvedRolePermissionKeys,
   );
 
-  const rolesByUser = new Map<string, string[]>();
-  for (const { role, userId } of userRoles) {
-    const roleCodes = rolesByUser.get(userId) ?? [];
-    roleCodes.push(role.code);
-    rolesByUser.set(userId, roleCodes);
-  }
-  assertExactValues(
-    'user role distribution',
-    [...rolesByUser.values()].map((roleCodes) => sorted(roleCodes).join(',')),
-    approvedUserRoleSignatures,
+  const misplacedGrant = userPermissions.some(
+    ({ permission, userId }) =>
+      administratorOnlyPermissionCodes.has(permission.code) &&
+      userId !== adminUserId,
   );
-
-  if (userPermissions.some(({ userId }) => userId !== adminUserId)) {
+  if (misplacedGrant) {
     throw new AdminRecoveryError(
-      'The approved authorization matrix is incompatible: direct permissions.',
+      'The approved authorization matrix is incompatible: administrator-only permissions.',
     );
   }
-  assertExactValues(
-    'direct permissions',
-    userPermissions.map(({ permission }) => permission.code),
-    approvedDirectPermissionCodes,
-  );
 }
 
 function createToken(): string {

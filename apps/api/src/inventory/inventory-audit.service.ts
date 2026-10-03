@@ -1,5 +1,7 @@
 import type { DatabaseClient } from '@sgi/database';
 
+import type { InheritedTransferValuation } from './inventory-transfer-valuation.js';
+
 type TransactionClient = Omit<
   DatabaseClient,
   '$connect' | '$disconnect' | '$extends' | '$on' | '$transaction'
@@ -21,6 +23,7 @@ export type InventoryTransferAuditInput = {
   actorUserId: string;
   fromWarehouseId: string;
   incomingMovementId: string;
+  inheritedValuation: InheritedTransferValuation;
   occurredAt: Date;
   outgoingMovementId: string;
   productId: string;
@@ -68,6 +71,19 @@ export class InventoryAuditService {
         metadata: {
           fromWarehouseId: input.fromWarehouseId,
           incomingMovementId: input.incomingMovementId,
+          // ADR-019: the only provenance of a destination value filled from
+          // the origin, since no ProductWarehouseValuation row is written.
+          inheritedValuation: {
+            cost: input.inheritedValuation.cost && {
+              reviewRequired: input.inheritedValuation.cost.costReviewRequired,
+              unitCost: input.inheritedValuation.cost.currentUnitCost,
+            },
+            price: input.inheritedValuation.price && {
+              reviewRequired:
+                input.inheritedValuation.price.priceReviewRequired,
+              unitPrice: input.inheritedValuation.price.currentUnitPrice,
+            },
+          },
           outgoingMovementId: input.outgoingMovementId,
           productId: input.productId,
           quantity: input.quantity,

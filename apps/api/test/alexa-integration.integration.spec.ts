@@ -144,10 +144,38 @@ describe.sequential('Alexa account linking and real read bridge', () => {
         unitId: unit.id,
       },
     });
+    const voiceProduct = await client.product.create({
+      data: {
+        code: 'CAM-COMP-BL-M',
+        name: 'Camisa de compresión manga larga blanca M',
+        unitId: unit.id,
+      },
+    });
+    await client.product.createMany({
+      data: [
+        {
+          code: 'CAM-COMP-BL-L',
+          name: 'Camisa de compresión manga larga blanca L',
+          unitId: unit.id,
+        },
+        {
+          code: 'CAM-COMP-NE-M',
+          name: 'Camisa de compresión manga larga negra M',
+          unitId: unit.id,
+        },
+      ],
+    });
     await client.inventoryBalance.create({
       data: {
         productId: product.id,
         quantity: '12.5',
+        warehouseId: warehouse.id,
+      },
+    });
+    await client.inventoryBalance.create({
+      data: {
+        productId: voiceProduct.id,
+        quantity: '7',
         warehouseId: warehouse.id,
       },
     });
@@ -313,6 +341,31 @@ describe.sequential('Alexa account linking and real read bridge', () => {
       /Hay 12\.5 unidades/iu,
     );
 
+    const tolerantInventory = await request(app.getHttpServer())
+      .post('/api/v1/alexa/requests')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        request: {
+          intent: {
+            name: 'ConsultarExistenciasIntent',
+            slots: {
+              bodega: { value: 'Casa Dylan' },
+              producto: {
+                value: 'manga camisa compresión larga blanca eme deportiva',
+              },
+            },
+          },
+          locale: 'es-MX',
+          type: 'IntentRequest',
+        },
+        version: '1.0',
+      })
+      .expect(200);
+    expect(tolerantInventory.body.data.response.outputSpeech.text).toMatch(
+      /Entendí Camisa de compresión manga larga blanca M.*Hay 7 unidades/iu,
+    );
+
     const sales = await request(app.getHttpServer())
       .post('/api/v1/alexa/requests')
       .set('Host', host)
@@ -338,14 +391,16 @@ describe.sequential('Alexa account linking and real read bridge', () => {
       await client.auditLog.count({
         where: { action: 'ALEXA_READ_REQUESTED' },
       }),
-    ).toBe(2);
+    ).toBe(3);
     const queryAudits = await client.auditLog.findMany({
       where: { action: 'ALEXA_READ_REQUESTED' },
       select: { metadata: true },
     });
-    expect(JSON.stringify(queryAudits)).not.toMatch(/Café|Casa Dylan|123/iu);
+    expect(JSON.stringify(queryAudits)).not.toMatch(
+      /Café|Camisa|Casa Dylan|123/iu,
+    );
 
-    for (let index = 0; index < 28; index += 1) {
+    for (let index = 0; index < 27; index += 1) {
       await request(app.getHttpServer())
         .post('/api/v1/alexa/requests')
         .set('Host', host)

@@ -50,6 +50,19 @@ producirá `IDEMPOTENCY_KEY_REUSED`. El endpoint todavía no existe.
 - La implementación deberá cubrir salida concurrente, ajuste + transferencia,
   transferencias cruzadas y carrera de creación del balance destino.
 
+## Herencia de precio y costo (ADR-019, 2026-09-26)
+
+La creación en cero se refiere a la cantidad. Desde
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md), con ambos
+balances bloqueados, un destino con `current_unit_cost` `NULL` toma el costo del
+origen y su `cost_review_required`; de forma independiente, un destino con
+`current_unit_price` `NULL` toma el precio del origen y su
+`price_review_required`. Un valor existente del destino nunca se sobrescribe y
+un origen `NULL` deja el destino `NULL`. La herencia vive solo en
+`inventory_balances`: la regla anterior sobre `ProductWarehouseValuation` sigue
+vigente. El evento `inventory.transferred` registra lo heredado en
+`metadata.inheritedValuation`. No requiere migración.
+
 ## Migración
 
 La migración versionada

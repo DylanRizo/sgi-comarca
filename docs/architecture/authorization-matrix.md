@@ -1,13 +1,14 @@
 # Matriz de autorización
 
-Estado vigente: el manifiesto desplegado contiene 26 permisos, 26 grants por rol
+Estado vigente: el manifiesto desplegado contiene 27 permisos, 27 grants por rol
 y 2 grants directos (`packages/database/src/bootstrap/manifest.ts` es la fuente
 ejecutable). La base es
 [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md),
 ampliada por las decisiones aprobadas de FASE 5A (lectura de inventario), 6A
 (transferencias), 7A (lectura de ventas), 9 (conteos, reportes y analytics), el
 release operativo de productos/entradas/valoraciones, el panel de
-administración ([plan](../plans/admin-settings-panel.md)) y ADR-017 (llaves de integración).
+administración ([plan](../plans/admin-settings-panel.md)), ADR-017 (llaves de
+integración) y ADR-018 (registro de pagos de ventas, `sales.record_payment`).
 
 ## Modelo de evaluación
 
@@ -27,15 +28,15 @@ adicional asignado de forma explícita.
 
 | Rol | Permisos activos exactos |
 |---|---|
-| `ADMIN` | `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage`, `users.read`, `users.roles.manage`, `integrations.manage` |
+| `ADMIN` | `integrations.manage`, `users.read`, `users.roles.manage`, `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
 | `PARTNER` | Ninguno |
-| `INVENTORY_MANAGER` | `inventory.adjust`, `inventory.read`, `transfers.create`, `inventory.audit.create`, `reports.read`, `analytics.read`, `products.manage`, `stock-receipts.create` |
-| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read`, `reports.read`, `analytics.read` |
+| `INVENTORY_MANAGER` | `products.manage`, `stock-receipts.create`, `inventory.adjust`, `inventory.read`, `inventory.audit.create`, `transfers.create`, `reports.read`, `analytics.read` |
+| `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read`, `sales.record_payment`, `reports.read`, `analytics.read` |
 | `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen`, `inventory.valuation.manage` |
 | `READ_ONLY` | Ninguno |
 
-Existen 26 `RolePermission` activos: siete ADMIN, seis FINANCE, ocho
-INVENTORY_MANAGER y cinco SALES. `transfers.create` se concede exclusivamente a
+Existen 27 `RolePermission` activos: siete ADMIN, seis FINANCE, ocho
+INVENTORY_MANAGER y seis SALES. `transfers.create` se concede exclusivamente a
 `INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
 `inventory.valuation.manage` (completar costos y precios por bodega) pertenece a
 `FINANCE`, y `products.manage` y `stock-receipts.create` a `INVENTORY_MANAGER`.
@@ -92,9 +93,10 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `sales.create` | Sí | Sí | Sí | Sí |
 | `sales.confirm_in_transit` | Sí | Sí | Sí | Sí |
 | `sales.read` | Sí | Sí | Sí | Sí |
+| `sales.record_payment` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
 | `transfers.create` | Sí | Sí | Sí | Sí |
-| Total | 26 | 17 | 11 | 11 |
+| Total | 27 | 18 | 12 | 12 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el
@@ -104,14 +106,37 @@ grant que continúe vigente.
 
 Conceder una capacidad no evita las reglas del recurso. La cancelación exige
 venta elegible y motivo; confirmación solo aplica a tránsito y no vuelve a
-descontar stock. Los módulos nuevos deben exigir códigos de permiso exactos,
+descontar stock. Registrar pago exige una venta operacional completada y
+pendiente, crea evidencia inmutable y no toca inventario. Los módulos nuevos
+deben exigir códigos de permiso exactos,
 no listas del tipo `FINANCE/ADMIN` o `INVENTORY_MANAGER/ADMIN`.
 
 `users.read` habilita el directorio de usuarios (`GET /users`, `GET /users/:id`,
-`GET /roles`) del panel de administración. `users.roles.manage` ya está
-concedido a `ADMIN`, pero los endpoints de mutación de roles y excepciones
-descritos en [admin-settings-panel](../plans/admin-settings-panel.md) todavía no
-existen en la API; asignar otro ADMIN, editar roles/permisos o reactivar
-usuarios deshabilitados sigue sin estar disponible. Las llaves de integración (ADR-017) no son permisos de
-usuario: cada petición revalida `inventory.read` del usuario propietario de la
+`GET /roles`, `GET /permissions`) del panel de administración.
+
+## Asignaciones editadas desde el panel (ADR-020)
+
+Las tablas de este documento describen la **siembra** del manifiesto. Una vez
+que el sistema está en uso, el administrador cambia roles y excepciones de cada
+persona desde `/settings`, así que las asignaciones vigentes se consultan en el
+directorio, no aquí. Reglas que el panel aplica en la API:
+
+- `PUT /users/:id/roles` y `PUT /users/:id/permissions` exigen
+  `users.roles.manage` y reemplazan el conjunto completo; repetirlos no cambia
+  nada. `POST /users/:id/reactivate` exige `users.status.manage`: devuelve la
+  cuenta a `ACTIVE` si conserva credencial y activación, y si no, a
+  `PENDING_ACTIVATION`.
+- El rol `ADMIN` no se asigna ni se retira desde el panel. Sigue habiendo
+  exactamente un ADMIN.
+- Los permisos reservados al administrador (`sales.cancel`,
+  `inventory.audit.approve` y los siete permisos del rol `ADMIN`) solo se
+  conceden como excepción `GRANT` a quien tiene `ADMIN`. Denegarlos a cualquiera
+  sí está permitido.
+- A quien tiene `ADMIN` no se le puede denegar `users.read` ni
+  `users.roles.manage`.
+
+Detalle y consecuencias en
+[ADR-020](../decisions/ADR-020-user-access-administration.md).
+
+Las llaves de integración (ADR-017) no son permisos de usuario: cada petición revalida `inventory.read` del usuario propietario de la
 llave y solo expone `GET /api/v1/integrations/catalog`.

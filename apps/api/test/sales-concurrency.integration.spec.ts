@@ -1,3 +1,4 @@
+import type { SaleView } from '@sgi/contracts';
 import { createDatabaseClient, type DatabaseClient } from '@sgi/database';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -51,6 +52,14 @@ async function migrateDatabase(databaseUrl: string): Promise<void> {
 
 function key(): string {
   return randomUUID() + randomUUID();
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((fulfilled) => {
+    resolve = fulfilled;
+  });
+  return { promise, resolve };
 }
 
 describe('FASE 7B sales concurrency', () => {
@@ -109,6 +118,21 @@ describe('FASE 7B sales concurrency', () => {
         })
       ).quantity.toString(),
     );
+  }
+
+  async function waitForLockWaiters(expected: number): Promise<void> {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const rows = await administrator.$queryRaw<Array<{ waiting: number }>>`
+        SELECT count(*)::int AS waiting
+        FROM pg_stat_activity
+        WHERE datname = ${databaseName}
+          AND wait_event_type = 'Lock'
+      `;
+      if ((rows[0]?.waiting ?? 0) >= expected) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error(`Expected ${expected.toString()} database lock waiters.`);
   }
 
   async function createInTransitSale(
@@ -331,22 +355,62 @@ describe('FASE 7B sales concurrency', () => {
       status: 'IN_TRANSIT',
     });
 
-    const [created, cancelled] = await Promise.all([
-      creation.create(operatorId, key(), {
+    // Hold both balances so the two commands queue in a controlled order.
+    // Cancellation starts first; creation starts only after cancellation is
+    // waiting. Before the lock-order fix, creation could then own the product
+    // and warehouse rows while cancellation received the balances, producing
+    // a deterministic FK-lock deadlock when cancellation inserted movements.
+    const blockerReady = deferred();
+    const releaseBlocker = deferred();
+    const blocker = client.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id
+          FROM inventory_balances
+          WHERE product_id = ANY(${[productAId, productBId].sort()}::uuid[])
+            AND warehouse_id = ANY(${[warehouseAId, warehouseBId].sort()}::uuid[])
+          ORDER BY product_id, warehouse_id
+          FOR UPDATE
+        `;
+        blockerReady.resolve();
+        await releaseBlocker.promise;
+      },
+      { timeout: 20_000 },
+    );
+    await blockerReady.promise;
+
+    const operations: Promise<unknown>[] = [];
+    let outcome: [SaleView, SaleView] | undefined;
+    try {
+      const cancellation = lifecycle.cancel(
+        operatorId,
+        existing.id,
+        'Concurrent controlled cancellation',
+        key(),
+      );
+      operations.push(cancellation);
+      await waitForLockWaiters(1);
+
+      const creationAttempt = creation.create(operatorId, key(), {
         businessDate: '2026-08-28',
         items: [
           { productId: productBId, quantity: '6', warehouseId: warehouseBId },
           { productId: productAId, quantity: '6', warehouseId: warehouseAId },
         ],
         status: 'IN_TRANSIT',
-      }),
-      lifecycle.cancel(
-        operatorId,
-        existing.id,
-        'Concurrent controlled cancellation',
-        key(),
-      ),
-    ]);
+      });
+      operations.push(creationAttempt);
+      await waitForLockWaiters(2);
+
+      releaseBlocker.resolve();
+      outcome = await Promise.all([creationAttempt, cancellation]);
+    } finally {
+      releaseBlocker.resolve();
+      await Promise.allSettled([blocker, ...operations]);
+    }
+
+    if (!outcome) throw new Error('Concurrent sale operations did not finish.');
+    const [created, cancelled] = outcome;
 
     expect(created.status).toBe('IN_TRANSIT');
     expect(cancelled.status).toBe('CANCELLED');

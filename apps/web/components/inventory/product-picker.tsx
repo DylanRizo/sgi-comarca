@@ -6,9 +6,15 @@ import { PaginationControls } from './pagination-controls';
 import { FormField } from '@/components/ui/form-field';
 
 export function ProductPicker({
+  disabled = false,
+  label = 'Buscar producto',
+  onClear,
   value,
   onChange,
 }: Readonly<{
+  disabled?: boolean;
+  label?: string;
+  onClear?: () => void;
   value: ProductSummary | null;
   onChange: (product: ProductSummary) => void;
 }>) {
@@ -26,7 +32,7 @@ export function ProductPicker({
       setError('');
       void inventoryApi
         .products(
-          { search, page, pageSize: 15, active: true },
+          { search, page, pageSize: 10, active: true },
           controller.signal,
         )
         .then(setResult)
@@ -40,10 +46,37 @@ export function ProductPicker({
       controller.abort();
     };
   }, [search, page, reload]);
+  if (value && onClear) {
+    return (
+      <section aria-label="Producto seleccionado" className="product-picker">
+        <span className="picker-label">{label}</span>
+        <div className="picker-selection" role="status">
+          <span>
+            <strong>{value.code}</strong>
+            <small>{value.name}</small>
+          </span>
+          <button
+            className="secondary-button"
+            disabled={disabled}
+            onClick={onClear}
+            type="button"
+          >
+            Cambiar
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-label="Seleccionar producto" className="product-picker">
-      <FormField label="Buscar producto">
+      <FormField
+        hint="Escribe parte del código o del nombre. La lista muestra 10 resultados por página."
+        label={label}
+      >
         <input
+          autoComplete="off"
+          disabled={disabled}
           type="search"
           placeholder="Código o nombre"
           value={search}
@@ -88,6 +121,7 @@ export function ProductPicker({
                     className="picker-result"
                     type="button"
                     aria-pressed={value?.id === product.id}
+                    disabled={disabled}
                     onClick={() => onChange(product)}
                   >
                     <strong>{product.code}</strong>

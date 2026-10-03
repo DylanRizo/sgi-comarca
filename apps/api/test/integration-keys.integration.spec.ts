@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SessionService } from '../src/auth/application/session.service.js';
 import { CsrfTokenService } from '../src/auth/http/csrf-token.service.js';
 import { createApplication } from '../src/bootstrap.js';
+import { InventoryTransferService } from '../src/inventory/inventory-transfer.service.js';
 import { runBootstrap } from '../../../packages/database/src/bootstrap/run-bootstrap.js';
 
 const sharedDatabaseUrl = process.env.DATABASE_URL;
@@ -314,6 +315,50 @@ describe.sequential('Read-only integration keys and catalog', () => {
       where: { id: keyId },
     });
     expect(stored.lastUsedAt).not.toBeNull();
+  });
+
+  it('keeps publishing a product after part of its stock is transferred (ADR-019)', async () => {
+    const [dylan, jean, unit] = await Promise.all([
+      client.warehouse.findUniqueOrThrow({ where: { code: 'CASA_DYLAN' } }),
+      client.warehouse.findUniqueOrThrow({ where: { code: 'CASA_JEAN' } }),
+      client.unit.findUniqueOrThrow({ where: { code: 'UNIDADES_IK' } }),
+    ]);
+    const moved = await client.product.create({
+      data: { code: 'TRF-AZU-U', name: 'Producto TRF-AZU-U', unitId: unit.id },
+    });
+    await client.inventoryBalance.create({
+      data: {
+        currentUnitCost: '82.00',
+        currentUnitPrice: '330.00',
+        productId: moved.id,
+        quantity: '3',
+        warehouseId: dylan.id,
+      },
+    });
+
+    await app
+      .get(InventoryTransferService)
+      .transfer(userId, `catalog-transfer-${randomUUID()}`, {
+        fromWarehouseId: dylan.id,
+        productId: moved.id,
+        quantity: '1',
+        reason: 'Reubicacion sintetica',
+        toWarehouseId: jean.id,
+      });
+
+    const secret = String((await createKey()).body.data.secret);
+    const response = await readCatalog(secret).expect(200);
+    const item = (
+      response.body.data.items as Array<{
+        code: string;
+        priceIssue: string | null;
+        totalQuantity: string;
+        unitPrice: string | null;
+      }>
+    ).find(({ code }) => code === 'TRF-AZU-U');
+    expect(item).toMatchObject({ priceIssue: null, unitPrice: '330.00' });
+    expect(Number(item?.totalQuantity)).toBe(3);
+    expect(JSON.stringify(response.body)).not.toContain('82.00');
   });
 
   it('rejects a missing, malformed or unknown key', async () => {

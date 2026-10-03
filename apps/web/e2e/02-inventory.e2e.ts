@@ -56,12 +56,13 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     // The controls repeat above the results so a phone reaches them right
     // after searching; both lead to the same page.
     const top = page.getByRole('navigation', { name: 'Paginación superior' });
-    await expect(top).toContainText('Mostrando 1–25 de 26');
+    await expect(top).toContainText('Mostrando 1–10 de 26');
+    await top.getByRole('button', { name: 'Siguiente' }).click();
     await top.getByRole('button', { name: 'Siguiente' }).click();
     await expect(page.getByText('E2E-024', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('navigation', { name: 'Paginación', exact: true }),
-    ).toContainText('Mostrando 26–26 de 26');
+    ).toContainText('Mostrando 21–26 de 26');
 
     await page.getByLabel('Buscar producto').fill('DGGR-X');
     await page.getByRole('button', { name: 'Buscar' }).click();
@@ -265,8 +266,11 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       }),
     ).toBeVisible();
     await firstTransferDialog
-      .getByLabel('Producto')
-      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+      .getByLabel('Producto a transferir')
+      .fill('DGGR-X');
+    await firstTransferDialog
+      .getByRole('button', { name: /DGGR-X Producto multi-almacén/u })
+      .click();
     await firstTransferDialog
       .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 4.5' });
@@ -312,8 +316,11 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
       name: 'Transferir inventario',
     });
     await secondTransferDialog
-      .getByLabel('Producto')
-      .selectOption({ label: 'DGGR-X · Producto multi-almacén' });
+      .getByLabel('Producto a transferir')
+      .fill('DGGR-X');
+    await secondTransferDialog
+      .getByRole('button', { name: /DGGR-X Producto multi-almacén/u })
+      .click();
     await secondTransferDialog
       .getByLabel('Bodega origen')
       .selectOption({ label: 'Casa Dylan · 3.5' });

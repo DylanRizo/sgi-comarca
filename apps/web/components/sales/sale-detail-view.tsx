@@ -16,7 +16,7 @@ import {
 import { presentReadError } from '@/lib/inventory/read-error';
 import {
   formatBusinessDate,
-  paymentStatusLabel,
+  salePaymentLabel,
   saleStatusLabel,
   saleStatusTone,
 } from '@/lib/sales/presentation';
@@ -103,12 +103,16 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
         <>
           <section className="detail-grid" aria-label="Resumen de la venta">
             <div>
+              <span className="detail-label">Vendedor</span>
+              <strong>{sale.seller?.displayName ?? 'Sin vendedor'}</strong>
+            </div>
+            <div>
               <span className="detail-label">Entrega</span>
               <strong>{saleStatusLabel(sale.status)}</strong>
             </div>
             <div>
               <span className="detail-label">Pago</span>
-              <strong>{paymentStatusLabel(sale.paymentStatus)}</strong>
+              <strong>{salePaymentLabel(sale)}</strong>
             </div>
             <div>
               <span className="detail-label">Salida</span>
@@ -122,6 +126,22 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
                   : 'Sin completar'}
               </strong>
             </div>
+            {sale.payment ? (
+              <>
+                <div>
+                  <span className="detail-label">Pagada</span>
+                  <strong>{formatObservedAt(sale.payment.paidAt)}</strong>
+                </div>
+                <div>
+                  <span className="detail-label">Medio de pago</span>
+                  <strong>{sale.payment.methodText}</strong>
+                </div>
+                <div>
+                  <span className="detail-label">Pago registrado por</span>
+                  <strong>{sale.payment.recordedBy.displayName}</strong>
+                </div>
+              </>
+            ) : null}
           </section>
 
           <div className="data-table-wrap">

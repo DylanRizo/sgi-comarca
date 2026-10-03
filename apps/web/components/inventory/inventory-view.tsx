@@ -52,6 +52,18 @@ export function InventoryView() {
   const [warehouseId, setWarehouseId] = useState('');
 
   useEffect(() => {
+    const normalizedSearch = draftSearch.trim();
+    if (normalizedSearch === search) return;
+    const timer = window.setTimeout(() => {
+      setError(null);
+      setLoading(true);
+      setPage(1);
+      setSearch(normalizedSearch);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftSearch, search]);
+
+  useEffect(() => {
     let current = true;
     const request = window.setTimeout(() => {
       void (async () => {
@@ -59,7 +71,7 @@ export function InventoryView() {
           active: true,
           availableOnly,
           page,
-          pageSize: 25,
+          pageSize: 10,
           ...(search ? { search } : {}),
           ...(warehouseId ? { warehouseId } : {}),
         });

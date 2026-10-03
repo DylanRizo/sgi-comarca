@@ -21,6 +21,7 @@ import { presentReadError } from '@/lib/inventory/read-error';
 import {
   formatBusinessDate,
   paymentStatusLabel,
+  salePaymentLabel,
   saleStatusLabel,
   saleStatusTone,
   saleWarehouseNames,
@@ -311,9 +312,7 @@ export function SalesListView({
                         {saleStatusLabel(sale.status)}
                       </span>
                     </td>
-                    <td data-label="Pago">
-                      {paymentStatusLabel(sale.paymentStatus)}
-                    </td>
+                    <td data-label="Pago">{salePaymentLabel(sale)}</td>
                     <td data-label="Líneas">{sale.items.length}</td>
                     <td data-label="Bodegas">
                       {saleWarehouseNames(sale).join(', ') || 'Sin bodega'}

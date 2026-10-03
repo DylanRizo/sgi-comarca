@@ -62,6 +62,15 @@ export type SaleCancelledAuditInput = {
   saleId: string;
 };
 
+export type SalePaidAuditInput = {
+  actorUserId: string;
+  amount: string;
+  currencyCode: string;
+  occurredAt: Date;
+  paymentId: string;
+  saleId: string;
+};
+
 /**
  * Sales audit events. Metadata is sanitized by construction: the idempotency
  * key, request hashes, cookies, tokens, delivery place, legacy raw text, and
@@ -129,6 +138,28 @@ export class SaleAuditService {
           cancellationId: input.cancellationId,
           lines: input.lines,
           reason: input.reason,
+        },
+        occurredAt: input.occurredAt,
+      },
+    });
+  }
+
+  async recordPaid(
+    transaction: TransactionClient,
+    input: SalePaidAuditInput,
+  ): Promise<void> {
+    await transaction.auditLog.create({
+      data: {
+        action: 'sales.payment_recorded',
+        actorUserId: input.actorUserId,
+        entityId: input.saleId,
+        entityType: 'Sale',
+        metadata: {
+          amount: input.amount,
+          currencyCode: input.currencyCode,
+          newPaymentStatus: 'PAID',
+          paymentId: input.paymentId,
+          previousPaymentStatus: 'PENDING',
         },
         occurredAt: input.occurredAt,
       },

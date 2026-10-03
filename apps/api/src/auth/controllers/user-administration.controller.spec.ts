@@ -7,6 +7,10 @@ import { LastAdminPolicyError } from '../application/last-admin-policy.js';
 import { UserAdministrationError } from '../application/user-administration.service.js';
 import { REQUIRED_PERMISSION_METADATA } from '../decorators/require-permission.decorator.js';
 import { EmptyAdminCommandDto } from '../dto/admin-user-command.dto.js';
+import {
+  UpdateUserPermissionsDto,
+  UpdateUserRolesDto,
+} from '../dto/update-user-access.dto.js';
 import { UserIdParamDto } from '../dto/user-id-param.dto.js';
 import { AuthHttpException } from '../http/auth-http.exception.js';
 import { SecretToken } from '../infrastructure/auth-token.service.js';
@@ -53,6 +57,66 @@ describe('user administration HTTP boundary', () => {
     expect(required('revokeCredential')).toBe('users.credentials.revoke');
     expect(required('revokeSessions')).toBe('users.sessions.revoke');
     expect(required('deactivateUser')).toBe('users.status.manage');
+    expect(required('reactivateUser')).toBe('users.status.manage');
+    expect(required('replaceRoles')).toBe('users.roles.manage');
+    expect(required('replacePermissions')).toBe('users.roles.manage');
+  });
+
+  it('validates the shape of role and exception replacements', async () => {
+    const pipe = new ValidationPipe({
+      forbidNonWhitelisted: true,
+      transform: true,
+      whitelist: true,
+    });
+    const roles = (body: unknown) =>
+      pipe.transform(body, { metatype: UpdateUserRolesDto, type: 'body' });
+    const permissions = (body: unknown) =>
+      pipe.transform(body, {
+        metatype: UpdateUserPermissionsDto,
+        type: 'body',
+      });
+
+    await expect(roles({ roleCodes: [] })).resolves.toBeInstanceOf(
+      UpdateUserRolesDto,
+    );
+    await expect(
+      roles({ roleCodes: ['SALES', 'FINANCE'] }),
+    ).resolves.toBeInstanceOf(UpdateUserRolesDto);
+    for (const invalid of [
+      {},
+      { roleCodes: 'SALES' },
+      { roleCodes: ['SALES', 'SALES'] },
+      { roleCodes: ['sales'] },
+      { roleCodes: ['SALES'], extra: true },
+    ]) {
+      await expect(roles(invalid)).rejects.toMatchObject({
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
+
+    await expect(
+      permissions({
+        overrides: [
+          { code: 'finances.read', effect: 'GRANT' },
+          { code: 'sales.create', effect: 'DENY' },
+        ],
+      }),
+    ).resolves.toBeInstanceOf(UpdateUserPermissionsDto);
+    for (const invalid of [
+      { overrides: [{ code: 'finances.read', effect: 'ALLOW' }] },
+      { overrides: [{ code: 'Finances.Read', effect: 'GRANT' }] },
+      {
+        overrides: [
+          { code: 'finances.read', effect: 'GRANT' },
+          { code: 'finances.read', effect: 'DENY' },
+        ],
+      },
+      { overrides: [{ code: 'finances.read', effect: 'GRANT', note: 'x' }] },
+    ]) {
+      await expect(permissions(invalid)).rejects.toMatchObject({
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
   });
 
   it('maps controlled domain failures without leaking internal messages', () => {
@@ -76,6 +140,26 @@ describe('user administration HTTP boundary', () => {
         new LastAdminPolicyError('internal detail'),
         409,
         'LAST_ADMIN_PROTECTED',
+      ],
+      [
+        new UserAdministrationError('ADMIN_ROLE_NOT_EDITABLE'),
+        422,
+        'ADMIN_ROLE_NOT_EDITABLE',
+      ],
+      [
+        new UserAdministrationError('ADMIN_PERMISSION_RESTRICTED'),
+        422,
+        'ADMIN_PERMISSION_RESTRICTED',
+      ],
+      [
+        new UserAdministrationError('ADMIN_ACCESS_PROTECTED'),
+        422,
+        'ADMIN_ACCESS_PROTECTED',
+      ],
+      [
+        new UserAdministrationError('ADMIN_UNKNOWN_CODE'),
+        400,
+        'ADMIN_UNKNOWN_CODE',
       ],
     ] as const) {
       try {

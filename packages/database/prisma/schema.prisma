@@ -178,6 +178,7 @@ model User {
   salesCreated                Sale[]                       @relation("SaleCreator")
   saleCancellations           SaleCancellation[]           @relation("SaleCancellationActor")
   inTransitConfirmations      InTransitConfirmation[]      @relation("InTransitConfirmationActor")
+  salePaymentsRecorded        SalePayment[]                @relation("SalePaymentActor")
   financialEntriesCreated     FinancialEntry[]             @relation("FinancialEntryCreator")
   financialEntriesResponsible FinancialEntry[]             @relation("FinancialEntryResponsible")
   dailyClosingsClosed         DailyClosing[]               @relation("DailyClosingActor")
@@ -829,6 +830,7 @@ model Sale {
   items                 SaleItem[]
   cancellation          SaleCancellation?
   inTransitConfirmation InTransitConfirmation?
+  payment               SalePayment?
   legacyRecords         LegacyRecord[]         @relation("LegacyRecordSale")
 
   @@unique([createdByUserId, idempotencyKeyHash], map: "sales_creator_idempotency_key")
@@ -896,6 +898,26 @@ model InTransitConfirmation {
   @@unique([confirmedByUserId, idempotencyKeyHash], map: "in_transit_confirmations_actor_idempotency_key")
   @@index([confirmedByUserId, confirmedAt], map: "in_transit_confirmations_actor_time_idx")
   @@map("in_transit_confirmations")
+}
+
+model SalePayment {
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleId             String   @unique(map: "sale_payments_sale_id_key") @map("sale_id") @db.Uuid
+  amount             Decimal  @db.Decimal(18, 2)
+  currencyCode       String   @map("currency_code") @db.VarChar(3)
+  methodText         String   @map("method_text") @db.VarChar(160)
+  recordedByUserId   String   @map("recorded_by_user_id") @db.Uuid
+  paidAt             DateTime @map("paid_at") @db.Timestamptz(6)
+  idempotencyKeyHash String   @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String   @map("request_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sale       Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy User @relation("SalePaymentActor", fields: [recordedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([recordedByUserId, idempotencyKeyHash], map: "sale_payments_actor_idempotency_key")
+  @@index([recordedByUserId, paidAt(sort: Desc)], map: "sale_payments_actor_time_idx")
+  @@map("sale_payments")
 }
 
 model FinancialCategory {
