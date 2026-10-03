@@ -140,7 +140,7 @@ async function assertLiveAuthorizationUpgradeBaseline(
 
 /**
  * Once a database is in use, who holds which role or exception belongs to the
- * administration panel (ADR-018), so bootstrap no longer compares people
+ * administration panel (ADR-020), so bootstrap no longer compares people
  * against the manifest. It still refuses a state the panel itself can never
  * produce: anything other than exactly one ADMIN, or an administrator-only
  * permission granted directly to someone who is not that ADMIN. Either means
@@ -370,7 +370,7 @@ export async function runBootstrap(
       }
 
       // People's roles and exceptions are seeded only into a database nobody
-      // uses yet. Afterwards the administration panel owns them (ADR-018):
+      // uses yet. Afterwards the administration panel owns them (ADR-020):
       // re-creating a manifest assignment the administrator removed, or
       // refusing one they added, would make bootstrap fight the panel.
       if (!liveAuthorizationUpgrade) {

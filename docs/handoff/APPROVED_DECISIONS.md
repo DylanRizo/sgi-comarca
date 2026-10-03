@@ -27,11 +27,23 @@ ADR, architecture document, migration, and tests.
 - Fulfillment and payment are separate concerns. Confirming an in-transit sale
   changes only the fulfillment status to `COMPLETED`; it does not set
   `paymentStatus` to `PAID`, touch inventory, or append another stock movement.
+- A completed pending operational sale can be marked paid only through the
+  idempotent payment command. It creates one immutable full-payment document
+  with the sale total/currency, server timestamp, required payment method and
+  responsible user, then changes only `paymentStatus` to `PAID`. It never
+  touches inventory. Partial payments, refunds and payment edits are outside
+  V1; cancelled sales display payment as not applicable. See
+  [ADR-018](../decisions/ADR-018-sale-payment-recording.md).
 - Every `Sale` has an explicit, immutable `SaleOrigin` of `OPERATIONAL` or
   `LEGACY_IMPORT`, with no database default. API-created sales are always
   `OPERATIONAL`; a future importer must choose `LEGACY_IMPORT` explicitly.
   `LEGACY_UNKNOWN` is valid only for `LEGACY_IMPORT`, and legacy support must
   not relax constraints that protect operational sales.
+- An operational sale belongs by default to the authenticated user who creates
+  it. A caller may explicitly attribute it to another active user. Operational
+  rows created by the earlier web form with `seller_user_id = NULL` resolve
+  their creator as seller on reads and aggregates without rewriting history;
+  legacy rows do not inherit their technical importer as seller.
 - An operational sale is created only as `IN_TRANSIT` or `COMPLETED`, according
   to the bounded intent supplied by the client and validated by the server. It
   always starts with `paymentStatus = PENDING`; the client cannot provide the
@@ -100,14 +112,17 @@ and the operational pricing boundary.
 - Roles are `ADMIN`, `PARTNER`, `INVENTORY_MANAGER`, `SALES`, `FINANCE`, and
   `READ_ONLY`.
 - Authorization is deny-by-default and based on explicit permission codes.
-- `ADMIN` grants exactly `users.invitations.create`,
+- `ADMIN` grants exactly `integrations.manage`, `users.read`,
+  `users.roles.manage`, `users.invitations.create`,
   `users.credentials.revoke`, `users.sessions.revoke`, and
   `users.status.manage`; it is not a superuser or bypass.
 - `FINANCE` grants `finances.read`, `finances.manual.create`, `closings.read`,
-  `closings.create`, and `closings.reopen`.
-- `INVENTORY_MANAGER` grants `inventory.adjust`, `inventory.read`, and
-  `transfers.create`.
-- `SALES` grants `sales.create`, `sales.confirm_in_transit`, and `sales.read`.
+  `closings.create`, `closings.reopen`, and `inventory.valuation.manage`.
+- `INVENTORY_MANAGER` grants `products.manage`, `stock-receipts.create`,
+  `inventory.adjust`, `inventory.read`, `inventory.audit.create`,
+  `transfers.create`, `reports.read`, and `analytics.read`.
+- `SALES` grants `sales.create`, `sales.confirm_in_transit`, `sales.read`,
+  `sales.record_payment`, `reports.read`, and `analytics.read`.
 - `sales.read` is implemented in the versioned bootstrap manifest and granted
   only by `SALES`. Sales GET endpoints must require it. `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it implicitly,
@@ -115,7 +130,8 @@ and the operational pricing boundary.
   staging remains a separate unauthorized persistent gate.
 - `PARTNER` and `READ_ONLY` have no grants initially.
 - Dylan has `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, and `SALES`, plus direct
-  `sales.cancel`. Samantha has `FINANCE`, `INVENTORY_MANAGER`, and `SALES`.
+  `sales.cancel` and `inventory.audit.approve`. Samantha has `FINANCE`,
+  `INVENTORY_MANAGER`, and `SALES`.
   Jean and Luden have `INVENTORY_MANAGER` and `SALES`.
 - A direct active `DENY` wins over any direct or role grant. There are no
   wildcards, prefix matching, role inheritance, or ADMIN bypass.
@@ -125,7 +141,7 @@ and the operational pricing boundary.
 See [authorization-matrix.md](../architecture/authorization-matrix.md) and
 [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md).
 
-- ADR-018 (2026-10-02): once a database is in use, people's roles and
+- ADR-020 (2026-10-02): once a database is in use, people's roles and
   exceptions belong to the administration panel, not to the manifest. The
   panel never assigns or removes `ADMIN` (exactly one remains); grants
   administrator-only permissions (`sales.cancel`, `inventory.audit.approve` and
@@ -134,7 +150,7 @@ See [authorization-matrix.md](../architecture/authorization-matrix.md) and
   `auth:recover-admin` validate the exact catalog plus those invariants instead
   of per-person assignments. Disabled users can be reactivated with
   `users.status.manage`. See
-  [ADR-018](../decisions/ADR-018-user-access-administration.md).
+  [ADR-020](../decisions/ADR-020-user-access-administration.md).
 
 ## Authentication and HTTP security
 
@@ -238,8 +254,19 @@ See [ADR-008](../decisions/ADR-008-legacy-import-boundaries.md),
   canonical request hash are persisted; the original key is never stored.
   Same key/payload replays without effects; another payload returns 409.
 - Transfers do not create, copy, or modify `ProductWarehouseValuation`.
+- On 2026-09-26 the owner approved transfer valuation inheritance. Inside the
+  transfer transaction, with both balances locked, a destination whose
+  `currentUnitCost` is `NULL` takes the origin's cost and `costReviewRequired`;
+  independently, a destination whose `currentUnitPrice` is `NULL` takes the
+  origin's price and `priceReviewRequired`. An existing destination cost or
+  price is never overwritten, even when it differs from the origin, and a
+  `NULL` origin value leaves the destination `NULL`. Inheritance lives only in
+  `InventoryBalance`; `inventory.transferred` records what was inherited in
+  `metadata.inheritedValuation`. Balances affected before this rule are not
+  corrected automatically.
 
 See [ADR-004](../decisions/ADR-004-inventory-ledger.md),
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md),
 [transaction-design.md](../architecture/transaction-design.md), and
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
 

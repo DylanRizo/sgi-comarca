@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   canCancel,
   canConfirm,
+  canRecordPayment,
   formatBusinessDate,
   paymentStatusLabel,
+  salePaymentLabel,
   saleStatusLabel,
   saleWarehouseNames,
 } from './presentation';
@@ -24,9 +26,11 @@ function sale(overrides: Partial<SaleView> = {}): SaleView {
     observations: null,
     origin: 'OPERATIONAL',
     paymentMethodText: null,
+    payment: null,
     paymentStatus: 'PENDING',
     saleNumber: 'VTA-000000001',
     salesChannelText: null,
+    seller: null,
     sellerUserId: null,
     shippingAmount: '0.00',
     status: 'IN_TRANSIT',
@@ -52,6 +56,16 @@ describe('sale presentation', () => {
     expect(canCancel(sale({ status: 'COMPLETED' }))).toBe(false);
     expect(canCancel(sale({ status: 'CANCELLED' }))).toBe(false);
     expect(canCancel(sale({ paymentStatus: 'PAID' }))).toBe(false);
+  });
+
+  it('allows payment only for completed pending sales and labels cancelled payment as not applicable', () => {
+    expect(canRecordPayment(sale())).toBe(false);
+    expect(canRecordPayment(sale({ status: 'COMPLETED' }))).toBe(true);
+    expect(
+      canRecordPayment(sale({ paymentStatus: 'PAID', status: 'COMPLETED' })),
+    ).toBe(false);
+    expect(salePaymentLabel(sale({ status: 'CANCELLED' }))).toBe('No aplica');
+    expect(salePaymentLabel(sale({ status: 'COMPLETED' }))).toBe('Pendiente');
   });
 
   it('renders the business date without shifting the civil day', () => {

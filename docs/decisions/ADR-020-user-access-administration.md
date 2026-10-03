@@ -1,10 +1,14 @@
-# ADR-018 — Administración de roles y excepciones desde el panel
+# ADR-020 — Administración de roles y excepciones desde el panel
 
 ## Estado
 
 `ACCEPTED_FOR_IMPLEMENTATION` — aprobado por el propietario el 2026-10-02 al
 pedir que se completara la Fase A del
 [plan del panel de administración](../plans/admin-settings-panel.md).
+
+Numerada 020 porque ADR-018 (pagos de ventas) y ADR-019 (valoración en
+transferencias) se aprobaron antes en la línea desplegada. El manifiesto
+vigente tiene 27 permisos; esta decisión no añade ninguno.
 
 Esta decisión autoriza código y pruebas locales. No autoriza por sí sola
 desplegar, ejecutar `db:bootstrap` ni cambiar asignaciones en staging. Esas
@@ -72,6 +76,12 @@ Implementarlo chocaba con tres piezas existentes:
 | `PUT /api/v1/users/:id/permissions` | `users.roles.manage` | Reemplaza el conjunto completo de excepciones `GRANT`/`DENY` |
 | `POST /api/v1/users/:id/reactivate` | `users.status.manage` | `DISABLED` → `ACTIVE` si conserva credencial vigente y fecha de activación; si no, `PENDING_ACTIVATION` |
 
+La reactivación ya estaba desplegada desde `14fcb20` con otra regla: respondía
+409 si la cuenta no había activado o no conservaba credencial. El propietario
+eligió el 2026-10-03 la regla de esta decisión, que en ese caso devuelve la
+cuenta a `PENDING_ACTIVATION` para poder invitarla de nuevo en lugar de dejarla
+bloqueada como `DISABLED`.
+
 - `PUT` declara el estado deseado: repetirlo con el mismo cuerpo no cambia nada
   ni escribe auditoría, así que es idempotente sin almacenar claves.
 - Nada se borra: un rol o excepción retirado recibe `revoked_at` y
@@ -79,7 +89,8 @@ Implementarlo chocaba con tres piezas existentes:
   Cambiar `GRANT` por `DENY` revoca la fila anterior y crea otra.
 - Cada cambio efectivo escribe un `AuditLog` en la misma transacción
   `Serializable`, que bloquea la fila del usuario y el rol `ADMIN`.
-- Reactivar a alguien que no está `DISABLED` no hace nada.
+- Reactivar a alguien que no está `DISABLED` no hace nada (tampoco responde
+  409, a diferencia de la regla anterior).
 
 ## Consecuencias
 

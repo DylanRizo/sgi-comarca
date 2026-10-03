@@ -1,11 +1,89 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-02.
+Updated: 2026-10-03.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
 
-## Consolidation snapshot — 2026-09-17
+## Consolidation into `main` — 2026-10-03
+
+`main` had last absorbed the deployed line at `b61e711` through PR #1
+(2026-09-17). The deployed line then advanced to `194fb3a` with sale payment
+recording (ADR-018, migration `20260926120000_sale_payment_recording`,
+permission `sales.record_payment`), transfer valuation inheritance (ADR-019),
+seller attribution, user reactivation, Alexa lookup improvements, mobile
+inventory UX and a mobile theme-control fix. Branch
+`claude/consolidate-staging-into-main` starts from `codex/consolidate-staging`
+(`c0696ec`, documentation-only over `194fb3a`) and merges `main` without
+rewriting either history. The only conflicts were documentation; no
+functional file needed a manual resolution. It adds no business rule,
+migration, RBAC grant or staging mutation of its own.
+
+## Sale payment recording — deployed to staging, 2026-09-27
+
+The owner approved an explicit payment workflow after observing completed sales
+listed as pending. The versioned implementation records payment for operational
+sales that are `COMPLETED` and `PENDING`; delivery confirmation and payment
+remain separate transitions. The immutable `sale_payments` document stores the
+exact sale total and currency, server timestamp, method and responsible user.
+The status transition is protected by database triggers, actor-scoped
+idempotency and the explicit `sales.record_payment` permission granted to the
+`SALES` role. Cancelled sales are presented as `No aplica` without rewriting
+their historical payment status. Partial payments, reversals, refunds and any
+change to financial-recognition rules remain outside this decision; see ADR-018.
+
+Functional commits `4c98fd0` (mobile theme control) and `15a57fc` (sale payment
+recording) were merged with the already deployed transfer-valuation fix in
+`194fb3aa6484efe4ad341e84f841210a66689bae`. Both
+`codex/consolidate-staging` and `codex/staging-pilot` were pushed to that exact
+commit before deployment.
+
+Before the staging write, Neon project `sgi-comarca-staging` and its direct
+non-pooled `main` connection were positively verified. Checkpoint branch
+`checkpoint-pre-sale-payments-2026-09-27` was created from `main` and reached
+`ready`. Migration `20260926120000_sale_payment_recording` was the only pending
+migration and applied successfully. The idempotent bootstrap created one
+permission and one role grant; the staging manifest now has 27 permissions,
+Dylan remains active, and the follow-up diagnostic reported zero unfinished
+migrations. The connection environment variable and clipboard were cleared
+afterward.
+
+Render's advertised automatic deploy did not start after the ordinary push, so
+both services were deployed explicitly by exact commit. API deployment
+`dep-dast0fvpn0mc739u1j00` and web deployment
+`dep-dast0gojo6nc73da03eg` reached `live` on `194fb3a`. Public read-only smoke
+checks returned HTTP 200 from API health, API readiness with `database: up`, and
+the web login page.
+
+Pre-merge verification passed Prisma generation and validation, lint (with the
+pre-existing unused-disable warning), typecheck, 68 unit files / 304 tests, 32
+PostgreSQL integration files / 354 tests, the 9-test Chromium sales flow and the
+production build. After merging the independently verified transfer-valuation
+fix, the combined tree passed lint, typecheck, 69 unit files / 311 tests, five
+focused PostgreSQL integration files / 77 tests, and the production build. The
+separate preceding mobile theme-control commit changes
+`apps/web/app/globals.css`,
+`apps/web/components/layout/authenticated-shell.tsx` and
+`apps/web/e2e/90-responsive.e2e.ts`; the responsive Chromium gate passed 9/9.
+
+## Consolidation snapshot — 2026-09-27
+
+The deployable line is `codex/staging-pilot`, not `main`. The functional state
+of `codex/staging-pilot` and `codex/consolidate-staging` is exact merge commit
+`194fb3aa6484efe4ad341e84f841210a66689bae`; a later documentation-only commit
+may legitimately move the consolidation branch without changing the deployed
+application baseline.
+
+The latest direct staging evidence confirms 12 finished migrations through
+`20260926120000_sale_payment_recording`, zero unfinished migrations, 27
+permissions, 14 units, one product group and Dylan active. Older product,
+balance, role and user counts elsewhere in this document are historical and
+must be revalidated before relying on them for an operational write.
+
+## Consolidation snapshot — 2026-09-17 (historical)
+
+Superseded by the 2026-09-27 snapshot above and by the 2026-10-03 consolidation
+below; kept because it records the first merge of the deployed line into `main`.
 
 The repository baseline is `main` at merge commit `fa85292`, produced by PR
 [#1](https://github.com/DylanRizo/sgi-comarca/pull/1). The externally deployed
@@ -29,17 +107,16 @@ since the 2026-09-13 snapshot: staging now has 119 products, 91 balances, all
 
 The staging line contains the completed FASE 9 and FASE 10 work already present
 on `main`, plus the operational products/receipts/count-correction release,
-the administration panel, Alexa account linking and refresh-token hardening,
-the counted-product workbook importer, and read-only integration keys. Eleven
-versioned migrations exist through `20260912120000_integration_keys`.
+administration, Alexa account linking and refresh-token hardening, the
+counted-product workbook importer, read-only integration keys, seller
+attribution, transfer valuation inheritance, mobile inventory UX, mobile theme
+control and explicit sale payments.
 
-The complete local consolidation gate is green from the isolated checkout:
-repository formatting, lint, typecheck, unit tests, PostgreSQL integration
-tests, production build, Prisma generation/validation and the complete
-Playwright suite all passed. The exact evidence is recorded in
-[Last green baseline](#last-green-baseline). PR #1 passed remote CI and was
-merged without rewriting the deployed history. The first formal controlled
-physical count in staging is now the next selected gate.
+`main` carries this line once the 2026-10-03 consolidation pull request is
+merged. CI runs on pull requests and pushes to `main`, not on ordinary pushes to
+`codex/staging-pilot`, so that pull request's CI is the cross-platform gate for
+the combined tree. Its local verification and limits are recorded in its
+description.
 
 Operational follow-ups remain separately gated: the first formal physical
 count, first sale, first financial entry, first closing, first Marketplace key
@@ -63,7 +140,7 @@ the first authorized write after a real observation is supplied.
 On 2026-10-02 the owner approved completing Phase A of the
 [administration panel plan](../plans/admin-settings-panel.md) and the two
 decisions recorded in
-[ADR-018](../decisions/ADR-018-user-access-administration.md): once a database
+[ADR-020](../decisions/ADR-020-user-access-administration.md): once a database
 is in use the panel, not the manifest, owns people's roles and exceptions; and
 the panel applies conservative limits (no assigning or removing `ADMIN`,
 administrator-only permissions granted only to the ADMIN, and the ADMIN never
@@ -71,12 +148,16 @@ denied `users.read` or `users.roles.manage`).
 
 The change adds `PUT /api/v1/users/:id/roles`, `PUT /api/v1/users/:id/permissions`
 (both `users.roles.manage`, complete-set replacement, idempotent),
-`POST /api/v1/users/:id/reactivate` (`users.status.manage`) and
-`GET /api/v1/permissions` (`users.read`), plus the "Editar acceso" dialog and the
-"Reactivar" action in `/settings`. Every effective change revokes or inserts
+`GET /api/v1/permissions` (`users.read`) and the "Editar acceso" dialog in
+`/settings`. It also changes the deployed `POST /api/v1/users/:id/reactivate`
+(`14fcb20`): instead of answering 409 when the account cannot sign in again,
+reactivation returns it to `PENDING_ACTIVATION` so it can receive a new
+invitation; an account that kept its credential and activation still returns
+to `ACTIVE`. Every effective change revokes or inserts
 rows (never deletes) and writes one audit event inside a `Serializable`
 transaction that locks the ADMIN role and the target user. No migration and no
-new permission: the manifest still holds 26 permissions and 26 role grants.
+new permission: the manifest keeps the deployed 27 permissions and 27 role
+grants.
 
 **Operational consequence:** on a live database `db:bootstrap` no longer
 compares or creates per-person roles and direct grants. It validates the exact
@@ -85,18 +166,128 @@ only to that ADMIN. `auth:recover-admin` validates the same instead of the four
 pinned role profiles. Granting a newly added permission to a person in staging
 is now done from the panel, not by bootstrap.
 
-Local verification on 2026-10-02, with the limits of this environment stated:
-API/database/contracts typecheck and lint (only the pre-existing unused-disable
-warning), 193 unit tests in those packages plus 44 web unit tests, and
-PostgreSQL integration 346/346 across 30 files, including the new
-`user-access.integration.spec.ts` (9 cases) and the updated bootstrap and
-admin-recovery specs. The three legacy-importer/profiler integration files
-could not load because this sandbox's network policy blocks `cdn.sheetjs.com`,
-from which `xlsx` is installed. The web typecheck, production build and the
-complete Playwright suite ran in a temporary copy where only `xlsx` was replaced
-by a local stub: 55/56 passed, the single failure being the workbook-import case
-that calls `xlsx` itself. Remote CI with the real dependency is the gate for
-those three areas. Nothing was deployed and staging was not touched.
+Local verification on 2026-10-03, after reconciling with the consolidated
+deployed line (27 permissions), with the limits of this environment stated:
+API, database and contracts typecheck and lint (only the pre-existing
+unused-disable warning), 252 unit tests in those packages, and PostgreSQL
+integration 358/358 across 30 files, including `user-access.integration.spec.ts`
+and the updated bootstrap and admin-recovery specs. The legacy-importer and
+legacy-profiler packages could not load because this sandbox's network policy
+blocks `cdn.sheetjs.com`, from which `xlsx` is installed. The web typecheck,
+production build and complete Playwright suite ran in a temporary copy where
+only `xlsx` was replaced by a local stub: 57/58 passed, the single failure being
+the workbook-import case that calls `xlsx` itself. Remote CI with the real
+dependency is the gate for those areas. Nothing was deployed and staging was
+not touched.
+
+## Transfer valuation inheritance — 2026-09-26
+
+A transfer created the destination balance with `NULL` price and cost and only
+added quantity. With real stock this made the integration catalog report the
+whole product as `priceIssue = MISSING`, so the Marketplace publisher withheld
+it, and ADR-009 rejected sales from the destination for missing cost. The
+verified case was a wristband transfer from Casa Dylan to Casa Jean; eight
+products were affected on 2026-09-26.
+
+The owner approved the inheritance rule recorded in
+[ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md). The fix was
+implemented as `dc3b7ea`, merged into the consolidated release, and is now live
+in both Render services at `194fb3a`. It has no migration, RBAC or contract
+change. The already affected balances are being completed manually by the owner
+in Inventario > Valoraciones; no data correction is part of this change and any
+such correction remains a separate gate.
+
+## Sale seller attribution deployment — 2026-09-22
+
+The owner reported that operational sales created from the web application did
+not identify the authenticated user as seller in either the sale detail or
+sales analytics, and authorized the fix, commit, push and staging deployment.
+Functional commit `7fd2e4d` now defaults a new operational sale to its
+authenticated creator unless another active seller is supplied explicitly.
+Existing operational rows with a null seller resolve their audited creator on
+reads, analytics and closing previews without rewriting history; legacy-import
+rows do not inherit a technical importer.
+
+Local verification passed typecheck, lint, 301 unit tests, 47 focused
+PostgreSQL integration tests, the seven-test Chromium sales flow and the
+production build. All 15 changed files passed focused Prettier validation,
+`git diff --check` and a staged secret scan. Repository-wide `format:check`
+continues to report 172 pre-existing files outside this change.
+
+Both deployment branches were pushed to exact commit
+`7fd2e4d8bd393c22e61c5c95d1dc1a0b9d81489c`. Render API deployment
+`dep-dapkeogu01pc73cv36lg` and web deployment
+`dep-dapkep8u01pc73cv3a4g` reached `live` on that commit. Read-only HTTPS smoke
+checks returned API `status: ok`, readiness `status: ready` with
+`database: up`, and HTTP 200 for the web login page. This release added no
+migration, RBAC change or staging database mutation.
+
+## Alexa guided product lookup deployment — 2026-09-18 to 2026-09-20
+
+The owner authorized committing, pushing and deploying the first conversational
+recognition improvement for inventory queries. Functional commit `93aa537`
+adds a guided `consultar existencias` flow that asks for the product before the
+warehouse, ranks product tokens independently of spoken order, accepts bounded
+near matches and common spoken colour/size variants, and preserves
+clarification whenever candidates tie instead of guessing. The real catalog
+continues to come from the SGI API and is not embedded in Git.
+
+Local verification passed the Alexa adapter suite (including the new catalog
+resolution coverage), the Alexa-hosted bridge tests, the complete unit suite
+(68 files / 298 tests), the complete PostgreSQL integration suite (32 files /
+349 tests), lint (9/9 tasks, with the pre-existing unused-disable warning),
+typecheck (8/8 tasks), build (8/8 tasks), Prisma validation, focused Prettier
+validation, the staged secret scan and `git diff --check`. No browser test was
+required because this change does not alter a web interface.
+
+Render deployment `dep-damq2mbncjis73ce5bmg` made exact commit `93aa537` live
+on the staging API. Read-only smoke checks returned HTTP 200 from both
+`GET /api/v1/health` and `GET /api/v1/ready`; readiness reported `status: ready`
+and `database: up`. The web service was intentionally not redeployed because no
+web code changed. No migration, RBAC grant, operational inventory write or
+Alexa-hosted Lambda-code change was part of this deployment.
+
+On 2026-09-20 the Development interaction model for Spanish (Mexico) was
+uploaded through SMAPI and all four Amazon build steps succeeded: quick language
+model, full language model, dialog model and name-free interaction. A read-back
+matched the versioned model byte-for-byte after canonical JSON normalization
+(`sha256 d0ca4e7e2cbb5368f172cef3b95874bafd761817ce1f27241f44a4cfb70fb49b`),
+including the bare `consultar existencias` utterance. Account linking was not
+changed, so already linked Alexa accounts do not need to be linked again.
+
+The live Render control-plane check reported automatic deploy enabled for both
+services even though the versioned `render.yaml` declares it disabled. No
+configuration was changed silently; the API was deployed explicitly by commit
+after the ordinary push did not create a webhook deploy. Reconcile this drift
+before relying on automatic staging deploys.
+
+## Alexa long-product query deployment — 2026-09-17
+
+The owner authorized publishing and deploying the Alexa query fix after loading
+most of the operational product catalog into the SGI. Commit `8bf570d` improves
+long inventory utterances without embedding the real catalog in Git: it
+collapses an exactly repeated product phrase, removes a spoken `bodega` or
+`almacen` prefix before warehouse lookup, normalizes final spoken size letters
+such as `eme` to `M`, adds representative synthetic long-product samples and
+adds the approved short warehouse names as synonyms. Ambiguous catalog matches
+still elicit clarification instead of guessing.
+
+Local verification passed the 14 Alexa adapter tests, 5 Alexa-hosted bridge
+tests, the complete unit suite (67 files / 293 tests), the complete PostgreSQL
+integration suite (32 files / 349 tests), lint (9/9 tasks, with the existing
+unused-disable warning), typecheck (8/8 tasks), build (8/8 tasks), Prisma
+validation, JSON parsing and `git diff --check`. The three changed Alexa files
+passed focused Prettier validation. The repository-wide `format:check` remains
+red on 184 pre-existing working-tree paths and was not "fixed" by mixing a mass
+format rewrite into this bug fix.
+
+Render deployment `dep-dam46kvcgkoc7389d700` made `8bf570d` live on the staging
+API. A subsequent read-only request to `GET /api/v1/ready` returned HTTP 200,
+`status: ready` and `database: up` at `2026-09-17T19:49:02.307Z`. The Alexa
+Developer Console saved and successfully built Development model version 3 for
+Spanish (MX) at 2026-09-17 13:48 America/Managua, with zero model errors and
+zero warnings. The Lambda bridge, account-linking configuration, RBAC, schema,
+operational database and inventory data were not changed by this deployment.
 
 ## Read-only integration keys (deployed and enabled; first key not recorded)
 
@@ -867,9 +1058,10 @@ integration/concurrency suites.
 
 ## Current RBAC manifest
 
-- The deployed manifest contains 26 permissions, 26 role grants and 2 direct
-  grants. The last direct staging verification on 2026-09-13 matched those
-  permission and role-grant counts.
+- The deployed manifest contains 27 permissions, 27 role grants and 2 direct
+  grants. The 2026-09-27 staging bootstrap created the 27th permission
+  (`sales.record_payment`) and its `SALES` grant, and the follow-up diagnostic
+  reported 27 permissions.
 - `ADMIN` grants the four original account-management capabilities plus
   `users.read`, `users.roles.manage`, and `integrations.manage`; it remains an
   explicit role rather than a superuser bypass.
@@ -880,6 +1072,7 @@ integration/concurrency suites.
 - `transfers.create → INVENTORY_MANAGER`.
 - `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
+- `sales.record_payment → SALES` (ADR-018); a direct `DENY` still prevails.
 - `sales.cancel` remains one direct grant only to Dylan; no role grants it.
 - `inventory.audit.create → INVENTORY_MANAGER`, so anyone managing inventory
   may capture a physical count.
@@ -932,9 +1125,14 @@ On the deployed staging line, in order:
 - Same actor/key/payload replays the committed result without a second stock
   change or audit event. Reusing the key with another payload returns HTTP 409.
 - Consolidated product stock is invariant across a transfer.
-- A transfer never creates, copies, or modifies a valuation.
+- A transfer never creates, copies, or modifies a `ProductWarehouseValuation`.
+- Under ADR-019 a destination balance whose cost or price is `NULL` inherits
+  the locked origin's value and review flag, each side independently; existing
+  destination values are never overwritten and a `NULL` origin stays `NULL`.
+  `inventory.transferred` records the inherited values.
 
-See [transaction-design.md](../architecture/transaction-design.md) and
+See [ADR-019](../decisions/ADR-019-transfer-valuation-inheritance.md),
+[transaction-design.md](../architecture/transaction-design.md) and
 [phase-6a-transfer-foundation.md](../database/phase-6a-transfer-foundation.md).
 
 ## Current sales architecture

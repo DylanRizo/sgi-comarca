@@ -217,6 +217,8 @@ describe('FASE 7B.3 operational sale creation', () => {
     expect(sale.status).toBe('IN_TRANSIT');
     expect(sale.paymentStatus).toBe('PENDING');
     expect(sale.origin).toBe('OPERATIONAL');
+    expect(sale.sellerUserId).toBe(sellerId);
+    expect(sale.seller?.displayName).toBe('Synthetic seller');
     expect(sale.businessDate).toBe('2026-08-27');
     expect(sale.completedAt).toBeNull();
     expect(sale.subtotal).toBe('20.00');

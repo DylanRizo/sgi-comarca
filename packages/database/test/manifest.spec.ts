@@ -51,6 +51,7 @@ describe('FASE 3B bootstrap manifest', () => {
         'sales.confirm_in_transit',
         'sales.create',
         'sales.read',
+        'sales.record_payment',
         'transfers.create',
         'users.credentials.revoke',
         'users.invitations.create',
@@ -121,15 +122,16 @@ describe('FASE 3B bootstrap manifest', () => {
         'SALES:sales.confirm_in_transit',
         'SALES:sales.create',
         'SALES:sales.read',
+        'SALES:sales.record_payment',
       ].sort(),
     );
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
     ]);
-    expect(bootstrapPermissions).toHaveLength(26);
+    expect(bootstrapPermissions).toHaveLength(27);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(26);
+    expect(bootstrapRolePermissions).toHaveLength(27);
     expect(bootstrapUserPermissions).toHaveLength(2);
   });
 

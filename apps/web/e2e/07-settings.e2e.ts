@@ -106,7 +106,7 @@ test.describe('Administration settings', () => {
 
     const dialog = page.getByRole('dialog', { name: 'Acceso de Jean' });
     await expect(dialog).toBeVisible();
-    // ADR-018: ADMIN is never assigned from the panel, and an
+    // ADR-020: ADMIN is never assigned from the panel, and an
     // administrator-only permission cannot be granted to Jean.
     await expect(
       dialog.getByRole('checkbox', { name: /Administración/u }),

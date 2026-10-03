@@ -168,9 +168,9 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
     expect(invitationCount).toBe(0);
-    expect(permissions).toHaveLength(26);
+    expect(permissions).toHaveLength(27);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(26);
+    expect(rolePermissions).toHaveLength(27);
     expect(userPermissions).toHaveLength(2);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
@@ -182,7 +182,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 78, phase: '7A-RBAC' },
+      metadata: { createdRecordCount: 80, phase: '7A-RBAC' },
     });
   });
 
@@ -323,14 +323,14 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(administrativeRoleAssignments).toBe(1);
     expect(administrativeRolePermissions).toBe(7);
     expect(salesRoleAssignments).toBe(4);
-    expect(salesRolePermissions).toBe(5);
+    expect(salesRolePermissions).toBe(6);
     expect(transferGrants).toEqual([1, 0]);
   });
 
   it('adds a new catalog permission to a live database but leaves who holds it to the panel', async () => {
     // The FASE 9 staging gate hit this shape: a database already in use whose
     // catalog lacked a permission the manifest had newly added. Bootstrap must
-    // still create the permission. Since ADR-018 it no longer grants it to a
+    // still create the permission. Since ADR-020 it no longer grants it to a
     // person in a live database: the administration panel owns that.
     const dylan = await client.user.findUniqueOrThrow({
       where: { loginIdentifier: 'dylan' },
@@ -423,7 +423,7 @@ describe.sequential('FASE 3B bootstrap', () => {
 
   it('still refuses an administrator-only grant outside the ADMIN, on a live database', async () => {
     // The panel owns people's grants, but it can never hand an
-    // administrator-only permission to anyone but the ADMIN (ADR-018). Finding
+    // administrator-only permission to anyone but the ADMIN (ADR-020). Finding
     // one means a privilege was handed out outside every approved path, and
     // bootstrap may not build on top of that.
     const dylan = await client.user.findUniqueOrThrow({
@@ -605,7 +605,7 @@ describe.sequential('FASE 3B bootstrap', () => {
   });
 
   it('declares every ADMIN role permission as administrator-only', () => {
-    // ADR-018: granting an ADMIN permission directly to someone else would
+    // ADR-020: granting an ADMIN permission directly to someone else would
     // build a second administrator piecemeal, so the restricted list must
     // cover the whole role, including permissions added to it later.
     const adminPermissions = bootstrapRolePermissions

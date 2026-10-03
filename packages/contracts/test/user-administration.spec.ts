@@ -35,7 +35,7 @@ describe('user administration contracts', () => {
   });
 
   it('keeps panel access inside the administrator-only permissions', () => {
-    // ADR-018: the permissions the administrator cannot be denied are a subset
+    // ADR-020: the permissions the administrator cannot be denied are a subset
     // of the ones nobody else may be granted, or the two rules would disagree.
     for (const code of panelAccessPermissionCodes) {
       expect(administratorOnlyPermissionCodes).toContain(code);

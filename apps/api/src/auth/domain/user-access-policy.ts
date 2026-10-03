@@ -5,7 +5,7 @@ import {
 } from '@sgi/contracts';
 
 /**
- * The rules ADR-018 places on the administration panel, kept free of any
+ * The rules ADR-020 places on the administration panel, kept free of any
  * database so they can be tested on their own. The service reads the current
  * state inside its transaction, plans the change here, and only writes what the
  * plan says.

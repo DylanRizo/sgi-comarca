@@ -39,7 +39,7 @@ function sameSet(left: Iterable<string>, right: Iterable<string>): boolean {
 }
 
 /**
- * Roles and exceptions of one person (ADR-018). Each section saves on its own
+ * Roles and exceptions of one person (ADR-020). Each section saves on its own
  * and sends the complete desired set, which the API applies as a replacement;
  * the table previews the result from the role catalog, and after saving it
  * shows the effective permissions the database computed instead.

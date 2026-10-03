@@ -75,7 +75,7 @@ export function CreateSaleDialog({
   onCancel: () => void;
   onSuccess: (sale: SaleView) => void;
 }>) {
-  const { getCsrfToken } = useAuth();
+  const { getCsrfToken, state: authState } = useAuth();
   const submissionRef = useRef(false);
   const idempotencyKeyRef = useRef(crypto.randomUUID());
   const [businessDate, setBusinessDate] = useState(todayInManagua);
@@ -211,6 +211,15 @@ export function CreateSaleDialog({
         ) : (
           <form onSubmit={submit}>
             <div className="sale-form-grid">
+              <div className="filter-field sale-seller-field">
+                <span>Vendedor</span>
+                <strong>
+                  {authState.kind === 'authenticated'
+                    ? authState.session.displayName
+                    : 'Sesión no disponible'}
+                </strong>
+                <small>Se asigna automáticamente a tu cuenta.</small>
+              </div>
               <label className="filter-field">
                 <span>Fecha</span>
                 <input

@@ -15,6 +15,7 @@ import {
   type InventoryTransferAuditInput,
 } from '../src/inventory/inventory-audit.service.js';
 import { InventoryTransferService } from '../src/inventory/inventory-transfer.service.js';
+import { CreateSaleService } from '../src/sales/create-sale.service.js';
 import { runBootstrap } from '../../../packages/database/src/bootstrap/run-bootstrap.js';
 
 const sharedDatabaseUrl = process.env.DATABASE_URL;
@@ -175,6 +176,13 @@ describe('FASE 6B inventory transfers and movement history', () => {
       'ADJUSTMENT_TRANSFER',
       'CROSS',
       'MISSING_DESTINATION_CONCURRENT',
+      'INHERIT_NEW',
+      'INHERIT_KEEP',
+      'INHERIT_ONLY_PRICE',
+      'INHERIT_ONLY_COST',
+      'INHERIT_UNPRICED_ORIGIN',
+      'INHERIT_RETRY',
+      'INHERIT_CONCURRENT',
     ]) {
       const product = await client.product.create({
         data: {
@@ -187,18 +195,28 @@ describe('FASE 6B inventory transfers and movement history', () => {
       products.set(name, product);
     }
 
-    const balanceFixtures: Array<{
-      productId: string;
-      quantity: string;
-      warehouseId: string;
-    }> = [];
+    type Valuation = {
+      costReviewRequired?: boolean;
+      currentUnitCost?: string | null;
+      currentUnitPrice?: string | null;
+      priceReviewRequired?: boolean;
+    };
+    const balanceFixtures: Array<
+      {
+        productId: string;
+        quantity: string;
+        warehouseId: string;
+      } & Valuation
+    > = [];
     const addBalances = (
       name: string,
       quantities: Partial<Record<'A' | 'B' | 'C', string>>,
+      valuations: Partial<Record<'A' | 'B' | 'C', Valuation>> = {},
     ) => {
       const productId = product(name);
       for (const [warehouse, quantity] of Object.entries(quantities)) {
         balanceFixtures.push({
+          ...valuations[warehouse as 'A' | 'B' | 'C'],
           productId,
           quantity,
           warehouseId:
@@ -219,6 +237,46 @@ describe('FASE 6B inventory transfers and movement history', () => {
     addBalances('ADJUSTMENT_TRANSFER', { A: '10', B: '0' });
     addBalances('CROSS', { A: '10', B: '10' });
     addBalances('MISSING_DESTINATION_CONCURRENT', { A: '10' });
+    const valued: Valuation = {
+      currentUnitCost: '82.00',
+      currentUnitPrice: '330.00',
+    };
+    addBalances('INHERIT_NEW', { A: '5' }, { A: valued });
+    addBalances(
+      'INHERIT_KEEP',
+      { A: '5', B: '0' },
+      {
+        A: valued,
+        B: {
+          costReviewRequired: true,
+          currentUnitCost: '90.00',
+          currentUnitPrice: '350.00',
+        },
+      },
+    );
+    addBalances(
+      'INHERIT_ONLY_PRICE',
+      { A: '5', B: '0' },
+      {
+        A: { ...valued, priceReviewRequired: true },
+        B: { currentUnitCost: '75.00' },
+      },
+    );
+    addBalances(
+      'INHERIT_ONLY_COST',
+      { A: '5', B: '0' },
+      {
+        A: { ...valued, costReviewRequired: true },
+        B: { currentUnitPrice: '300.00' },
+      },
+    );
+    addBalances(
+      'INHERIT_UNPRICED_ORIGIN',
+      { A: '5' },
+      { A: { currentUnitCost: '82.00', priceReviewRequired: true } },
+    );
+    addBalances('INHERIT_RETRY', { A: '5' }, { A: valued });
+    addBalances('INHERIT_CONCURRENT', { A: '10' }, { A: valued });
     await client.inventoryBalance.createMany({ data: balanceFixtures });
 
     const mainBalance = await balance('MAIN', warehouseAId);
@@ -266,6 +324,24 @@ describe('FASE 6B inventory transfers and movement history', () => {
         productId_warehouseId: { productId: product(name), warehouseId },
       },
     });
+  }
+
+  async function valuation(name: string, warehouseId: string) {
+    const row = await balance(name, warehouseId);
+    return {
+      costReviewRequired: row.costReviewRequired,
+      currentUnitCost: row.currentUnitCost?.toFixed(2) ?? null,
+      currentUnitPrice: row.currentUnitPrice?.toFixed(2) ?? null,
+      priceReviewRequired: row.priceReviewRequired,
+    };
+  }
+
+  async function inheritedAudit(transferId: string) {
+    const audit = await client.auditLog.findFirstOrThrow({
+      where: { action: 'inventory.transferred', entityId: transferId },
+    });
+    return (audit.metadata as { inheritedValuation: unknown })
+      .inheritedValuation;
   }
 
   async function browser(userId = dylanId): Promise<Browser> {
@@ -663,6 +739,205 @@ describe('FASE 6B inventory transfers and movement history', () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it('gives a new destination balance the origin cost and price (ADR-019)', async () => {
+    const valuationsBefore = await client.productWarehouseValuation.count();
+    const result = await transfer(
+      await browser(),
+      `inherit-new-${randomUUID()}`,
+      payload('INHERIT_NEW', '2', { toWarehouseId: warehouseCId }),
+    ).expect(201);
+
+    expect(await valuation('INHERIT_NEW', warehouseCId)).toEqual({
+      costReviewRequired: false,
+      currentUnitCost: '82.00',
+      currentUnitPrice: '330.00',
+      priceReviewRequired: false,
+    });
+    expect(await valuation('INHERIT_NEW', warehouseAId)).toEqual({
+      costReviewRequired: false,
+      currentUnitCost: '82.00',
+      currentUnitPrice: '330.00',
+      priceReviewRequired: false,
+    });
+    expect(await client.productWarehouseValuation.count()).toBe(
+      valuationsBefore,
+    );
+    expect(await inheritedAudit(result.body.data.transferId)).toEqual({
+      cost: { reviewRequired: false, unitCost: '82.00' },
+      price: { reviewRequired: false, unitPrice: '330.00' },
+    });
+
+    // The destination can now sell with the inherited server-owned cost.
+    const sale = await new CreateSaleService(client).create(
+      dylanId,
+      `inherit-sale-${randomUUID()}`,
+      {
+        businessDate: '2026-09-26',
+        items: [
+          {
+            productId: product('INHERIT_NEW'),
+            quantity: '1',
+            warehouseId: warehouseCId,
+          },
+        ],
+        status: 'COMPLETED',
+      },
+    );
+    expect(sale.items[0]?.unitPriceSnapshot).toBe('330.00');
+    const saleItem = await client.saleItem.findFirstOrThrow({
+      select: { unitCostSnapshot: true },
+      where: { saleId: sale.id },
+    });
+    expect(saleItem.unitCostSnapshot?.toFixed(2)).toBe('82.00');
+  });
+
+  it('never replaces a destination cost or price that already exists', async () => {
+    const before = await valuation('INHERIT_KEEP', warehouseBId);
+    const result = await transfer(
+      await browser(),
+      `inherit-keep-${randomUUID()}`,
+      payload('INHERIT_KEEP', '1'),
+    ).expect(201);
+    expect(before).toEqual({
+      costReviewRequired: true,
+      currentUnitCost: '90.00',
+      currentUnitPrice: '350.00',
+      priceReviewRequired: false,
+    });
+    expect(await valuation('INHERIT_KEEP', warehouseBId)).toEqual(before);
+    expect(await inheritedAudit(result.body.data.transferId)).toEqual({
+      cost: null,
+      price: null,
+    });
+  });
+
+  it('fills only the missing side, with the origin review flag', async () => {
+    const onlyPrice = await transfer(
+      await browser(),
+      `inherit-price-${randomUUID()}`,
+      payload('INHERIT_ONLY_PRICE', '1'),
+    ).expect(201);
+    expect(await valuation('INHERIT_ONLY_PRICE', warehouseBId)).toEqual({
+      costReviewRequired: false,
+      currentUnitCost: '75.00',
+      currentUnitPrice: '330.00',
+      priceReviewRequired: true,
+    });
+    expect(await inheritedAudit(onlyPrice.body.data.transferId)).toEqual({
+      cost: null,
+      price: { reviewRequired: true, unitPrice: '330.00' },
+    });
+
+    const onlyCost = await transfer(
+      await browser(),
+      `inherit-cost-${randomUUID()}`,
+      payload('INHERIT_ONLY_COST', '1'),
+    ).expect(201);
+    expect(await valuation('INHERIT_ONLY_COST', warehouseBId)).toEqual({
+      costReviewRequired: true,
+      currentUnitCost: '82.00',
+      currentUnitPrice: '300.00',
+      priceReviewRequired: false,
+    });
+    expect(await inheritedAudit(onlyCost.body.data.transferId)).toEqual({
+      cost: { reviewRequired: true, unitCost: '82.00' },
+      price: null,
+    });
+  });
+
+  it('leaves the destination unpriced when the origin has no price', async () => {
+    const result = await transfer(
+      await browser(),
+      `inherit-unpriced-${randomUUID()}`,
+      payload('INHERIT_UNPRICED_ORIGIN', '1', { toWarehouseId: warehouseCId }),
+    ).expect(201);
+    expect(await valuation('INHERIT_UNPRICED_ORIGIN', warehouseCId)).toEqual({
+      costReviewRequired: false,
+      currentUnitCost: '82.00',
+      currentUnitPrice: null,
+      priceReviewRequired: false,
+    });
+    expect(await inheritedAudit(result.body.data.transferId)).toEqual({
+      cost: { reviewRequired: false, unitCost: '82.00' },
+      price: null,
+    });
+  });
+
+  it('replays an inheriting transfer without inheriting again', async () => {
+    const authenticated = await browser();
+    const key = `inherit-retry-${randomUUID()}`;
+    const first = await transfer(
+      authenticated,
+      key,
+      payload('INHERIT_RETRY', '2', { toWarehouseId: warehouseCId }),
+    ).expect(201);
+    // A later valuation correction must survive a replay of the transfer.
+    await client.inventoryBalance.update({
+      data: { currentUnitPrice: '340.00' },
+      where: {
+        productId_warehouseId: {
+          productId: product('INHERIT_RETRY'),
+          warehouseId: warehouseCId,
+        },
+      },
+    });
+    const before = await balance('INHERIT_RETRY', warehouseCId);
+
+    const retry = await transfer(
+      authenticated,
+      key,
+      payload('INHERIT_RETRY', '2', { toWarehouseId: warehouseCId }),
+    ).expect(201);
+
+    expect(retry.body.data.transferId).toBe(first.body.data.transferId);
+    const after = await balance('INHERIT_RETRY', warehouseCId);
+    expect(after.version).toBe(before.version);
+    expect(after.quantity.toString()).toBe('2');
+    expect(after.currentUnitPrice?.toFixed(2)).toBe('340.00');
+    expect(after.currentUnitCost?.toFixed(2)).toBe('82.00');
+    expect(
+      await client.auditLog.count({
+        where: {
+          action: 'inventory.transferred',
+          entityId: first.body.data.transferId,
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it('inherits exactly once when concurrent transfers create the destination', async () => {
+    const service = app.get(InventoryTransferService);
+    const results = await Promise.all([
+      service.transfer(
+        dylanId,
+        `inherit-concurrent-a-${randomUUID()}`,
+        payload('INHERIT_CONCURRENT', '2', { toWarehouseId: warehouseCId }),
+      ),
+      service.transfer(
+        inventoryManagerId,
+        `inherit-concurrent-b-${randomUUID()}`,
+        payload('INHERIT_CONCURRENT', '2', { toWarehouseId: warehouseCId }),
+      ),
+    ]);
+    expect(
+      (await balance('INHERIT_CONCURRENT', warehouseCId)).quantity.toString(),
+    ).toBe('4');
+    expect(await valuation('INHERIT_CONCURRENT', warehouseCId)).toEqual({
+      costReviewRequired: false,
+      currentUnitCost: '82.00',
+      currentUnitPrice: '330.00',
+      priceReviewRequired: false,
+    });
+    const audits = await Promise.all(
+      results.map(({ transferId }) => inheritedAudit(transferId)),
+    );
+    expect(audits).toContainEqual({ cost: null, price: null });
+    expect(audits).toContainEqual({
+      cost: { reviewRequired: false, unitCost: '82.00' },
+      price: { reviewRequired: false, unitPrice: '330.00' },
+    });
   });
 
   it('keeps transfer documents and ledger immutable', async () => {

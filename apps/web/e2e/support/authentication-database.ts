@@ -97,7 +97,7 @@ export class AuthenticationDatabase {
   }
 
   /**
-   * ADR-018 lets the settings suite change people's roles and exceptions from
+   * ADR-020 lets the settings suite change people's roles and exceptions from
    * the panel, and other suites add DENY exceptions. Every suite starts from
    * the manifest's assignments instead of inheriting them. The E2E database is
    * temporary, so the rows are replaced rather than revoked.
@@ -578,6 +578,7 @@ export class AuthenticationDatabase {
     cancellations: number;
     confirmations: number;
     items: number;
+    payments: number;
     saleCancellationMovements: number;
     saleMovements: number;
     sales: number;
@@ -587,6 +588,7 @@ export class AuthenticationDatabase {
       items,
       cancellations,
       confirmations,
+      payments,
       saleMovements,
       saleCancellationMovements,
     ] = await Promise.all([
@@ -594,6 +596,7 @@ export class AuthenticationDatabase {
       this.client.saleItem.count(),
       this.client.saleCancellation.count(),
       this.client.inTransitConfirmation.count(),
+      this.client.salePayment.count(),
       this.client.inventoryMovement.count({ where: { type: 'SALE' } }),
       this.client.inventoryMovement.count({
         where: { type: 'SALE_CANCELLATION' },
@@ -603,6 +606,7 @@ export class AuthenticationDatabase {
       cancellations,
       confirmations,
       items,
+      payments,
       saleCancellationMovements,
       saleMovements,
       sales,
@@ -624,7 +628,8 @@ export class AuthenticationDatabase {
   }
 
   async denySalesPermission(
-    code: 'sales.cancel' | 'sales.create' | 'sales.read',
+    code:
+      'sales.cancel' | 'sales.create' | 'sales.read' | 'sales.record_payment',
   ): Promise<void> {
     const [permission, user] = await Promise.all([
       this.client.permission.findUniqueOrThrow({ where: { code } }),

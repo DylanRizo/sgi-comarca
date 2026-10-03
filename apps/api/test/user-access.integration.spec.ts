@@ -64,11 +64,11 @@ function cookieFrom(response: request.Response): string {
 }
 
 /**
- * ADR-018: roles and exceptions edited from the panel, and reactivation.
+ * ADR-020: roles and exceptions edited from the panel, and reactivation.
  * Runs against its own temporary database so revoking and re-creating
  * assignments never leaks into another suite.
  */
-describe.sequential('user access administration (ADR-018)', () => {
+describe.sequential('user access administration (ADR-020)', () => {
   let administrator!: DatabaseClient;
   let client!: DatabaseClient;
   let app: Awaited<ReturnType<typeof createApplication>>;
@@ -481,7 +481,7 @@ describe.sequential('user access administration (ADR-018)', () => {
     );
   });
 
-  it('keeps administrator-only permissions and panel access where ADR-018 puts them', async () => {
+  it('keeps administrator-only permissions and panel access where ADR-020 puts them', async () => {
     const dylan = await signIn('dylan');
 
     for (const code of [
@@ -607,11 +607,12 @@ describe.sequential('user access administration (ADR-018)', () => {
       'sales.confirm_in_transit',
       'sales.create',
       'sales.read',
+      'sales.record_payment',
     ]);
 
     const permissions = await read(dylan, '/api/v1/permissions').expect(200);
     expect(permissions.headers['cache-control']).toBe('no-store');
-    expect(permissions.body.data).toHaveLength(26);
+    expect(permissions.body.data).toHaveLength(27);
     expect(Object.keys(permissions.body.data[0] as object).sort()).toEqual([
       'code',
       'description',

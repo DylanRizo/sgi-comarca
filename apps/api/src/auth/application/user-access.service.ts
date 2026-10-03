@@ -22,7 +22,7 @@ import {
 
 /**
  * Roles and permission exceptions edited from the administration panel
- * (ADR-018). Each command receives the complete desired set and replaces what
+ * (ADR-020). Each command receives the complete desired set and replaces what
  * is in force, so repeating it changes nothing and writes no audit. Nothing is
  * deleted: a removed assignment is revoked with its actor and time, and a new
  * one is a new row, which keeps the whole history in the database.

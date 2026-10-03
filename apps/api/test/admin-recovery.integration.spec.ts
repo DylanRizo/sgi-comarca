@@ -333,7 +333,7 @@ describe.sequential('administrative invitation and recovery', () => {
   });
 
   it('still recovers after the panel changed people’s roles and exceptions', async () => {
-    // ADR-018: the panel owns per-person assignments, so the last-resort tool
+    // ADR-020: the panel owns per-person assignments, so the last-resort tool
     // must keep working after ordinary administration, not only on the seed.
     const [jean, luden, finance, salesCreate, financesRead] = await Promise.all(
       [

@@ -1,6 +1,7 @@
 import type {
   CreateSaleRequest,
   PaginatedData,
+  RecordSalePaymentRequest,
   SalePaymentStatus,
   SaleStatus,
   SaleView,
@@ -53,6 +54,16 @@ export const salesApi = {
       idempotencyKey,
       method: 'POST',
     }),
+  recordPayment: (
+    saleId: string,
+    input: RecordSalePaymentRequest,
+    csrfToken: string,
+    idempotencyKey: string,
+  ) =>
+    apiRequest<SaleView>(
+      `/api/v1/sales/${encodeURIComponent(saleId)}/payment`,
+      { body: input, csrfToken, idempotencyKey, method: 'POST' },
+    ),
   sale: (saleId: string, signal?: AbortSignal) =>
     apiRequest<SaleView>(
       `/api/v1/sales/${encodeURIComponent(saleId)}`,

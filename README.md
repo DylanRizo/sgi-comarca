@@ -130,7 +130,7 @@ permisos efectivos y la API es siempre la autoridad):
 | Ventas         | `/sales`, `/sales/:id`                                                                                                                                                   | `sales.read`; `sales.create`, `sales.confirm_in_transit`, `sales.cancel`                                        |
 | Finanzas       | `/finances`, `/closings`, `/closings/:id`                                                                                                                                | `finances.read`, `closings.read`; `finances.manual.create`, `closings.create`, `closings.reopen`                |
 | Reportes       | `/reports`, `/analytics`                                                                                                                                                 | `reports.read`, `analytics.read` más el permiso de lectura del dominio                                          |
-| Administración | `/settings`, `/settings/integrations`                                                                                                                                    | `users.read`; `users.roles.manage` y `users.status.manage` para editar accesos (ADR-018); `integrations.manage` |
+| Administración | `/settings`, `/settings/integrations`                                                                                                                                    | `users.read`; `users.roles.manage` y `users.status.manage` para editar accesos (ADR-020); `integrations.manage` |
 
 Ajustes, transferencias, entradas, ventas, finanzas y conteos actualizan
 balances, ledger inmutable y auditoría dentro de una transacción, con

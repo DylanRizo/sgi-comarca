@@ -3,6 +3,7 @@
 import type {
   InventoryTransferResult,
   ProductInventoryView,
+  ProductSummary,
   WarehouseSummary,
 } from '@sgi/contracts';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
@@ -13,6 +14,7 @@ import { formatQuantity } from '@/lib/inventory/presentation';
 import { transferPreview } from '@/lib/inventory/transfer-preview';
 import { useAuth } from '@/providers/auth-provider';
 import { useModalDialog } from '@/lib/use-modal-dialog';
+import { ProductPicker } from './product-picker';
 
 function transferError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -48,8 +50,10 @@ export function InventoryTransferDialog({
   const [error, setError] = useState<string | null>(null);
   const [fromWarehouseId, setFromWarehouseId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<readonly ProductInventoryView[]>([]);
-  const [productId, setProductId] = useState('');
+  const [productLoading, setProductLoading] = useState(false);
+  const [product, setProduct] = useState<ProductSummary | null>(null);
+  const [selectedProduct, setSelectedProduct] =
+    useState<ProductInventoryView | null>(null);
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -58,13 +62,9 @@ export function InventoryTransferDialog({
 
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      const inventory = await inventoryApi.allInventory(controller.signal);
-      const warehousePage = await inventoryApi.warehouses(controller.signal);
-      return { inventory, warehousePage };
-    })()
-      .then(({ inventory, warehousePage }) => {
-        setProducts(inventory);
+    void inventoryApi
+      .warehouses(controller.signal)
+      .then((warehousePage) => {
         setWarehouses(warehousePage.items);
       })
       .catch((loadError: unknown) => {
@@ -76,9 +76,24 @@ export function InventoryTransferDialog({
     return () => controller.abort();
   }, []);
 
-  const selectedProduct = products.find(
-    ({ product }) => product.id === productId,
-  );
+  useEffect(() => {
+    if (!product) return;
+    const controller = new AbortController();
+    void inventoryApi
+      .productInventory(product.id, controller.signal)
+      .then((inventory) => {
+        setError(null);
+        setSelectedProduct(inventory);
+      })
+      .catch((loadError: unknown) => {
+        if (!controller.signal.aborted) setError(transferError(loadError));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setProductLoading(false);
+      });
+    return () => controller.abort();
+  }, [product]);
+
   const origin = selectedProduct?.balances.find(
     ({ warehouse }) => warehouse.id === fromWarehouseId,
   );
@@ -96,7 +111,8 @@ export function InventoryTransferDialog({
     preview.kind === 'valid' &&
     reason.trim().length > 0 &&
     !submitting &&
-    !loading;
+    !loading &&
+    !productLoading;
 
   function changeIntent(action: () => void) {
     action();
@@ -186,30 +202,39 @@ export function InventoryTransferDialog({
           </div>
         ) : null}
 
-        <form aria-busy={submitting || loading} onSubmit={submit}>
-          <label className="filter-field" htmlFor="transferProduct">
-            <span>Producto</span>
-            <select
-              disabled={submitting || loading}
-              id="transferProduct"
-              onChange={(event) =>
-                changeIntent(() => {
-                  setProductId(event.target.value);
-                  setFromWarehouseId('');
-                  setToWarehouseId('');
-                })
-              }
-              required
-              value={productId}
-            >
-              <option value="">Selecciona un producto</option>
-              {products.map(({ product }) => (
-                <option key={product.id} value={product.id}>
-                  {product.code} · {product.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        <form
+          aria-busy={submitting || loading || productLoading}
+          onSubmit={submit}
+        >
+          <ProductPicker
+            disabled={submitting || loading || productLoading}
+            label="Producto a transferir"
+            onChange={(nextProduct) =>
+              changeIntent(() => {
+                setProductLoading(true);
+                setSelectedProduct(null);
+                setProduct(nextProduct);
+                setFromWarehouseId('');
+                setToWarehouseId('');
+              })
+            }
+            onClear={() =>
+              changeIntent(() => {
+                setProductLoading(false);
+                setSelectedProduct(null);
+                setProduct(null);
+                setFromWarehouseId('');
+                setToWarehouseId('');
+              })
+            }
+            value={product}
+          />
+
+          {productLoading ? (
+            <p className="inline-loading" role="status">
+              Consultando existencias del producto…
+            </p>
+          ) : null}
 
           <div className="transfer-fields">
             <label className="filter-field" htmlFor="transferOrigin">

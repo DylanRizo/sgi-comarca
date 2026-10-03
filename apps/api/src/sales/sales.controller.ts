@@ -25,6 +25,9 @@ import { CancelSaleDto } from './dto/cancel-sale.dto.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CreateSaleDto } from './dto/create-sale.dto.js';
+// DTO values must remain runtime imports so Nest emits validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { RecordSalePaymentDto } from './dto/record-sale-payment.dto.js';
 import { SaleLifecycleService } from './sale-lifecycle.service.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -81,6 +84,32 @@ export class SalesController {
         await this.lifecycle.confirmInTransit(
           current.userId,
           params.id,
+          idempotencyKey,
+        ),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapSaleError(error);
+    }
+  }
+
+  @Post(':id/payment')
+  @RequirePermission('sales.record_payment')
+  async recordPayment(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Param() params: SaleIdParamDto,
+    @Body() input: RecordSalePaymentDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    try {
+      return readSuccess(
+        await this.lifecycle.recordPayment(
+          current.userId,
+          params.id,
+          input.paymentMethodText,
           idempotencyKey,
         ),
         request,

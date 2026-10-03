@@ -189,7 +189,7 @@ export class UserAdministrationController {
     }
   }
 
-  /** Replaces the person's roles with exactly the set sent (ADR-018). */
+  /** Replaces the person's roles with exactly the set sent (ADR-020). */
   @Put(':id/roles')
   @RequirePermission('users.roles.manage')
   async replaceRoles(

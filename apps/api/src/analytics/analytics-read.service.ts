@@ -157,7 +157,10 @@ export class AnalyticsReadService {
     const sales = await this.database.sale.findMany({
       select: {
         businessDate: true,
+        createdBy: { select: { displayName: true } },
+        createdByUserId: true,
         id: true,
+        origin: true,
         salesChannelText: true,
         seller: { select: { displayName: true } },
         items: {
@@ -204,9 +207,17 @@ export class AnalyticsReadService {
       period.revenue += saleTotal;
       period.sales += 1;
 
-      const sellerKey = sale.sellerUserId ?? '';
+      const fallbackToCreator =
+        sale.origin === 'OPERATIONAL' && sale.sellerUserId === null;
+      const resolvedSellerUserId = fallbackToCreator
+        ? sale.createdByUserId
+        : sale.sellerUserId;
+      const resolvedSellerName = fallbackToCreator
+        ? sale.createdBy?.displayName
+        : sale.seller?.displayName;
+      const sellerKey = resolvedSellerUserId ?? '';
       const seller = sellers.get(sellerKey) ?? {
-        name: sale.seller?.displayName ?? 'Sin vendedor',
+        name: resolvedSellerName ?? 'Sin vendedor',
         revenue: 0n,
         sales: 0,
       };

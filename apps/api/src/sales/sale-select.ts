@@ -22,6 +22,7 @@ import type { Prisma } from '@sgi/database';
 export const saleSelect = {
   businessDate: true,
   completedAt: true,
+  createdBy: { select: { displayName: true, id: true } },
   createdAt: true,
   currencyCode: true,
   delivererText: true,
@@ -45,9 +46,20 @@ export const saleSelect = {
   observations: true,
   origin: true,
   paymentMethodText: true,
+  payment: {
+    select: {
+      amount: true,
+      currencyCode: true,
+      id: true,
+      methodText: true,
+      paidAt: true,
+      recordedBy: { select: { displayName: true, id: true } },
+    },
+  },
   paymentStatus: true,
   saleNumber: true,
   salesChannelText: true,
+  seller: { select: { displayName: true, id: true } },
   sellerUserId: true,
   shippingAmount: true,
   status: true,

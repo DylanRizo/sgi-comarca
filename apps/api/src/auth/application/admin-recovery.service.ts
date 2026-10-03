@@ -38,6 +38,7 @@ const approvedPermissionCodes = [
   'sales.confirm_in_transit',
   'sales.create',
   'sales.read',
+  'sales.record_payment',
   'stock-receipts.create',
   'transfers.create',
   'users.credentials.revoke',
@@ -75,11 +76,12 @@ const approvedRolePermissionKeys = [
   'SALES:sales.confirm_in_transit',
   'SALES:sales.create',
   'SALES:sales.read',
+  'SALES:sales.record_payment',
 ] as const;
 
 /**
  * Who holds which role or exception belongs to the administration panel once
- * the system is in use (ADR-018), so recovery no longer pins each person's
+ * the system is in use (ADR-020), so recovery no longer pins each person's
  * roles. What it still pins is what the panel can never change: the catalog
  * above, exactly one ADMIN (checked by `LastAdminPolicy`), and the
  * administrator-only permissions held as direct grants by nobody but that

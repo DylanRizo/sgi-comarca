@@ -110,7 +110,7 @@ administrativamente su credencial. Permite revocar sus sesiones, logout y
 cambio normal de contraseña. La CLI local `auth:recover-admin` es la única
 excepción break-glass y no crea otro ADMIN.
 
-Desde [ADR-018](../decisions/ADR-018-user-access-administration.md) el panel
+Desde [ADR-020](../decisions/ADR-020-user-access-administration.md) el panel
 edita roles y excepciones de cada persona con `users.roles.manage`, y reactiva
 cuentas con `users.status.manage`. El panel nunca asigna ni retira `ADMIN`,
 solo concede permisos reservados al administrador a quien tiene `ADMIN`, y no

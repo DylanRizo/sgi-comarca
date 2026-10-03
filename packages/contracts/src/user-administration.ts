@@ -13,7 +13,7 @@ export type UserAdministrationPublicErrorCode =
   | 'LAST_ADMIN_PROTECTED';
 
 /**
- * ADR-018. The panel never assigns or removes this role: there is exactly one
+ * ADR-020. The panel never assigns or removes this role: there is exactly one
  * administrator, and changing who it is takes a new decision.
  */
 export const administratorRoleCode = 'ADMIN';

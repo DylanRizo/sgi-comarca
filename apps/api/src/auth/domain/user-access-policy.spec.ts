@@ -8,7 +8,7 @@ import {
   planRoleChange,
 } from './user-access-policy.js';
 
-describe('user access policy (ADR-018)', () => {
+describe('user access policy (ADR-020)', () => {
   describe('roles', () => {
     it('plans only the difference between the current and desired sets', () => {
       const plan = planRoleChange(
