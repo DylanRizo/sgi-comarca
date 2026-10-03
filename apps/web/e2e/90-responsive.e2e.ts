@@ -122,6 +122,103 @@ test.describe('FASE 10C responsive and navigation gate', () => {
     });
   });
 
+  test('keeps the session block on screen while the menu is open', async ({
+    page,
+    request,
+  }) => {
+    const width = page.viewportSize()?.width ?? 0;
+    test.skip(width >= collapseWidth, 'The sidebar shows it without a menu.');
+    await activateAndLogin(request, page);
+
+    // The open menu used to grow a sticky header past the bottom of the
+    // screen, where the appearance control and logout could be neither seen
+    // nor reached. A short phone is the hardest case, so check it as well.
+    for (const height of [page.viewportSize()?.height ?? 844, 600]) {
+      await page.setViewportSize({ width, height });
+      await page.getByRole('button', { name: 'Menú' }).click();
+
+      const appearance = page.getByLabel('Apariencia');
+      await expect(appearance).toBeInViewport({ ratio: 1 });
+      await expect(
+        page.getByRole('button', { name: 'Cerrar sesión' }),
+      ).toBeInViewport({ ratio: 1 });
+      // A real tap, not a programmatic selection: it fails if anything
+      // covers the control.
+      await appearance.click();
+      await appearance.selectOption('dark');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await appearance.selectOption('system');
+
+      // Every destination still scrolls into reach inside the panel.
+      const lastDestination = page
+        .getByRole('navigation', { name: 'Navegación principal' })
+        .getByRole('link')
+        .last();
+      await lastDestination.scrollIntoViewIfNeeded();
+      await expect(lastDestination).toBeInViewport();
+
+      await page.getByRole('button', { name: 'Cerrar menú' }).click();
+      await expect(appearance).toBeHidden();
+    }
+  });
+
+  test('offers pagination right after the filters on a long sales list', async ({
+    page,
+    request,
+  }) => {
+    // This suite seeds nothing (see the header), so the long result set is a
+    // stubbed response: what is under test is where the controls render.
+    const requestedPages: string[] = [];
+    await page.route('**/api/v1/sales?*', async (route) => {
+      const url = new URL(route.request().url());
+      const current = Number(url.searchParams.get('page') ?? '1');
+      requestedPages.push(String(current));
+      const items = Array.from({ length: 25 }, (_, index) => {
+        const position = (current - 1) * 25 + index + 1;
+        return {
+          businessDate: '2026-10-01',
+          currencyCode: 'NIO',
+          id: `00000000-0000-4000-8000-${String(position).padStart(12, '0')}`,
+          items: [{ warehouse: { name: 'Casa Dylan' } }],
+          paymentStatus: 'PAID',
+          saleNumber: `VTA-${String(position).padStart(9, '0')}`,
+          status: 'COMPLETED',
+          total: '100.00',
+        };
+      });
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            items,
+            pagination: {
+              page: current,
+              pageSize: 25,
+              totalItems: 60,
+              totalPages: 3,
+            },
+          },
+          meta: { requestId: 'stubbed-sales-page' },
+        }),
+        contentType: 'application/json',
+      });
+    });
+    await activateAndLogin(request, page);
+    await page.goto('/sales');
+
+    // On a phone 25 results become cards several thousand pixels tall, so the
+    // controls must also stand before them, not only after.
+    const top = page.getByRole('navigation', { name: 'Paginación superior' });
+    await expect(top).toContainText('Mostrando 1–25 de 60');
+    const topBox = await top.boundingBox();
+    const tableBox = await page.locator('.sales-table').boundingBox();
+    expect(topBox && tableBox && topBox.y < tableBox.y).toBe(true);
+
+    await top.getByRole('button', { name: 'Siguiente' }).click();
+    await expect(top).toContainText('Mostrando 26–50 de 60');
+    await expect(page.getByText('VTA-000000026')).toBeVisible();
+    expect(requestedPages).toContain('2');
+  });
+
   test('presents tables as cards below the breakpoint', async ({
     page,
     request,

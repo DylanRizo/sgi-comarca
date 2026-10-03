@@ -53,8 +53,15 @@ test.describe('FASE 5B/5C product and inventory flows', () => {
     await expect(page.getByText('26 productos')).toBeVisible();
     await expect(page.getByText('DGGR-X', { exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Siguiente' }).click();
+    // The controls repeat above the results so a phone reaches them right
+    // after searching; both lead to the same page.
+    const top = page.getByRole('navigation', { name: 'Paginación superior' });
+    await expect(top).toContainText('Mostrando 1–25 de 26');
+    await top.getByRole('button', { name: 'Siguiente' }).click();
     await expect(page.getByText('E2E-024', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: 'Paginación', exact: true }),
+    ).toContainText('Mostrando 26–26 de 26');
 
     await page.getByLabel('Buscar producto').fill('DGGR-X');
     await page.getByRole('button', { name: 'Buscar' }).click();

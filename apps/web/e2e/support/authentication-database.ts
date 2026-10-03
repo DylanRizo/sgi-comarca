@@ -223,6 +223,44 @@ export class AuthenticationDatabase {
    * after the numbered ones never collides with a fixture an earlier suite
    * made undeletable by selling or moving it (see playwright.config.ts).
    */
+  /**
+   * `count` stocked products sharing one searchable description, under a prefix the
+   * caller makes unique: seedInventoryReadFixtures cannot be reused once an
+   * earlier suite has moved its fixed codes, because reset() keeps them.
+   */
+  async seedSearchableProducts(prefix: string, count: number): Promise<void> {
+    await this.transaction(async (transaction) => {
+      const unit = await transaction.unit.upsert({
+        create: { code: 'E2E-UNIT', name: 'Unidad sintética' },
+        update: {},
+        where: { code: 'E2E-UNIT' },
+      });
+      const warehouse = await transaction.warehouse.findUniqueOrThrow({
+        select: { id: true },
+        where: { code: 'CASA_DYLAN' },
+      });
+      // The sale dialog offers only products the inventory read returns,
+      // which means products holding a balance.
+      const products = await transaction.product.createManyAndReturn({
+        data: Array.from({ length: count }, (_, index) => ({
+          code: `${prefix}-${String(index + 1).padStart(3, '0')}`,
+          name: `Producto buscable ${prefix} ${String(index + 1).padStart(3, '0')}`,
+          unitId: unit.id,
+        })),
+        select: { id: true },
+      });
+      await transaction.inventoryBalance.createMany({
+        data: products.map(({ id }) => ({
+          currentUnitCost: 1,
+          currentUnitPrice: 2,
+          productId: id,
+          quantity: 1,
+          warehouseId: warehouse.id,
+        })),
+      });
+    });
+  }
+
   async seedAdjustableProduct(suffix: string): Promise<string> {
     const code = `E2E-A11Y-${suffix.toUpperCase()}`;
     await this.transaction(async (transaction) => {
