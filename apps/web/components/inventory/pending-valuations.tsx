@@ -127,8 +127,7 @@ export function PendingValuations() {
             if (current) setResult(value);
           })
           .catch(() => {
-            if (current)
-              setError('No pudimos consultar las valoraciones.');
+            if (current) setError('No pudimos consultar las valoraciones.');
           });
       },
       searching ? 250 : 0,
@@ -181,9 +180,7 @@ export function PendingValuations() {
           </button>
         </p>
       ) : !result ? (
-        <p role="status">
-          {searching ? 'Buscando…' : 'Cargando pendientes…'}
-        </p>
+        <p role="status">{searching ? 'Buscando…' : 'Cargando pendientes…'}</p>
       ) : (
         <>
           {result.items.length === 0 ? (

@@ -30,8 +30,16 @@ const children = new Set();
 
 function invocation(command, arguments_) {
   if (process.platform === 'win32' && command === 'pnpm') {
+    const commandLine = [command, ...arguments_]
+      .map((argument) => {
+        if (!/^[a-zA-Z0-9_@./:=,\\-]+$/u.test(argument)) {
+          throw new Error('Unsupported character in Windows command argument.');
+        }
+        return argument;
+      })
+      .join(' ');
     return {
-      arguments: ['/d', '/s', '/c', 'pnpm', ...arguments_],
+      arguments: ['/d', '/s', '/c', commandLine],
       executable: process.env.ComSpec ?? 'cmd.exe',
     };
   }
@@ -178,7 +186,6 @@ try {
 
   const databaseEnvironment = {
     ...process.env,
-    CI: 'true',
     DATABASE_URL: temporaryUrl.toString(),
   };
   // API development starts through the workspace package export, whose

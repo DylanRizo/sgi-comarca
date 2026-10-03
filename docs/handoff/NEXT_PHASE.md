@@ -1,11 +1,14 @@
 # Next gates — consolidación, baseline verde y primer conteo controlado
 
-Updated: 2026-09-16.
+Updated: 2026-10-03.
 
-Este documento ordena los siguientes gates; no autoriza saltarse ninguno. La
-línea desplegada está en `codex/staging-pilot` (`b61e711`) y permanece 32
-commits por delante de `origin/main` (`37e97e4`). La consolidación se trabaja
-desde `codex/consolidate-staging`.
+Este documento ordena los siguientes gates; no autoriza saltarse ninguno. PR #1
+consolidó en `main` la línea desplegada hasta `b61e711`. Después la línea
+`codex/staging-pilot` avanzó hasta `194fb3a` (pagos de ventas con su migración,
+herencia de valoración en transferencias, atribución de vendedor, reactivación
+de usuarios y otros arreglos). La rama `claude/consolidate-staging-into-main`
+la vuelve a integrar a `main` mediante un PR con CI; hasta que se fusione,
+`main` no representa lo desplegado.
 
 ## Gate 1 — consolidar la línea desplegada
 
@@ -16,9 +19,10 @@ desde `codex/consolidate-staging`.
    cambios legacy;
 5. mantener cambios de consolidación separados de nuevas funcionalidades.
 
-Estado: `IN_PROGRESS`. La rama de consolidación parte exactamente de
-`b61e711`; los temporales ejecutables `*.tmp.mjs` y `*.tmp.mts` ya están
-ignorados sin ser eliminados.
+Estado: `COMPLETE`. La rama parte exactamente de `b61e711`; los temporales
+ejecutables `*.tmp.mjs` y `*.tmp.mts` están ignorados sin eliminar archivos del
+operador. El diff fue normalizado, revisado y mantenido separado de nuevas
+funcionalidades.
 
 ## Gate 2 — baseline reproducible
 
@@ -41,7 +45,16 @@ pasen en aislamiento. Primero se debe distinguir entre defecto de producto,
 aislamiento de fixtures, paralelismo del runner y normalización CRLF; luego se
 corrige la causa sin debilitar aserciones.
 
+Estado: `COMPLETE` el 2026-09-17 desde el checkout aislado. Pasaron formato,
+lint 9/9, typecheck 13/13, unitarias 291/291, integración PostgreSQL 349/349,
+build 8/8, generación/validación Prisma y Playwright Chromium 54/54. Se
+corrigieron el orden de compilación requerido por el typecheck limpio y la
+invocación de pnpm del runner E2E en Windows. Staging no fue destino de prueba.
+
 ## Gate 3 — integrar a `main`
+
+Estado: `COMPLETE` el 2026-09-17. PR #1 pasó CI remoto y fue fusionado mediante
+merge commit `fa85292`, sin reescribir el historial desplegado.
 
 Solo después del Gate 2:
 
@@ -53,6 +66,15 @@ Solo después del Gate 2:
 6. confirmar que `main`, el commit desplegado y el handoff quedan trazables.
 
 ## Gate 4 — primer conteo físico formal en staging
+
+Estado: `WAITING_FOR_PHYSICAL_OBSERVATION`. El preflight directo de solo
+lectura del 2026-09-17 confirmó el target, las 11 migraciones, 119 productos,
+91 saldos positivos, 267 unidades, cero saldos negativos, dos sesiones
+históricas canceladas sin líneas y ninguna sesión abierta o pendiente. La
+trazabilidad de las 267 unidades quedó reconciliada mediante recibos,
+movimientos y auditoría. No se creó checkpoint ni sesión porque todavía no
+existe una observación física fresca que pueda registrarse sin inventar un
+dato de negocio.
 
 Es el siguiente gate operacional seleccionado. No debe basarse en la fotografía
 histórica de 144 productos y 357 saldos. La última evidencia registrada de Neon

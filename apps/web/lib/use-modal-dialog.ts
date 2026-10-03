@@ -27,7 +27,8 @@ const focusableSelector = [
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(focusableSelector)].filter(
-    (element) => element.offsetParent !== null || element === document.activeElement,
+    (element) =>
+      element.offsetParent !== null || element === document.activeElement,
   );
 }
 
@@ -86,7 +87,10 @@ export function useModalDialog<T extends HTMLElement>(
       const active = document.activeElement;
 
       // Wrap at both ends, and pull focus back in if it escaped the dialog.
-      if (event.shiftKey && (active === first || !container!.contains(active))) {
+      if (
+        event.shiftKey &&
+        (active === first || !container!.contains(active))
+      ) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {

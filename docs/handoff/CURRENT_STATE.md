@@ -1,9 +1,23 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-09-27.
+Updated: 2026-10-03.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.
+
+## Consolidation into `main` — 2026-10-03
+
+`main` had last absorbed the deployed line at `b61e711` through PR #1
+(2026-09-17). The deployed line then advanced to `194fb3a` with sale payment
+recording (ADR-018, migration `20260926120000_sale_payment_recording`,
+permission `sales.record_payment`), transfer valuation inheritance (ADR-019),
+seller attribution, user reactivation, Alexa lookup improvements, mobile
+inventory UX and a mobile theme-control fix. Branch
+`claude/consolidate-staging-into-main` starts from `codex/consolidate-staging`
+(`c0696ec`, documentation-only over `194fb3a`) and merges `main` without
+rewriting either history. The only conflicts were documentation; no
+functional file needed a manual resolution. It adds no business rule,
+migration, RBAC grant or staging mutation of its own.
 
 ## Sale payment recording — deployed to staging, 2026-09-27
 
@@ -66,6 +80,31 @@ permissions, 14 units, one product group and Dylan active. Older product,
 balance, role and user counts elsewhere in this document are historical and
 must be revalidated before relying on them for an operational write.
 
+## Consolidation snapshot — 2026-09-17 (historical)
+
+Superseded by the 2026-09-27 snapshot above and by the 2026-10-03 consolidation
+below; kept because it records the first merge of the deployed line into `main`.
+
+The repository baseline is `main` at merge commit `fa85292`, produced by PR
+[#1](https://github.com/DylanRizo/sgi-comarca/pull/1). The externally deployed
+runtime remains `codex/staging-pilot` at `b61e711`; the commits after that
+deployed SHA add only repository hygiene, source normalization,
+cross-workspace typecheck ordering and a Windows-safe E2E launcher. No
+business rule, migration, RBAC grant or staging mutation is part of the
+consolidation delta.
+
+Public read-only checks on 2026-09-17 returned HTTP 200 for API health, API
+readiness, and the web login page. This confirms public availability only and
+was followed by a direct read-only database fingerprint.
+
+The latest direct evidence identifies Neon database `sgi_comarca_staging`,
+role `sgi_staging_owner`, PostgreSQL 18.6 in a read-only transaction, with 11
+finished migrations, zero unfinished migrations, 6 roles, 4 users, 26
+permissions and 26 active role grants. Operational inventory has advanced
+since the 2026-09-13 snapshot: staging now has 119 products, 91 balances, all
+91 positive, 267 total units and zero negative balances. The ledger has 91
+`RECEIPT` movements totalling +268 and one `ADJUSTMENT` of -1.
+
 The staging line contains the completed FASE 9 and FASE 10 work already present
 on `main`, plus the operational products/receipts/count-correction release,
 administration, Alexa account linking and refresh-token hardening, the
@@ -73,11 +112,11 @@ counted-product workbook importer, read-only integration keys, seller
 attribution, transfer valuation inheritance, mobile inventory UX, mobile theme
 control and explicit sale payments.
 
-The repository is not yet a production baseline. CI runs on pull requests and
-pushes to `main`, not on ordinary pushes to `codex/staging-pilot`; the combined
-release was therefore validated locally before its staging deployment. A clean
-cross-platform consolidation gate is still required before merging the
-deployed line into `main`.
+`main` carries this line once the 2026-10-03 consolidation pull request is
+merged. CI runs on pull requests and pushes to `main`, not on ordinary pushes to
+`codex/staging-pilot`, so that pull request's CI is the cross-platform gate for
+the combined tree. Its local verification and limits are recorded in its
+description.
 
 Operational follow-ups remain separately gated: the first formal physical
 count, first sale, first financial entry, first closing, first Marketplace key
@@ -85,6 +124,16 @@ issuance, and the final Alexa unlink/relink after the refresh lifecycle fix.
 Waves 3+ of the legacy import remain unimplemented and blocked by the open
 legacy decisions. No older section of this document authorizes any of those
 writes.
+
+The 2026-09-17 count preflight found two historical count sessions, both
+cancelled, both with zero lines, and no `OPEN` or `PENDING_APPROVAL` session.
+Four active users can capture counts and only Dylan can approve one. The
+database is structurally ready for the first formal count, but no fresh
+physical observation was available to the operator. System quantities and the
+historical workbook must not be presented as a new physical observation. No
+count session, backup, adjustment or other staging write was created during
+this preflight; the private pre-write checkpoint remains immediately before
+the first authorized write after a real observation is supplied.
 
 ## Transfer valuation inheritance — 2026-09-26
 
@@ -369,14 +418,19 @@ The owner's source workbook was preserved outside Git and passed the production
 parser with 28 counted variants, 19 with positive stock, 9 with zero stock and
 62 total physical units. Its displayed footer says 56, but three counted rows
 sum to the six-unit difference; the importer correctly uses the physical
-warehouse cells. At implementation time no staging product or inventory row
-had been written by this code change. A later direct preflight on 2026-09-13
-found 28 products and 20 stocked balances in Neon, so the operational import
-occurred after that implementation snapshot. Before another import or
-physical-count gate, record the exact import audit/receipt evidence and
-reconcile it with the expected 28 variants / 62 physical units. Do not repeat
-the import merely to recreate missing documentation; deterministic idempotency
-keys remain the safety boundary.
+warehouse cells.
+
+The 2026-09-17 read-only reconciliation closes the earlier evidence gap without
+repeating an import. On 2026-09-11 staging created 28 products and 20 receipt
+items totalling 64 units: 19 initial-workbook receipts account for the 62
+physical units and one separately documented missing item added 2 units. The
+subsequent audited manual adjustment of -1 left 63 units. On 2026-09-16 a
+second operational workbook run created 91 products and 71 positive receipts
+totalling 204 units. Current lineage is therefore 119 products, 91 receipts
+totalling 268 units, one -1 adjustment and a final balance of 267 units. Audit
+counts match 119 `product.created`, 91 `stock.received` and one
+`inventory.adjusted` event. This explains current staging state but is not a
+fresh physical count and does not authorize another import.
 
 ## Free staging pilot (Render + Neon)
 
@@ -959,9 +1013,10 @@ integration/concurrency suites.
 
 ## Current RBAC manifest
 
-- The deployed manifest contains 26 permissions, 26 role grants and 2 direct
-  grants. The last direct staging verification on 2026-09-13 matched those
-  permission and role-grant counts.
+- The deployed manifest contains 27 permissions, 27 role grants and 2 direct
+  grants. The 2026-09-27 staging bootstrap created the 27th permission
+  (`sales.record_payment`) and its `SALES` grant, and the follow-up diagnostic
+  reported 27 permissions.
 - `ADMIN` grants the four original account-management capabilities plus
   `users.read`, `users.roles.manage`, and `integrations.manage`; it remains an
   explicit role rather than a superuser bypass.
@@ -972,6 +1027,7 @@ integration/concurrency suites.
 - `transfers.create → INVENTORY_MANAGER`.
 - `sales.read → SALES`, exclusively; `ADMIN`, `FINANCE`,
   `INVENTORY_MANAGER`, `PARTNER`, and `READ_ONLY` do not receive it.
+- `sales.record_payment → SALES` (ADR-018); a direct `DENY` still prevails.
 - `sales.cancel` remains one direct grant only to Dylan; no role grants it.
 - `inventory.audit.create → INVENTORY_MANAGER`, so anyone managing inventory
   may capture a physical count.
@@ -1105,6 +1161,27 @@ responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 
 ## Last green baseline
 
+Revalidated on 2026-09-17 from the isolated
+`codex/consolidate-staging-pr` checkout, derived directly from deployed commit
+`b61e711`: repository-wide formatting passed; lint passed 9/9 packages with
+only the pre-existing unused-disable warning in the user-administration
+controller; typecheck passed 13/13 tasks; unit tests passed 67 files / 291
+tests; PostgreSQL integration tests passed 32 files / 349 tests; production
+build passed 8/8 tasks; Prisma generation and schema validation passed; and
+the complete Chromium Playwright suite passed 54/54 tests across authentication,
+inventory, stock operations, counts, sales, finances, settings, integrations,
+responsive layouts and accessibility. The runners used temporary local
+databases only, and the final catalog check found no remaining `sgi_e2e_*`
+database. Staging was not a test target and received no write.
+
+That gate exposed and fixed two clean-checkout infrastructure defects without
+relaxing assertions: the workspace typecheck graph now builds dependency
+artifacts before consumers, and the E2E launcher invokes pnpm reliably through
+`cmd.exe` on Windows without forcing pnpm's CI installation behavior into the
+local database process. Stable LF attributes also prevent Windows checkout
+normalization from changing golden fixtures. PR #1 passed remote CI and merged
+this validated history into `main` as `fa85292`.
+
 Revalidated on 2026-08-30 on `migration/09-reports` (unmerged into `main`) at
 the FASE 9B.1 closure, run directly against the same local PostgreSQL: lint
 8/8 tasks, typecheck 7/7 tasks, unit 59 files / 207 tests, build 7/7 tasks,
@@ -1211,8 +1288,12 @@ Some versioned documents intentionally preserve earlier snapshots:
   before `inventory.read` and the FASE 6A transfer grant;
 - portions of the FASE 4 readiness documents and roadmap predate the approved
   first persistent staging import;
-- portions of module-boundary/system-context documentation still describe the
-  transfer application as future or GitHub as private;
+- the 2026-10-02 documentation reconciliation updated `README.md`,
+  `authorization-matrix.md`, `module-boundaries.md`, `system-context.md`,
+  `api-conventions.md` and the roadmap against the code (26-permission
+  manifest, implemented endpoints, Render/Neon staging, public repository). The
+  FASE 3B/4/6/7 reviews and `APPROVED_DECISIONS.md` keep their historical
+  wording on purpose;
 - documents written before the FASE 6 closeout may still describe the first
   staging transfer as pending, unauthorized, or never executed, or FASE 6 as
   merely a completion candidate;

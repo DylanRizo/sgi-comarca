@@ -4,19 +4,28 @@ Sistema de Gestión Integral en migración desde Google Apps Script y Google
 Sheets hacia un monolito modular con TypeScript, Next.js, NestJS, Prisma y
 PostgreSQL.
 
-- FASE 3A: modelo estructural y migración inicial — completa.
-- FASE 3B: autenticación, sesiones, autorización, administración limitada y
-  frontend de autenticación — completa.
-- FASE 3C: perfilador reproducible del XLSX — completa.
-- FASE 4: importador y reconciliación legacy — Waves 1–2 fueron importadas y
-  verificadas en staging; Waves 3+ no han iniciado.
-- FASE 5A/5B: read model, API y UI de productos e inventario — completas.
-- FASE 5C: ajustes manuales de inventario transaccionales y auditados.
-- FASE 6: fundamento, API e interfaz de movimientos y transferencias — completa;
-  la primera transferencia controlada en staging pasó y la regresión de sesión
-  concurrente posterior quedó corregida y validada.
-- FASE 7: ventas — siguiente fase definida, todavía no iniciada ni autorizada;
-  su siguiente puerta es exclusivamente de planificación.
+Estado: monolito modular desplegado como **piloto de staging** (Render + Neon,
+ver [ADR-013](docs/decisions/ADR-013-free-staging-pilot.md)); todavía no hay
+producción. El repositorio es público: nunca incluya credenciales, datos
+privados ni IDs privados en un commit.
+
+| Fase      | Estado                                                                                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3A–3C     | Modelo estructural, autenticación/autorización y perfilador XLSX — completas.                                                                                                                                       |
+| 4         | Importador legacy — Waves 1–2 importadas y verificadas en staging; Waves 3+ no han iniciado y siguen bloqueadas por decisiones abiertas.                                                                            |
+| 5A–5C     | Read model, UI y ajustes transaccionales de inventario — completas.                                                                                                                                                 |
+| 6         | Movimientos y transferencias atómicas e idempotentes — completa.                                                                                                                                                    |
+| 7         | Ventas (esquema, API y UI): crear, confirmar en tránsito y cancelar — completa.                                                                                                                                     |
+| 8         | Finanzas manuales y cierres diarios — completa.                                                                                                                                                                     |
+| 9         | Conteo físico, reportes con CSV y analytics — completa.                                                                                                                                                             |
+| 10        | Unificación de UI (responsive, dark mode, accesibilidad) — implementada; aceptación formal pendiente.                                                                                                               |
+| Operativo | Entradas de mercancía, ficha de productos, importador del libro de conteo, panel de administración, enlace Alexa de solo lectura y llaves de integración de solo lectura para Marketplace — desplegados en staging. |
+| 11+       | Hardening, rehearsal y cutover — pendientes.                                                                                                                                                                        |
+
+Cada escritura operativa real en staging (primer conteo formal, primera venta,
+primera entrada financiera, primer cierre, etc.) es un gate independiente; ver
+[NEXT_PHASE](docs/handoff/NEXT_PHASE.md). El avance por fases está en el
+[roadmap](docs/migration/phased-roadmap.md).
 
 Consulte el
 [informe canónico de FASE 3B](docs/reviews/phase-3b-completion-report.md),
@@ -63,7 +72,10 @@ pnpm db:generate
 pnpm db:migrate:deploy
 ```
 
-Los valores de `.env.example` son solo locales. Los secretos y archivos `.env`
+Los valores de `.env.example` son solo locales. Las integraciones
+(`ALEXA_INTEGRATION_ENABLED`, `INTEGRATION_KEYS_ENABLED`) están apagadas por
+defecto, y `CLOSING_TOLERANCE` / `CLOSING_REOPENING_WINDOW_DAYS` configuran las
+reglas de cierre diario (ADR-010). Los secretos y archivos `.env`
 reales permanecen fuera de Git. PostgreSQL local usa el puerto `5433` y un
 volumen persistente; no ejecute `docker compose down --volumes` salvo que quiera
 eliminar deliberadamente sus datos locales.
@@ -103,28 +115,30 @@ pnpm dev
 - Health: `http://localhost:3001/api/v1/health`
 - Readiness: `http://localhost:3001/api/v1/ready`
 
-Páginas de autenticación disponibles:
+Páginas públicas: `/login`, `/activate`, `/session-expired`, `/unauthorized` y
+`/alexa/link` (consentimiento OAuth de Alexa).
 
-- `/activate`
-- `/login`
-- `/app`
-- `/account/change-password`
-- `/unauthorized`
-- `/session-expired`
+Páginas privadas (cada una exige sesión; los controles se muestran según los
+permisos efectivos y la API es siempre la autoridad):
 
-Vistas operativas disponibles para sesiones con `inventory.read`:
+| Área           | Rutas                                                                                                                                                                    | Permiso principal                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Cuenta         | `/app`, `/account`, `/account/change-password`                                                                                                                           | sesión                                                                                           |
+| Productos      | `/products`, `/products/new`, `/products/:id`, `/products/:id/edit`, `/products/import`                                                                                  | `inventory.read`; edición/importación con `products.manage`                                      |
+| Inventario     | `/inventory`, `/inventory/movements`, `/inventory/adjustments/new`, `/inventory/receipts`, `/inventory/receipts/new`, `/inventory/receipts/:id`, `/inventory/valuations` | `inventory.read`; `inventory.adjust`, `stock-receipts.create`, `inventory.valuation.manage`      |
+| Conteo físico  | `/inventory/counts`, `/inventory/counts/:id`                                                                                                                             | `inventory.audit.create` / `inventory.audit.approve`                                             |
+| Ventas         | `/sales`, `/sales/:id`                                                                                                                                                   | `sales.read`; `sales.create`, `sales.confirm_in_transit`, `sales.cancel`                         |
+| Finanzas       | `/finances`, `/closings`, `/closings/:id`                                                                                                                                | `finances.read`, `closings.read`; `finances.manual.create`, `closings.create`, `closings.reopen` |
+| Reportes       | `/reports`, `/analytics`                                                                                                                                                 | `reports.read`, `analytics.read` más el permiso de lectura del dominio                           |
+| Administración | `/settings`, `/settings/integrations`                                                                                                                                    | `users.read` (directorio de solo lectura), `integrations.manage`                                 |
 
-- `/products`
-- `/products/:id`
-- `/inventory`
-- `/inventory/movements`
-
-La API sigue siendo la autoridad de autorización. En `/inventory`, los usuarios
-con `inventory.adjust` pueden registrar un delta firmado y un motivo obligatorio.
-Quienes poseen `transfers.create` pueden transferir stock con preview e
-idempotencia persistente. Ajustes y transferencias actualizan balances, ledger y
-auditoría dentro de una transacción. Los 1069 movimientos legacy, incluidas sus
-25 transferencias clasificadas, todavía no han sido importados.
+Ajustes, transferencias, entradas, ventas, finanzas y conteos actualizan
+balances, ledger inmutable y auditoría dentro de una transacción, con
+idempotencia persistente. Los 1069 movimientos legacy, incluidas sus 25
+transferencias clasificadas, todavía no han sido importados. El catálogo
+completo de endpoints está en
+[api-conventions](docs/architecture/api-conventions.md) y la matriz de permisos
+en [authorization-matrix](docs/architecture/authorization-matrix.md).
 
 Swagger y `/api/docs` no están montados. `SWAGGER_ENABLED` permanece reservado
 e inerte hasta que se apruebe una puerta autenticada.
@@ -134,7 +148,10 @@ e inerte hasta que se apruebe una puerta autenticada.
 La API usa sesiones opacas revocables en cookie `HttpOnly`, CSRF, validación
 estricta de Host/Origin y autorización por permisos efectivos de PostgreSQL.
 No usa JWT, `localStorage` ni `sessionStorage` para autenticación. Las rutas son
-privadas por defecto; solo health, ready, activación y login son públicas.
+privadas por defecto; solo health, ready, activación, login y el intercambio
+OAuth servidor-a-servidor de Alexa (`POST /api/v1/alexa/oauth/token`, ADR-016)
+son públicas. Las llaves de integración de solo lectura (ADR-017) solo
+autorizan `GET /api/v1/integrations/catalog`.
 
 ## Validaciones
 
@@ -148,13 +165,14 @@ pnpm test:e2e
 pnpm build
 ```
 
-El cierre de FASE 3B registra 47 pruebas unitarias, 85 de integración y 11 E2E
-en Chromium. Integración y E2E requieren PostgreSQL activo y crean únicamente
-bases temporales descartables.
-
-El baseline de cierre de FASE 6, posterior al fix de concurrencia, registra 125
-pruebas unitarias, 149 de integración/concurrencia y 17 E2E Chromium; format,
-lint, typecheck, Prisma validate y build pasaron.
+El último baseline verde completo (2026-09-17, checkout aislado) registra
+formato, lint 9/9, typecheck 13/13, 291 pruebas unitarias, 349 de integración
+PostgreSQL, build 8/8, validación Prisma y 54/54 E2E Chromium. Los detalles y su
+evidencia están en
+[CURRENT_STATE](docs/handoff/CURRENT_STATE.md#last-green-baseline); no
+reutilice cifras de fases anteriores. Integración y E2E requieren PostgreSQL
+activo y crean únicamente bases temporales descartables. CI
+(`.github/workflows/ci.yml`) ejecuta las validaciones en cada PR y en `main`.
 
 Para formatear de manera intencional use `pnpm format`. No instale herramientas
 globalmente ni cambie el lockfile fuera de una actualización aprobada.

@@ -63,8 +63,9 @@ Actualizaciones ordinarias usan versionado optimista (`version`/ETag) cuando un 
 
 ## Endpoints implementados en FASE 3B
 
-Todas las rutas usan el prefijo `/api/v1`. Solo health, ready, activación y
-login son públicas.
+Todas las rutas usan el prefijo `/api/v1`. La superficie pública vigente es
+health, ready, activación, login y `POST /api/v1/alexa/oauth/token` (ver
+"Integración Alexa de solo lectura" más abajo).
 
 | Módulo | Endpoint | Acceso |
 |---|---|---|
@@ -76,6 +77,7 @@ login son públicas.
 | users | `POST /api/v1/users/:id/credentials/revoke` | `users.credentials.revoke` |
 | users | `POST /api/v1/users/:id/sessions/revoke` | `users.sessions.revoke` |
 | users | `POST /api/v1/users/:id/deactivate` | `users.status.manage` |
+| users | `POST /api/v1/users/:id/reactivate` | `users.status.manage` |
 
 Las respuestas sensibles usan `Cache-Control: no-store`. La invitación
 administrativa devuelve exclusivamente el token de un uso después del commit;
@@ -160,29 +162,52 @@ normal de éxito/error. El recurso de voz solo acepta `es-MX`, tipos de request
 permitidos y los slots `producto`, `bodega` y `numeroVenta` con tamaños
 acotados. No hay endpoints Alexa de escritura.
 
-## Endpoints futuros propuestos
+## Endpoints de dominio implementados después de FASE 6B
 
-La tabla siguiente conserva destinos arquitectónicos para módulos aún no
-construidos. No describe rutas actualmente disponibles.
+Todos exigen sesión vigente, Origin y CSRF en mutaciones, y el permiso indicado.
+Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 
-| Módulo | Endpoints principales |
+| Módulo | Endpoint | Permiso |
+|---|---|---|
+| products | `POST /products`, `PATCH /products/:id` | `products.manage` |
+| product-groups | `GET /product-groups` / `POST /product-groups` | `inventory.read` / `products.manage` |
+| stock-receipts | `POST /stock-receipts` | `stock-receipts.create` |
+| stock-receipts | `GET /stock-receipts`, `GET /stock-receipts/:id` | `inventory.read` |
+| valuations | `GET /inventory/valuations`, `GET /inventory/valuations/pending`, `POST /inventory/valuations/:id` | `inventory.valuation.manage` |
+| sales | `GET /sales`, `GET /sales/:id` | `sales.read` |
+| sales | `POST /sales` / `POST /sales/:id/confirm-in-transit` / `POST /sales/:id/cancel` | `sales.create` / `sales.confirm_in_transit` / `sales.cancel` |
+| sales | `POST /sales/:id/payment` | `sales.record_payment` (ADR-018; pago total de una venta completada, idempotente) |
+| finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories` | `finances.read` |
+| finances | `POST /finances` | `finances.manual.create` |
+| closings | `GET /closings`, `GET /closings/:id`, `GET /closings/preview` | `closings.read` |
+| closings | `POST /closings` / `POST /closings/:id/reopen` | `closings.create` / `closings.reopen` |
+| counts | `GET /inventory/counts`, `GET /inventory/counts/:id` | `inventory.audit.create` o `inventory.audit.approve` |
+| counts | `POST /inventory/counts`, `POST .../:id/lines`, `PATCH .../:id/lines/:lineId`, `POST .../:id/submit` | `inventory.audit.create` |
+| counts | `POST /inventory/counts/:id/approve` | `inventory.audit.approve` e `inventory.adjust` |
+| counts | `POST /inventory/counts/:id/cancel` | cualquiera de las dos capacidades de conteo |
+| reports | `GET /reports/inventory`, `/movements`, `/sales`, `/finances` | `reports.read` más el permiso de lectura del dominio; columnas monetarias requieren `finances.read` |
+| analytics | `GET /analytics/inventory`, `GET /analytics/sales` | `analytics.read` más el permiso de lectura del dominio |
+| users | `GET /users`, `GET /users/:id`, `GET /roles` | `users.read` |
+| integrations | `GET /integrations/keys` / `POST /integrations/keys` / `POST /integrations/keys/:id/revoke` | `integrations.manage` |
+| integrations | `GET /integrations/catalog` | llave de integración de solo lectura, no sesión |
+
+Las rutas de integración permanecen detrás de `INTEGRATION_KEYS_ENABLED` y las de
+Alexa detrás de `ALEXA_INTEGRATION_ENABLED`; ambas están apagadas por defecto.
+El código y los tests son la fuente ejecutable de esta tabla.
+
+## Endpoints aún no implementados
+
+Conservan su destino arquitectónico pero no existen como rutas:
+
+| Módulo | Endpoints pendientes |
 |---|---|
-| users/roles | listados, creación, edición de perfil y asignación de roles por definir; no implementados en FASE 3B |
-| products | Mutaciones futuras `POST /products`, `PATCH /products/{id}` y `POST /products/{id}/deactivate` |
-| catalogs | Mutaciones futuras de `/units` y `/warehouses`; `/product-groups` completo continúa futuro |
-| inventory | Entradas y otras mutaciones distintas de ajustes/transferencias continúan futuras |
-| receipts | `GET/POST /stock-receipts`, `GET /stock-receipts/{id}` |
-| sales | `GET/POST /sales`, `GET /sales/{id}`, `POST /sales/{id}/confirm`, `POST /sales/{id}/cancel` |
-| finances | `GET/POST /financial-transactions`, `GET /financial-summary` |
-| closings | `GET/POST /daily-closings`, `GET /daily-closings/{id}`, `POST /daily-closings/{id}/reopen` |
-| audits | `GET/POST /inventory-audits`, `PUT /inventory-audits/{id}/counts`, `POST /inventory-audits/{id}/approve` |
-| reports | `GET /reports/{type}`, `GET /reports/{type}/export` |
-| analytics | `GET /analytics/dashboard` y recursos KPI documentados |
-| imports | `POST /imports/dry-run`, `POST /imports/{id}/commit`, `GET /imports/{id}/report` |
+| users/roles | edición de perfil y mutación de roles/permisos (`PUT /users/:id/roles`, `PUT /users/:id/permissions`, planificados en [admin-settings-panel](../plans/admin-settings-panel.md)) |
+| catalogs | mutaciones de `/units` y `/warehouses` |
+| imports | `POST /imports/dry-run`, `POST /imports/{id}/commit`, `GET /imports/{id}/report` (el importador legacy es una CLI) |
 | settings/audit | `GET/PATCH /settings`, `GET /audit-logs` |
 
-Estos nombres son propuestas históricas de FASE 1. Cada fase debe promover solo
-las rutas realmente implementadas y probadas. Swagger permanece sin montar.
+Cada fase debe promover solo las rutas realmente implementadas y probadas.
+Swagger permanece sin montar.
 
 ## Estados HTTP
 

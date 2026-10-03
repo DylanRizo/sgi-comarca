@@ -18,16 +18,17 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 | `inventory` | balance único producto–almacén, alertas y consultas | inventory_balances | products, warehouses, stock-movements |
 | `stock-movements` | ledger inmutable de cambios | stock_movements | products, warehouses, users |
 | `stock-receipts` | entradas y sus artículos | stock_receipts, stock_receipt_items | inventory, stock-movements, products |
-| `transfers` | transferencia entre almacenes; fundamento persistente FASE 6A, aplicación futura FASE 6B | inventory_transfers, inventory_transfer_items | inventory, stock-movements, warehouses, users |
+| `transfers` | transferencia entre almacenes; implementada (fundamento 6A, API/UI 6B), servida por el controlador de `inventory` | inventory_transfers, inventory_transfer_items | inventory, stock-movements, warehouses, users |
 | `sales` | venta, artículos, estados, confirmación y cancelación | sales, sale_items | inventory, stock-movements, products, warehouses |
 | `finances` | ingresos/gastos manuales y vista calculada de ventas | financial_categories, financial_transactions | sales, users, audit-logs |
 | `daily-closings` | cierre, detalle por vendedor y reapertura | daily_closings, closing_details | sales, finances, audit-logs |
-| `inventory-audits` | sesiones de conteo, aprobación y ajustes | inventory_audits, audit_items, inventory_adjustments | inventory, stock-movements, users |
+| `inventory-audits` | sesiones de conteo, aprobación y ajustes; implementado como módulo `inventory-counts` (tablas `inventory_count_sessions`, `inventory_count_session_warehouses`, `inventory_count_lines`) para no colisionar con `InventoryAuditService` (audit log) | inventory_count_sessions, inventory_count_lines | inventory, stock-movements, users |
 | `reports` | consultas operativas, filtros, CSV e impresión | proyecciones de lectura | módulos propietarios, sin escritura |
 | `analytics` | KPIs y series verificables | proyecciones de lectura | inventory, sales, finances, closings |
 | `imports` | batches, staging, errores, mapeos y reconciliación | import_batches, import_errors, import staging | módulos propietarios mediante adaptadores |
 | `settings` | moneda, zona, umbrales y configuración no secreta | system_settings | audit-logs |
 | `audit-logs` | historial inmutable de mutaciones y seguridad | audit_logs | users; no depende de módulos de negocio |
+| `integrations` | llaves de integración de solo lectura (ADR-017) y catálogo proyectado para programas externos | integration_keys, integration_rate_limit_windows | auth, inventory, products, audit-logs |
 | `alexa` | vinculación OAuth, autorización y adaptación de consultas audibles de solo lectura | alexa_account_links, alexa_authorization_codes, alexa_oauth_tokens, alexa_rate_limit_windows | auth, inventory, products, warehouses, sales, audit-logs |
 
 ## Propietario de cada flujo transversal
@@ -59,8 +60,10 @@ Cada módulo expone casos de uso y contratos; sus tablas se acceden a través de
 
 ## Decisiones aún abiertas
 
-La asignación inicial de SALES quedó resuelta en FASE 3B y el grant
-`transfers.create → INVENTORY_MANAGER` en FASE 6A. Permanece futura la API/UI y
-ejecución de transferencias, además de la fórmula/tolerancia de cierre y el
-dashboard canónico. La administración completa de usuarios/roles no debe
-duplicar los cuatro comandos limitados ya entregados por `auth`.
+La asignación inicial de SALES quedó resuelta en FASE 3B, el grant
+`transfers.create → INVENTORY_MANAGER` en FASE 6A y las reglas de cierre en
+ADR-010. Transferencias, ventas, finanzas, cierres, conteos, reportes y
+analytics están implementados; las decisiones legacy aún abiertas (por ejemplo
+DEC-006, DEC-007, DEC-018 y DEC-026) y el dashboard canónico siguen pendientes
+según [open-decisions](../legacy/open-decisions.md). Los endpoints de edición de
+roles/permisos no existen todavía; no deben duplicar los comandos de `auth`.

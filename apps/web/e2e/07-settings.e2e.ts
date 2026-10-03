@@ -101,9 +101,9 @@ test.describe('Administration settings', () => {
   }) => {
     await database.denyUsersRead();
     await login(request, page);
-    await expect(
-      page.getByRole('link', { name: 'Configuración' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Configuración' })).toHaveCount(
+      0,
+    );
     await page.goto('/settings');
     await expect(
       page.getByText('requiere el permiso de administración de usuarios'),

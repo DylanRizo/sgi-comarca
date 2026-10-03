@@ -421,7 +421,9 @@ describe.sequential('BLOQUE 7A user administration HTTP endpoints', () => {
         .set('Host', host)
         .set('Cookie', dylan.cookie);
 
-    const directory = await read('/api/v1/users?page=1&pageSize=25').expect(200);
+    const directory = await read('/api/v1/users?page=1&pageSize=25').expect(
+      200,
+    );
     const entries = directory.body.data.items as {
       loginIdentifier: string;
       roles: string[];
@@ -436,9 +438,9 @@ describe.sequential('BLOQUE 7A user administration HTTP endpoints', () => {
     expect(self?.roles).toContain('ADMIN');
     expect(self?.activeSessions).toBeGreaterThan(0);
 
-    const search = await read('/api/v1/users?search=jea&page=1&pageSize=25').expect(
-      200,
-    );
+    const search = await read(
+      '/api/v1/users?search=jea&page=1&pageSize=25',
+    ).expect(200);
     expect(search.body.data.items).toHaveLength(1);
     expect(search.body.data.items[0].loginIdentifier).toBe('jean');
 
@@ -457,14 +459,23 @@ describe.sequential('BLOQUE 7A user administration HTTP endpoints', () => {
     expect(
       (roles.body.data as { code: string }[]).map(({ code }) => code),
     ).toEqual(
-      expect.arrayContaining(['ADMIN', 'FINANCE', 'INVENTORY_MANAGER', 'SALES']),
+      expect.arrayContaining([
+        'ADMIN',
+        'FINANCE',
+        'INVENTORY_MANAGER',
+        'SALES',
+      ]),
     );
   });
 
   it('refuses the directory to an actor denied users.read', async () => {
     await addDeny(dylanId, 'users.read');
     const dylan = await admin();
-    for (const path of ['/api/v1/users', `/api/v1/users/${dylanId}`, '/api/v1/roles'])
+    for (const path of [
+      '/api/v1/users',
+      `/api/v1/users/${dylanId}`,
+      '/api/v1/roles',
+    ])
       await request(app.getHttpServer())
         .get(path)
         .set('Host', host)
