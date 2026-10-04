@@ -90,6 +90,42 @@ test.describe('FASE 7C sales UI flows', () => {
     await database.reset();
   });
 
+  test('states how many products match and reveals the rest on demand', async ({
+    page,
+    request,
+  }) => {
+    const prefix = `E2E-SRCH-${randomUUID().slice(0, 6).toUpperCase()}`;
+    await database.seedSearchableProducts(prefix, 20);
+    await activateAndLogin(request, page);
+    await page.goto('/sales');
+    await openCreateDialog(page);
+
+    const line = page.locator('.sale-line').first();
+    await line.getByLabel('Producto').fill(prefix);
+    const summary = line.locator('.picker-results-summary');
+    // The search used to stop at eight matches without saying more existed.
+    await expect(summary).toContainText('Mostrando 8 de 20 coincidencias');
+    await expect(
+      line.getByRole('button', { name: new RegExp(`${prefix}-009`, 'u') }),
+    ).toHaveCount(0);
+
+    await summary
+      .getByRole('button', { name: 'Ver más coincidencias' })
+      .click();
+    await expect(summary).toContainText('Mostrando 16 de 20 coincidencias');
+    await line
+      .getByRole('button', { name: new RegExp(`${prefix}-016`, 'u') })
+      .click();
+    await expect(line.getByText(`${prefix}-016`).first()).toBeVisible();
+
+    // A new search starts from the first step again.
+    await line.getByRole('button', { name: 'Cambiar producto' }).click();
+    await line.getByLabel('Producto').fill(`${prefix}-01`);
+    await expect(line.locator('.picker-results-summary')).toContainText(
+      '10 coincidencias',
+    );
+  });
+
   test('creates a sale across two warehouses, deducting stock exactly once', async ({
     page,
     request,

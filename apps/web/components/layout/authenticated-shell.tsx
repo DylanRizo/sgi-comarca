@@ -166,7 +166,12 @@ export function AuthenticatedShell({
       <a className="skip-link" href="#main-content">
         Saltar al contenido
       </a>
-      <header className="application-header">
+      <header
+        className="application-header"
+        // Below the collapse width an open menu turns the header into a panel
+        // the size of the visible screen; see globals.css.
+        data-menu-open={menuOpen ? 'true' : 'false'}
+      >
         <Link className="brand-link" href={'/app' as Route}>
           <span>SGI La Comarca</span>
           <small>Gestión operativa</small>
@@ -249,8 +254,8 @@ export function AuthenticatedShell({
         </nav>
         <div
           className="application-user"
-          // On compact screens this remains below navigation, while the
-          // navigation scroll area reserves enough room to keep it visible.
+          // Below the collapse width this block lives inside the menu panel,
+          // pinned under the scrolling destinations so it stays on screen.
           data-open={menuOpen ? 'true' : 'false'}
         >
           <div

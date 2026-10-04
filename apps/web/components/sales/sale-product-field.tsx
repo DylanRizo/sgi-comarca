@@ -13,7 +13,13 @@ function normalize(value: string): string {
     .toLowerCase();
 }
 
-const maximumMatches = 8;
+/**
+ * Matches shown per step. The list used to stop at the first eight with no
+ * sign that more existed, so a product ranked ninth could not be chosen
+ * without guessing a more precise search. The count is now stated and the
+ * operator can reveal more.
+ */
+const matchesPerStep = 8;
 
 /**
  * The sale dialog already holds the whole sellable inventory with its balances,
@@ -33,19 +39,19 @@ export function SaleProductField({
 }>) {
   const listId = useId();
   const [search, setSearch] = useState('');
+  const [limit, setLimit] = useState(matchesPerStep);
   const selected =
     inventory.find((entry) => entry.product.id === value) ?? null;
-  const matches = useMemo(() => {
+  const allMatches = useMemo(() => {
     const needle = normalize(search.trim());
     if (!needle) return [];
-    return inventory
-      .filter(
-        ({ product }) =>
-          normalize(product.code).includes(needle) ||
-          normalize(product.name).includes(needle),
-      )
-      .slice(0, maximumMatches);
+    return inventory.filter(
+      ({ product }) =>
+        normalize(product.code).includes(needle) ||
+        normalize(product.name).includes(needle),
+    );
   }, [inventory, search]);
+  const matches = allMatches.slice(0, limit);
 
   if (selected) {
     const stocked = selected.balances.filter(
@@ -89,7 +95,10 @@ export function SaleProductField({
         <input
           aria-controls={listId}
           autoComplete="off"
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setLimit(matchesPerStep);
+          }}
           placeholder="Código o nombre"
           type="search"
           value={search}
@@ -124,6 +133,22 @@ export function SaleProductField({
               </li>
             );
           })}
+          <li className="picker-results-summary">
+            <span role="status">
+              {matches.length === allMatches.length
+                ? `${String(allMatches.length)} coincidencia${allMatches.length === 1 ? '' : 's'}`
+                : `Mostrando ${String(matches.length)} de ${String(allMatches.length)} coincidencias`}
+            </span>
+            {matches.length < allMatches.length ? (
+              <button
+                className="secondary-button"
+                onClick={() => setLimit((current) => current + matchesPerStep)}
+                type="button"
+              >
+                Ver más coincidencias
+              </button>
+            ) : null}
+          </li>
         </ul>
       )}
     </div>

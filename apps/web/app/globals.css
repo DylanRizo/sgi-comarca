@@ -1322,8 +1322,15 @@ a {
 }
 
 .pagination-controls span {
+  display: grid;
+  justify-items: center;
   color: var(--muted);
   font-weight: 600;
+}
+
+.pagination-range {
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .pagination-controls button:disabled {
@@ -1760,6 +1767,14 @@ a {
 .sale-line-product .picker-result {
   grid-template-columns: 1fr;
   gap: 0.15rem;
+}
+
+.picker-results-summary {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0.35rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .sale-line-product .picker-result span:last-child {
@@ -2400,13 +2415,36 @@ a {
     flex-wrap: nowrap;
   }
 
-  /* A long navigation list scrolls within a shorter area, reserving visible
-     space below it for account, appearance and logout controls. */
-  .application-nav[data-open='true'] {
-    max-height: max(8rem, calc(100vh - 18rem));
-    max-height: max(8rem, calc(100dvh - 18rem));
+  /* An open menu is a panel exactly the size of the visible screen: brand and
+     toggle on top, the session block (account, appearance, logout) pinned to
+     the bottom, and only the destinations scrolling in between.
+
+     The header used to stay sticky and simply grow. Capping the nav at
+     `100dvh - 9rem` left the session block below the fold whenever it was
+     taller than the remaining 9rem, which it always is, and a sticky header
+     taller than the viewport cannot be scrolled into view: the appearance
+     control and logout were unreachable on phones. `inset: 0` is used instead
+     of a `100vh` height because older mobile browsers count the area behind
+     their toolbars in `vh`, which would hide the bottom of the panel again. */
+  .application-header[data-menu-open='true'] {
+    position: fixed;
+    inset: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-items: stretch;
+    /* Fallback for screens too short even for the brand and session rows. */
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .application-header[data-menu-open='true'] .application-nav {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .application-header[data-menu-open='true'] .brand-link,
+  .application-header[data-menu-open='true'] .nav-toggle {
+    align-self: center;
   }
 
   .navigation-group {
