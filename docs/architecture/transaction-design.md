@@ -319,7 +319,9 @@ require sales.cancel (Dylan initially) and non-empty reason
 lock sale row
 if CANCELLED: return existing cancellation without effects
 require status=IN_TRANSIT and paid=false; completed/paid sales are rejected
-load sale_items and lock every original product–warehouse balance ordered
+load sale_items
+lock their products, then their warehouses FOR KEY SHARE, ordered by id
+lock every original product–warehouse balance ordered
 for each item:
   increment its original warehouse exactly by item.quantity
   append stock_movement(SALE_CANCELLATION, +quantity, sale_item_id)
@@ -329,6 +331,15 @@ complete idempotency; commit
 ```
 
 No hay cancelación parcial. Devoluciones/reembolsos son procesos distintos y fuera de V1. Constraint/estado y transacción impiden una segunda reposición.
+
+La cancelación sigue el mismo orden global que la creación (productos,
+almacenes, balances). Las FK de `inventory_movements` toman `FOR KEY SHARE`
+sobre el producto y el almacén; si ese lock se pidiera recién al insertar el
+movimiento, después de bloquear los balances, formaría un ciclo con una venta
+concurrente que ya tiene esos productos `FOR UPDATE` y espera los mismos
+balances (deadlock `40P01`). Tomarlo por adelantado no añade conflictos: es el
+mismo lock que la FK tomaría, y no filtra por `active`, porque un producto o
+almacén inactivo nunca impide reponer stock.
 
 ```mermaid
 sequenceDiagram

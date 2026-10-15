@@ -966,6 +966,31 @@ Fresh regression evidence: 20/20 focused repetitions, 400 concurrent HTTP
 responses, zero HTTP 500 responses, and 149/149 integration/concurrency tests.
 `PHASE_6_CONCURRENCY_FIX_PASS`.
 
+## Resolved sales cancellation deadlock — 2026-09-27
+
+The long-recorded "rare" flake in `sales-concurrency.integration.spec.ts >
+serializes a sale with cancellation of another sale on the same pairs` was a
+real product defect, not test noise. On 2026-09-26 it failed 4 of 8 isolated
+runs on `f550950`, whose default seller lookup shifts the race window; a local
+rerun reproduced 2 of 8, each failure taking about one second
+(`deadlock_timeout`). Instrumentation showed PostgreSQL `40P01 deadlock
+detected` on the sale's balance `FOR UPDATE`.
+
+Sale creation locks products and warehouses `FOR UPDATE`, then balances.
+Cancellation locked only the sale and the balances; the foreign keys of its
+`SALE_CANCELLATION` ledger insert then requested `FOR KEY SHARE` on the same
+products and warehouses, closing a wait cycle. Cancellation now takes that
+same `FOR KEY SHARE` up front, in id order, before the balances, matching the
+global order. No business rule, retry, migration, RBAC grant or assertion
+changed. A new deterministic regression case forces the interleaving with a
+blocker transaction; it failed 3/3 before the fix and passes after it. The
+focused file then passed 10/10 on `main` and 10/10 with the `f550950` sale
+service.
+
+The inventory adjustment path has the same latent pattern against transfers,
+sales and receipts (the historical Docker PostgreSQL log holds deadlocks of
+that shape); it is a separate follow-up and is not changed here.
+
 ## Last green baseline
 
 Revalidated on 2026-09-17 from the isolated

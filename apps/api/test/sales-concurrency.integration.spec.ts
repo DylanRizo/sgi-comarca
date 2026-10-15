@@ -359,6 +359,111 @@ describe('FASE 7B sales concurrency', () => {
     ).toBe(2);
   });
 
+  it('does not deadlock a cancellation that wins the balances against a sale holding the products', async () => {
+    // Forces the interleaving the previous case only hits by chance: the
+    // cancellation obtains the balance locks first while the new sale already
+    // holds its product and warehouse locks. Both are valid in either serial
+    // order, so both must succeed.
+    const productAId = await createProduct('forced cancellation A');
+    const productBId = await createProduct('forced cancellation B');
+    await seedBalance(productAId, warehouseAId, '10');
+    await seedBalance(productBId, warehouseBId, '10');
+    const existing = await creation.create(operatorId, key(), {
+      businessDate: '2026-08-28',
+      items: [
+        { productId: productAId, quantity: '4', warehouseId: warehouseAId },
+        { productId: productBId, quantity: '4', warehouseId: warehouseBId },
+      ],
+      status: 'IN_TRANSIT',
+    });
+
+    async function lockWaiters(): Promise<number> {
+      const [row] = await client.$queryRaw<{ waiting: number }[]>`
+        SELECT count(*)::int AS waiting
+        FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'
+      `;
+      return row?.waiting ?? 0;
+    }
+    async function untilLockWaiters(expected: number): Promise<void> {
+      const deadline = Date.now() + 10_000;
+      while ((await lockWaiters()) < expected) {
+        if (Date.now() > deadline) {
+          throw new Error(`Expected ${expected} lock waiters.`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    }
+
+    let releaseBalances!: () => void;
+    const balancesReleased = new Promise<void>((resolve) => {
+      releaseBalances = resolve;
+    });
+    let balancesHeld!: () => void;
+    const balancesLocked = new Promise<void>((resolve) => {
+      balancesHeld = resolve;
+    });
+    const holder = client.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id FROM inventory_balances
+          WHERE product_id = ANY(${[productAId, productBId]}::uuid[])
+          ORDER BY product_id, warehouse_id
+          FOR UPDATE
+        `;
+        balancesHeld();
+        await balancesReleased;
+      },
+      { timeout: 20_000 },
+    );
+
+    try {
+      await balancesLocked;
+      const cancellation = lifecycle.cancel(
+        operatorId,
+        existing.id,
+        'Forced concurrent cancellation',
+        key(),
+      );
+      await untilLockWaiters(1);
+      const creationResult = creation.create(operatorId, key(), {
+        businessDate: '2026-08-28',
+        items: [
+          { productId: productBId, quantity: '6', warehouseId: warehouseBId },
+          { productId: productAId, quantity: '6', warehouseId: warehouseAId },
+        ],
+        status: 'IN_TRANSIT',
+      });
+      await untilLockWaiters(2);
+      releaseBalances();
+      await holder;
+
+      const [cancelled, created] = await Promise.allSettled([
+        cancellation,
+        creationResult,
+      ]);
+      expect(cancelled).toMatchObject({
+        status: 'fulfilled',
+        value: { status: 'CANCELLED' },
+      });
+      expect(created).toMatchObject({
+        status: 'fulfilled',
+        value: { status: 'IN_TRANSIT' },
+      });
+    } finally {
+      releaseBalances();
+      await holder.catch(() => undefined);
+    }
+
+    expect(await balance(productAId, warehouseAId)).toBe(4);
+    expect(await balance(productBId, warehouseBId)).toBe(4);
+    expect(
+      await client.inventoryMovement.count({
+        where: { sourceId: existing.id, type: 'SALE_CANCELLATION' },
+      }),
+    ).toBe(2);
+  });
+
   it('allows exactly one of confirmation and cancellation for the same sale', async () => {
     const productId = await createProduct('confirm cancel');
     await seedBalance(productId, warehouseAId, '10');

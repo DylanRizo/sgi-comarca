@@ -297,11 +297,28 @@ export class SaleLifecycleService {
     });
     if (items.length === 0) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
 
-    // Lock the original balances in the same global order used on creation.
+    // Lock products, then warehouses, then the original balances: the same
+    // global order used on creation. The ledger insert's foreign keys take
+    // FOR KEY SHARE on each product and warehouse anyway; taking it only after
+    // the balances deadlocks against a sale that holds those rows FOR UPDATE
+    // while it waits for the same balances. No active filter: an inactive
+    // product or warehouse never blocks restoring stock.
     const productIds = [...new Set(items.map((item) => item.productId))].sort();
     const warehouseIds = [
       ...new Set(items.map((item) => item.warehouseId)),
     ].sort();
+    await transaction.$queryRaw`
+      SELECT id FROM products
+      WHERE id = ANY(${productIds}::uuid[])
+      ORDER BY id
+      FOR KEY SHARE
+    `;
+    await transaction.$queryRaw`
+      SELECT id FROM warehouses
+      WHERE id = ANY(${warehouseIds}::uuid[])
+      ORDER BY id
+      FOR KEY SHARE
+    `;
     const balanceRows = await transaction.$queryRaw<
       {
         id: string;
