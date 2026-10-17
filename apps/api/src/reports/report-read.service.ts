@@ -31,6 +31,7 @@ interface DecimalValue {
  */
 const quantityScale = 4;
 const moneyScale = 2;
+const csvExportLimit = 10_000;
 
 function decimal(value: DecimalValue | null, scale: number): string | null {
   return value === null ? null : value.toFixed(scale);
@@ -90,6 +91,7 @@ export class ReportReadService {
         : {}),
     };
 
+    const isCsv = input.format === 'csv';
     const [totalItems, rows] = await Promise.all([
       this.database.inventoryBalance.count({ where }),
       this.database.inventoryBalance.findMany({
@@ -100,8 +102,8 @@ export class ReportReadService {
           quantity: true,
           warehouse: { select: { code: true, id: true, name: true } },
         },
-        skip: pageOffset(input),
-        take: input.pageSize,
+        ...(isCsv ? {} : { skip: pageOffset(input) }),
+        take: isCsv ? csvExportLimit : input.pageSize,
         where,
       }),
     ]);
@@ -140,6 +142,7 @@ export class ReportReadService {
       ...(occurredAt ? { occurredAt } : {}),
     };
 
+    const isCsv = input.format === 'csv';
     const [totalItems, rows] = await Promise.all([
       this.database.inventoryMovement.count({ where }),
       this.database.inventoryMovement.findMany({
@@ -154,8 +157,8 @@ export class ReportReadService {
           type: true,
           warehouse: { select: { code: true, name: true } },
         },
-        skip: pageOffset(input),
-        take: input.pageSize,
+        ...(isCsv ? {} : { skip: pageOffset(input) }),
+        take: isCsv ? csvExportLimit : input.pageSize,
         where,
       }),
     ]);
@@ -189,6 +192,7 @@ export class ReportReadService {
       ...(businessDate ? { businessDate } : {}),
     };
 
+    const isCsv = input.format === 'csv';
     const [totalItems, rows] = await Promise.all([
       this.database.sale.count({ where }),
       this.database.sale.findMany({
@@ -206,8 +210,8 @@ export class ReportReadService {
           subtotal: true,
           total: true,
         },
-        skip: pageOffset(input),
-        take: input.pageSize,
+        ...(isCsv ? {} : { skip: pageOffset(input) }),
+        take: isCsv ? csvExportLimit : input.pageSize,
         where,
       }),
     ]);
@@ -240,6 +244,7 @@ export class ReportReadService {
       ...(businessDate ? { businessDate } : {}),
     };
 
+    const isCsv = input.format === 'csv';
     const [totalItems, rows] = await Promise.all([
       this.database.financialEntry.count({ where }),
       this.database.financialEntry.findMany({
@@ -254,8 +259,8 @@ export class ReportReadService {
           id: true,
           origin: true,
         },
-        skip: pageOffset(input),
-        take: input.pageSize,
+        ...(isCsv ? {} : { skip: pageOffset(input) }),
+        take: isCsv ? csvExportLimit : input.pageSize,
         where,
       }),
     ]);

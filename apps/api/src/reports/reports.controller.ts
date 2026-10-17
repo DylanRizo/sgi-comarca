@@ -237,8 +237,8 @@ export class ReportsController {
   ): ApiSuccess<PaginatedData<T>> | undefined {
     if (format !== 'csv') return readSuccess(page, request, response);
 
-    // The export carries exactly the requested page, so a report can never
-    // become an unbounded scan of the ledger.
+    // The export carries the full dataset (up to the safety limit), so a report
+    // exports all records while preventing unbounded memory consumption.
     const document = csvDocument(headers, page.items.map(toRow));
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
