@@ -362,4 +362,24 @@ describe('FASE 9B.2 reports', () => {
       expect(serialized).not.toContain('legacy');
     }
   });
+
+  it('returns an actionable error rather than a partial CSV above the export limit', async () => {
+    await client.product.createMany({
+      data: Array.from({ length: 10_001 }, (_, index) => ({
+        active: true,
+        code: `REP-LIMIT-${String(index).padStart(5, '0')}`,
+        name: `Producto para límite ${index}`,
+      })),
+    });
+
+    const response = await get(
+      '/api/v1/reports/inventory?format=csv',
+      await cookie(inventoryReporterId),
+    ).expect(413);
+
+    expect(response.headers['content-type']).toContain('application/json');
+    expect(response.headers['content-disposition']).toBeUndefined();
+    expect(response.body.error.code).toBe('REPORT_EXPORT_TOO_LARGE');
+    expect(response.body.error.message).toContain('Aplica filtros');
+  });
 });

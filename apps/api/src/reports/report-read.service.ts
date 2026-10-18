@@ -1,4 +1,3 @@
-import { PayloadTooLargeException } from '@nestjs/common';
 import type {
   FinanceReportRow,
   InventoryReportRow,
@@ -17,6 +16,7 @@ import type {
   SalesReportQueryDto,
 } from './dto/report-query.dto.js';
 import { stockValueCents } from './report-stock-value.js';
+import { ReportsHttpException } from './reports-http.exception.js';
 
 interface DecimalValue {
   toFixed(decimalPlaces?: number): string;
@@ -37,8 +37,10 @@ const csvExportProbeLimit = csvExportLimit + 1;
 
 function ensureCsvExportWithinLimit(totalItems: number): void {
   if (totalItems > csvExportLimit) {
-    throw new PayloadTooLargeException(
+    throw new ReportsHttpException(
+      'REPORT_EXPORT_TOO_LARGE',
       `El informe supera el límite de ${csvExportLimit.toLocaleString('es-NI')} filas. Aplica filtros para reducir el resultado y vuelve a exportar.`,
+      413,
     );
   }
 }
