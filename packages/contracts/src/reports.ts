@@ -67,6 +67,7 @@ export interface FinanceReportRow {
 }
 
 export type ReportPublicErrorCode =
+  | 'REPORT_EXPORT_TOO_LARGE'
   | 'REPORT_MONEY_PERMISSION_DENIED'
   | 'REPORT_RANGE_INVALID'
   | 'REPORT_RANGE_TOO_WIDE';

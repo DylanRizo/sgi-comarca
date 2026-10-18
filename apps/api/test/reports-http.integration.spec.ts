@@ -142,6 +142,15 @@ describe('FASE 9B.2 reports', () => {
     });
     productId = product.id;
 
+    await client.product.create({
+      data: {
+        active: true,
+        code: 'REP-000',
+        name: 'Producto sin saldo',
+      },
+      select: { id: true },
+    });
+
     await client.inventoryBalance.create({
       data: {
         currentUnitCost: '4.00',
@@ -285,6 +294,26 @@ describe('FASE 9B.2 reports', () => {
   });
 
   it('exports CSV with a download name and a neutralised separator', async () => {
+    for (let index = 1; index <= 25; index += 1) {
+      const product = await client.product.create({
+        data: {
+          active: true,
+          code: `REP-EXTRA-${String(index).padStart(3, '0')}`,
+          name: `Producto adicional ${index}`,
+        },
+        select: { id: true },
+      });
+      await client.inventoryBalance.create({
+        data: {
+          currentUnitCost: '1.00',
+          currentUnitPrice: '2.00',
+          productId: product.id,
+          quantity: '1.0000',
+          warehouseId,
+        },
+      });
+    }
+
     const response = await get(
       '/api/v1/reports/inventory?format=csv',
       await cookie(financeReporterId),
@@ -294,6 +323,7 @@ describe('FASE 9B.2 reports', () => {
       'attachment; filename="sgi-inventario-',
     );
     const [header, ...rows] = response.text.trim().split('\r\n');
+    expect(rows).toHaveLength(27);
     expect(header).toBe(
       'productCode,productName,warehouseCode,warehouseName,quantity,unitCost,stockValue',
     );
@@ -302,6 +332,8 @@ describe('FASE 9B.2 reports', () => {
     const line = rows.find((row) => row.startsWith('REP-001,'));
     expect(line).toContain('"Producto de reporte, con coma"');
     expect(line?.endsWith(',4.00,50.00')).toBe(true);
+    const catalogOnlyLine = rows.find((row) => row.startsWith('REP-000,'));
+    expect(catalogOnlyLine).toBe('REP-000,Producto sin saldo,,,0.0000,,');
   });
 
   it('omits money from a CSV export for an actor lacking finances.read', async () => {
@@ -329,5 +361,25 @@ describe('FASE 9B.2 reports', () => {
       expect(serialized).not.toContain('deliveryPlace');
       expect(serialized).not.toContain('legacy');
     }
+  });
+
+  it('returns an actionable error rather than a partial CSV above the export limit', async () => {
+    await client.product.createMany({
+      data: Array.from({ length: 10_001 }, (_, index) => ({
+        active: true,
+        code: `REP-LIMIT-${String(index).padStart(5, '0')}`,
+        name: `Producto para límite ${index}`,
+      })),
+    });
+
+    const response = await get(
+      '/api/v1/reports/inventory?format=csv',
+      await cookie(inventoryReporterId),
+    ).expect(413);
+
+    expect(response.headers['content-type']).toContain('application/json');
+    expect(response.headers['content-disposition']).toBeUndefined();
+    expect(response.body.error.code).toBe('REPORT_EXPORT_TOO_LARGE');
+    expect(response.body.error.message).toContain('Aplica filtros');
   });
 });

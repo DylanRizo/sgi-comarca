@@ -153,14 +153,12 @@ export default function ReportsPage() {
     );
   }
 
-  // The export link points at the same query the table is showing, so what is
-  // downloaded is exactly what is on screen.
+  // The export link requests the full dataset matching the applied filters,
+  // omitting pagination so the CSV includes all records rather than a single page.
   const exportHref = `${publicApiUrl()}/api/v1/reports/${definition.path}${inventoryQueryString(
     {
       format: 'csv',
       from: applied.from,
-      page,
-      pageSize: 25,
       to: applied.to,
     },
   )}`;
