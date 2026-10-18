@@ -197,6 +197,15 @@ Las rutas de integración permanecen detrás de `INTEGRATION_KEYS_ENABLED` y las
 Alexa detrás de `ALEXA_INTEGRATION_ENABLED`; ambas están apagadas por defecto.
 El código y los tests son la fuente ejecutable de esta tabla.
 
+Los reportes JSON conservan su paginación de servidor. Con `format=csv`, la
+exportación ignora `page` y `pageSize` y conserva los filtros aplicados. El
+límite es de 10,000 filas: un resultado mayor responde `413` y solicita reducir
+el alcance mediante filtros, sin entregar un archivo incompleto. El CSV de
+inventario también incluye los productos del catálogo sin saldo registrado,
+con cantidad `0.0000`, costo y valor vacíos. Si se filtra una bodega, esa fila
+identifica la bodega seleccionada; sin ese filtro, los campos de bodega quedan
+vacíos. Los permisos financieros se aplican igual que en la consulta JSON.
+
 ## Endpoints aún no implementados
 
 Conservan su destino arquitectónico pero no existen como rutas:

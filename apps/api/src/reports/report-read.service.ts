@@ -1,3 +1,4 @@
+import { PayloadTooLargeException } from '@nestjs/common';
 import type {
   FinanceReportRow,
   InventoryReportRow,
@@ -32,6 +33,15 @@ interface DecimalValue {
 const quantityScale = 4;
 const moneyScale = 2;
 const csvExportLimit = 10_000;
+const csvExportProbeLimit = csvExportLimit + 1;
+
+function ensureCsvExportWithinLimit(totalItems: number): void {
+  if (totalItems > csvExportLimit) {
+    throw new PayloadTooLargeException(
+      `El informe supera el límite de ${csvExportLimit.toLocaleString('es-NI')} filas. Aplica filtros para reducir el resultado y vuelve a exportar.`,
+    );
+  }
+}
 
 function decimal(value: DecimalValue | null, scale: number): string | null {
   return value === null ? null : value.toFixed(scale);
@@ -76,22 +86,113 @@ export class ReportReadService {
     includeMoney: boolean,
   ): Promise<PaginatedData<InventoryReportRow>> {
     const search = input.search;
-    const where = {
-      ...(input.warehouseId ? { warehouseId: input.warehouseId } : {}),
-      ...(input.productId ? { productId: input.productId } : {}),
+    const productWhere = {
+      ...(input.productId ? { id: input.productId } : {}),
       ...(search
         ? {
-            product: {
-              OR: [
-                { code: { contains: search, mode: 'insensitive' as const } },
-                { name: { contains: search, mode: 'insensitive' as const } },
-              ],
-            },
+            OR: [
+              { code: { contains: search, mode: 'insensitive' as const } },
+              { name: { contains: search, mode: 'insensitive' as const } },
+            ],
           }
         : {}),
     };
+    const where = {
+      ...(input.warehouseId ? { warehouseId: input.warehouseId } : {}),
+      ...(input.productId ? { productId: input.productId } : {}),
+      ...(search ? { product: productWhere } : {}),
+    };
 
     const isCsv = input.format === 'csv';
+    if (isCsv) {
+      const [balanceCount, catalogOnlyCount] = await Promise.all([
+        this.database.inventoryBalance.count({ where }),
+        this.database.product.count({
+          where: {
+            ...productWhere,
+            inventoryBalances: { none: where },
+          },
+        }),
+      ]);
+      const totalItems = balanceCount + catalogOnlyCount;
+      ensureCsvExportWithinLimit(totalItems);
+
+      const [balanceRows, catalogOnlyProducts, selectedWarehouse] =
+        await Promise.all([
+          this.database.inventoryBalance.findMany({
+            orderBy: [
+              { product: { code: 'asc' } },
+              { warehouse: { code: 'asc' } },
+            ],
+            select: {
+              currentUnitCost: true,
+              product: { select: { code: true, id: true, name: true } },
+              quantity: true,
+              warehouse: { select: { code: true, id: true, name: true } },
+            },
+            take: csvExportProbeLimit,
+            where,
+          }),
+          this.database.product.findMany({
+            orderBy: { code: 'asc' },
+            select: { code: true, id: true, name: true },
+            take: csvExportProbeLimit,
+            where: {
+              ...productWhere,
+              inventoryBalances: { none: where },
+            },
+          }),
+          input.warehouseId
+            ? this.database.warehouse.findUnique({
+                select: { code: true, id: true, name: true },
+                where: { id: input.warehouseId },
+              })
+            : Promise.resolve(null),
+        ]);
+      ensureCsvExportWithinLimit(
+        balanceRows.length + catalogOnlyProducts.length,
+      );
+
+      const items: InventoryReportRow[] = [
+        ...balanceRows.map((row): InventoryReportRow => {
+          const quantity = row.quantity.toFixed(quantityScale);
+          const unitCost = includeMoney
+            ? decimal(row.currentUnitCost, moneyScale)
+            : null;
+          const value =
+            unitCost === null ? null : stockValueCents(quantity, unitCost);
+          return {
+            productCode: row.product.code,
+            productId: row.product.id,
+            productName: row.product.name,
+            quantity,
+            stockValue: value === null ? null : centsToMoney(value),
+            unitCost,
+            warehouseCode: row.warehouse.code,
+            warehouseId: row.warehouse.id,
+            warehouseName: row.warehouse.name,
+          };
+        }),
+        ...catalogOnlyProducts.map((product): InventoryReportRow => ({
+          productCode: product.code,
+          productId: product.id,
+          productName: product.name,
+          quantity: '0.0000',
+          stockValue: null,
+          unitCost: null,
+          warehouseCode: selectedWarehouse?.code ?? '',
+          warehouseId: selectedWarehouse?.id ?? '',
+          warehouseName: selectedWarehouse?.name ?? '',
+        })),
+      ].sort(
+        (left, right) =>
+          left.productCode.localeCompare(right.productCode) ||
+          left.warehouseCode.localeCompare(right.warehouseCode),
+      );
+
+      return pageResult(items, totalItems, input);
+    }
+
     const [totalItems, rows] = await Promise.all([
       this.database.inventoryBalance.count({ where }),
       this.database.inventoryBalance.findMany({
@@ -102,8 +203,8 @@ export class ReportReadService {
           quantity: true,
           warehouse: { select: { code: true, id: true, name: true } },
         },
-        ...(isCsv ? {} : { skip: pageOffset(input) }),
-        take: isCsv ? csvExportLimit : input.pageSize,
+        skip: pageOffset(input),
+        take: input.pageSize,
         where,
       }),
     ]);
@@ -143,25 +244,25 @@ export class ReportReadService {
     };
 
     const isCsv = input.format === 'csv';
-    const [totalItems, rows] = await Promise.all([
-      this.database.inventoryMovement.count({ where }),
-      this.database.inventoryMovement.findMany({
-        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-        select: {
-          balanceAfter: true,
-          id: true,
-          occurredAt: true,
-          product: { select: { code: true, name: true } },
-          quantityDelta: true,
-          sourceType: true,
-          type: true,
-          warehouse: { select: { code: true, name: true } },
-        },
-        ...(isCsv ? {} : { skip: pageOffset(input) }),
-        take: isCsv ? csvExportLimit : input.pageSize,
-        where,
-      }),
-    ]);
+    const totalItems = await this.database.inventoryMovement.count({ where });
+    if (isCsv) ensureCsvExportWithinLimit(totalItems);
+    const rows = await this.database.inventoryMovement.findMany({
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      select: {
+        balanceAfter: true,
+        id: true,
+        occurredAt: true,
+        product: { select: { code: true, name: true } },
+        quantityDelta: true,
+        sourceType: true,
+        type: true,
+        warehouse: { select: { code: true, name: true } },
+      },
+      ...(isCsv ? {} : { skip: pageOffset(input) }),
+      take: isCsv ? csvExportProbeLimit : input.pageSize,
+      where,
+    });
+    if (isCsv) ensureCsvExportWithinLimit(rows.length);
 
     const items = rows.map((row): MovementReportRow => ({
       balanceAfter: row.balanceAfter.toFixed(quantityScale),
@@ -193,28 +294,28 @@ export class ReportReadService {
     };
 
     const isCsv = input.format === 'csv';
-    const [totalItems, rows] = await Promise.all([
-      this.database.sale.count({ where }),
-      this.database.sale.findMany({
-        orderBy: [{ businessDate: 'desc' }, { saleNumber: 'desc' }],
-        select: {
-          _count: { select: { items: true } },
-          businessDate: true,
-          currencyCode: true,
-          id: true,
-          paymentStatus: true,
-          saleNumber: true,
-          sellerUserId: true,
-          shippingAmount: true,
-          status: true,
-          subtotal: true,
-          total: true,
-        },
-        ...(isCsv ? {} : { skip: pageOffset(input) }),
-        take: isCsv ? csvExportLimit : input.pageSize,
-        where,
-      }),
-    ]);
+    const totalItems = await this.database.sale.count({ where });
+    if (isCsv) ensureCsvExportWithinLimit(totalItems);
+    const rows = await this.database.sale.findMany({
+      orderBy: [{ businessDate: 'desc' }, { saleNumber: 'desc' }],
+      select: {
+        _count: { select: { items: true } },
+        businessDate: true,
+        currencyCode: true,
+        id: true,
+        paymentStatus: true,
+        saleNumber: true,
+        sellerUserId: true,
+        shippingAmount: true,
+        status: true,
+        subtotal: true,
+        total: true,
+      },
+      ...(isCsv ? {} : { skip: pageOffset(input) }),
+      take: isCsv ? csvExportProbeLimit : input.pageSize,
+      where,
+    });
+    if (isCsv) ensureCsvExportWithinLimit(rows.length);
 
     const items = rows.map((row): SalesReportRow => ({
       businessDate: row.businessDate.toISOString().slice(0, 10),
@@ -245,25 +346,25 @@ export class ReportReadService {
     };
 
     const isCsv = input.format === 'csv';
-    const [totalItems, rows] = await Promise.all([
-      this.database.financialEntry.count({ where }),
-      this.database.financialEntry.findMany({
-        orderBy: [{ businessDate: 'desc' }, { createdAt: 'desc' }],
-        select: {
-          amount: true,
-          businessDate: true,
-          category: { select: { code: true, name: true } },
-          currencyCode: true,
-          description: true,
-          entryType: true,
-          id: true,
-          origin: true,
-        },
-        ...(isCsv ? {} : { skip: pageOffset(input) }),
-        take: isCsv ? csvExportLimit : input.pageSize,
-        where,
-      }),
-    ]);
+    const totalItems = await this.database.financialEntry.count({ where });
+    if (isCsv) ensureCsvExportWithinLimit(totalItems);
+    const rows = await this.database.financialEntry.findMany({
+      orderBy: [{ businessDate: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        amount: true,
+        businessDate: true,
+        category: { select: { code: true, name: true } },
+        currencyCode: true,
+        description: true,
+        entryType: true,
+        id: true,
+        origin: true,
+      },
+      ...(isCsv ? {} : { skip: pageOffset(input) }),
+      take: isCsv ? csvExportProbeLimit : input.pageSize,
+      where,
+    });
+    if (isCsv) ensureCsvExportWithinLimit(rows.length);
 
     const items = rows.map((row): FinanceReportRow => ({
       amount: row.amount.toFixed(moneyScale),
