@@ -59,9 +59,18 @@ export interface CreateSaleRequest {
   departureAt?: string;
 }
 
+export interface SplitPaymentLineRequest {
+  /** Required free-text method (e.g. 'Efectivo', 'Tarjeta', 'Transferencia'). */
+  methodText: string;
+  /** Decimal string with up to two decimal places representing the allocated amount. */
+  amount: string;
+}
+
 export interface RecordSalePaymentRequest {
-  /** Required free-text method, trimmed and bounded by the server. */
-  paymentMethodText: string;
+  /** Optional when splitPayments is provided; required for single-payment backward compatibility. */
+  paymentMethodText?: string;
+  /** Optional array of split payment lines; when provided, sum must equal the sale total. */
+  splitPayments?: SplitPaymentLineRequest[];
 }
 
 export interface VoidDuplicateSaleRequest {
@@ -117,6 +126,8 @@ export interface SaleView {
   paymentStatus: SalePaymentStatus;
   /** Immutable full-payment evidence; absent until payment is recorded. */
   payment: SalePaymentView | null;
+  /** Additive: list of all payment lines recorded for this sale. */
+  payments?: SalePaymentView[];
   /** Additive: the original payment is linked, never copied into another receipt. */
   duplicateCorrection?: SaleDuplicateCorrectionView | null;
   /** Resolved seller. Operational rows without an old explicit seller fall back to their creator. */
@@ -160,4 +171,6 @@ export type SalesPublicErrorCode =
   | 'SALE_PRICE_MISSING'
   | 'SALE_PRODUCT_UNAVAILABLE'
   | 'SALE_REFERENCE_VALUE_INVALID'
+  | 'SALE_SPLIT_PAYMENT_SUM_MISMATCH'
+  | 'SALE_PAYMENT_AMOUNT_INVALID'
   | 'SALE_WAREHOUSE_UNAVAILABLE';

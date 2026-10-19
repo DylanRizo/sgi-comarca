@@ -47,6 +47,18 @@ export function mapSaleError(error: unknown): never {
           'SALES_REQUEST_INVALID',
           'Sale request is invalid.',
         );
+      case 'SALE_SPLIT_PAYMENT_SUM_MISMATCH':
+        throw publicError(
+          HttpStatus.BAD_REQUEST,
+          'SALE_SPLIT_PAYMENT_SUM_MISMATCH',
+          'The sum of split payments must exactly equal the sale total.',
+        );
+      case 'SALE_PAYMENT_AMOUNT_INVALID':
+        throw publicError(
+          HttpStatus.BAD_REQUEST,
+          'SALE_PAYMENT_AMOUNT_INVALID',
+          'Payment amount must be greater than zero and have at most 2 decimal places.',
+        );
       case 'SALES_PERMISSION_DENIED':
         throw publicError(
           HttpStatus.FORBIDDEN,

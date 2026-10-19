@@ -1,5 +1,24 @@
 # Convenciones de API REST
 
+## Registro de pagos divididos / pagos mixtos (ADR-022)
+
+- `POST /api/v1/sales/:id/payment`: privado, CSRF, `Idempotency-Key`, `sales.record_payment`.
+  Cuerpo (retrocompatible):
+  - Pago único: `{ paymentMethodText: 'Efectivo' }`
+  - Pago dividido / mixto:
+    ```json
+    {
+      "splitPayments": [
+        { "methodText": "Efectivo", "amount": "400.00" },
+        { "methodText": "Tarjeta", "amount": "600.00" }
+      ]
+    }
+    ```
+- La suma de los montos debe ser exactamente igual a `sale.total`. Si difiere, responde con HTTP 400 `SALE_SPLIT_PAYMENT_SUM_MISMATCH`.
+- Montos menores o iguales a cero o con más de dos decimales responden con HTTP 400 `SALE_PAYMENT_AMOUNT_INVALID`.
+- El detalle de la venta (`SaleView`) expone `payment` (primer pago) y `payments` (lista completa de desgloses).
+- En Finanzas, `closing-preview` desglosa cada pago individual a `cash` o `digital` en vez de asignar la venta completa a un solo rubro.
+
 ## Corrección de una venta duplicada pagada (ADR-021)
 
 - `GET /api/v1/sales/by-number/:saleNumber`: detalle privado, `sales.read`.
