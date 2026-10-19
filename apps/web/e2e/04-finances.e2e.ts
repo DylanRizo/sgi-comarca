@@ -67,6 +67,134 @@ test.describe('FASE 8C finances and closings UI flows', () => {
     await database.reset();
   });
 
+  test('registers an expense using the prepared legacy catalog and named responsible', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await activateAndLogin(request, page);
+    await database.prepareFinanceCatalogFixtures();
+    const before = await database.financeCounts();
+    await page.goto('/finances');
+    await page
+      .locator('.page-heading-actions')
+      .getByRole('button', { name: 'Registrar asiento' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Registrar asiento' });
+    await dialog
+      .getByRole('combobox', { name: 'Categoría', exact: true })
+      .selectOption({ label: 'Empaques' });
+    await expect(
+      dialog
+        .getByRole('combobox', { name: 'Responsable', exact: true })
+        .locator('option:checked'),
+    ).toHaveText('Dylan');
+    await expect(dialog.getByLabel('ID del responsable')).toHaveCount(0);
+    await dialog.getByLabel('Monto (C$)').fill('18.50');
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath('finance-entry-mobile.png'),
+      fullPage: true,
+    });
+    await dialog
+      .getByRole('button', { name: 'Registrar asiento', exact: true })
+      .click();
+    await expect(
+      page.locator('.form-feedback[data-tone="success"]'),
+    ).toContainText('registrado');
+    expect((await database.financeCounts()).entries).toBe(before.entries + 1);
+  });
+
+  test('explains an empty financial catalog instead of an unusable category select', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    // Finish the list's own catalog request before intercepting the dialog's.
+    await Promise.all([
+      page.waitForResponse('**/api/v1/finances/categories'),
+      page.goto('/finances'),
+    ]);
+    await page.route('**/api/v1/finances/categories', (route) =>
+      route.fulfill({
+        json: { data: [], meta: { requestId: 'empty-financial-catalog-test' } },
+      }),
+    );
+    await page
+      .locator('.page-heading-actions')
+      .getByRole('button', { name: 'Registrar asiento' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Registrar asiento' });
+    await expect(
+      dialog.getByText(/No hay categorías de gastos activas/u),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Categoría', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Registrar asiento', exact: true }),
+    ).toBeDisabled();
+    await dialog.getByLabel('Tipo').selectOption('INCOME');
+    await expect(
+      dialog.getByText(/No hay categorías de ingresos activas/u),
+    ).toBeVisible();
+  });
+
+  test('retries catalog loading without discarding the entered expense', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    await database.prepareFinanceCatalogFixtures();
+    await Promise.all([
+      page.waitForResponse('**/api/v1/finances/categories'),
+      page.goto('/finances'),
+    ]);
+    // Remain unavailable until the explicit retry. React Strict Mode can abort
+    // and repeat the first effect request, so "fail the first request only"
+    // does not reliably simulate a user-visible outage.
+    let unavailable = true;
+    await page.route('**/api/v1/finances/categories', (route) => {
+      if (!unavailable) return route.continue();
+      return route.fulfill({
+        status: 503,
+        json: {
+          error: {
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'Unavailable',
+            requestId: 'catalog-load-test',
+          },
+        },
+      });
+    });
+    await page
+      .locator('.page-heading-actions')
+      .getByRole('button', { name: 'Registrar asiento' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Registrar asiento' });
+    await expect(dialog.getByRole('alert')).toContainText(
+      'No se pudieron cargar',
+    );
+    await dialog.getByLabel('Monto (C$)').fill('72.00');
+    await dialog
+      .getByLabel('Descripción (opcional)')
+      .fill('Descripción conservada');
+    unavailable = false;
+    await dialog.getByRole('button', { name: 'Reintentar carga' }).click();
+    await expect(
+      dialog.getByRole('combobox', { name: 'Categoría', exact: true }),
+    ).toBeEnabled();
+    await expect(dialog.getByLabel('Monto (C$)')).toHaveValue('72.00');
+    await expect(dialog.getByLabel('Descripción (opcional)')).toHaveValue(
+      'Descripción conservada',
+    );
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+
   test('registers a manual expense and reflects it in totals', async ({
     page,
     request,

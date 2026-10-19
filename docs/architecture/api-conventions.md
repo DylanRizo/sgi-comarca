@@ -1,5 +1,16 @@
 # Convenciones de API REST
 
+## Corrección de una venta duplicada pagada (ADR-021)
+
+- `GET /api/v1/sales/by-number/:saleNumber`: detalle privado, `sales.read`.
+- `POST /api/v1/sales/:id/void-duplicate`: privado, CSRF, `Idempotency-Key`,
+  `sales.cancel` efectivo y ADMIN activo. Cuerpo:
+  `{ replacementSaleNumber, reason, stockReturned: true }`.
+- Añade `duplicateCorrection` al detalle/lista, con los dos documentos, actor,
+  fecha y motivo. La venta correcta resuelve el mismo pago original sin copiarlo.
+- `SALE_DUPLICATE_TARGET_INVALID` y `SALE_DAY_ALREADY_CLOSED` son conflictos
+  HTTP 409. La cancelación anterior conserva contrato y elegibilidad.
+
 ## Base y recursos
 
 - Prefijo: `/api/v1`.
@@ -177,7 +188,7 @@ Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 | sales | `GET /sales`, `GET /sales/:id` | `sales.read` |
 | sales | `POST /sales` / `POST /sales/:id/confirm-in-transit` / `POST /sales/:id/cancel` | `sales.create` / `sales.confirm_in_transit` / `sales.cancel` |
 | sales | `POST /sales/:id/payment` | `sales.record_payment` (ADR-018; pago total de una venta completada, idempotente) |
-| finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories` | `finances.read` |
+| finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories`, `GET /finances/responsibles` | `finances.read` |
 | finances | `POST /finances` | `finances.manual.create` |
 | closings | `GET /closings`, `GET /closings/:id`, `GET /closings/preview` | `closings.read` |
 | closings | `POST /closings` / `POST /closings/:id/reopen` | `closings.create` / `closings.reopen` |

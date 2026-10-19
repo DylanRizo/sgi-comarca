@@ -64,6 +64,21 @@ export interface RecordSalePaymentRequest {
   paymentMethodText: string;
 }
 
+export interface VoidDuplicateSaleRequest {
+  replacementSaleNumber: string;
+  reason: string;
+  /** Explicit physical-stock confirmation; the command restores every line. */
+  stockReturned: true;
+}
+
+export interface SaleDuplicateCorrectionView {
+  sourceSale: { id: string; saleNumber: string };
+  replacementSale: { id: string; saleNumber: string };
+  correctedAt: string;
+  correctedBy: { id: string; displayName: string };
+  reason: string;
+}
+
 /**
  * Read-safe view of a sale line. `unitCostSnapshot` is intentionally absent:
  * `sales.read` grants no financial permission (ADR-009, AGENTS.md).
@@ -102,6 +117,8 @@ export interface SaleView {
   paymentStatus: SalePaymentStatus;
   /** Immutable full-payment evidence; absent until payment is recorded. */
   payment: SalePaymentView | null;
+  /** Additive: the original payment is linked, never copied into another receipt. */
+  duplicateCorrection?: SaleDuplicateCorrectionView | null;
   /** Resolved seller. Operational rows without an old explicit seller fall back to their creator. */
   seller: { id: string; displayName: string } | null;
   sellerUserId: string | null;
@@ -134,6 +151,8 @@ export type SalesPublicErrorCode =
   | 'SALES_REQUEST_INVALID'
   | 'SALE_BALANCE_NOT_FOUND'
   | 'SALE_CONCURRENCY_CONFLICT'
+  | 'SALE_DAY_ALREADY_CLOSED'
+  | 'SALE_DUPLICATE_TARGET_INVALID'
   | 'SALE_COST_MISSING'
   | 'SALE_INSUFFICIENT_STOCK'
   | 'SALE_INVALID_STATE'

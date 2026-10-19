@@ -56,6 +56,15 @@ export class SaleReadService {
     return mapSale(sale);
   }
 
+  async byNumber(saleNumber: string): Promise<SaleView> {
+    const sale = await this.database.sale.findUnique({
+      select: saleSelect,
+      where: { saleNumber },
+    });
+    if (!sale) throw new SaleNotFoundError();
+    return mapSale(sale);
+  }
+
   async listVoiceInTransit(limit = 3): Promise<VoiceSaleList> {
     const [total, sales] = await Promise.all([
       this.database.sale.count({ where: { status: 'IN_TRANSIT' } }),

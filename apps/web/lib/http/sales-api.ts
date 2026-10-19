@@ -5,6 +5,7 @@ import type {
   SalePaymentStatus,
   SaleStatus,
   SaleView,
+  VoidDuplicateSaleRequest,
 } from '@sgi/contracts';
 
 import { apiRequest } from './api-client';
@@ -22,6 +23,25 @@ export interface SalesQuery {
 }
 
 export const salesApi = {
+  byNumber: (number: string) =>
+    apiRequest<SaleView>(
+      `/api/v1/sales/by-number/${encodeURIComponent(number)}`,
+    ),
+  voidDuplicate: (
+    saleId: string,
+    input: VoidDuplicateSaleRequest,
+    csrfToken: string,
+    idempotencyKey: string,
+  ) =>
+    apiRequest<SaleView>(
+      `/api/v1/sales/${encodeURIComponent(saleId)}/void-duplicate`,
+      {
+        body: input,
+        csrfToken,
+        idempotencyKey,
+        method: 'POST',
+      },
+    ),
   cancel: (
     saleId: string,
     reason: string,

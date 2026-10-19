@@ -1,6 +1,108 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-03.
+Updated: 2026-10-18.
+
+## Paid duplicate correction — locally verified; staging pending
+
+The owner approved voiding a mistaken paid duplicate whose correct sale already
+exists, restoring only the mistaken stock and reassigning the single existing
+payment without collecting again. ADR-021 records the bounded rule. Migration
+`20261019040000_duplicate_sale_correction` adds nullable immutable-document links
+and database coherence guards; no grant, bootstrap or historical data rewrite
+is included. The private command requires active ADMIN plus effective
+`sales.cancel`. Existing unpaid/in-transit cancellation is unchanged.
+
+API and web resolve the original payment through the correction, show both linked
+sales and require review, reason and physical-stock confirmation. Daily closing
+creation and correction serialize by business date; a date with any existing
+closing cannot be corrected. The local gates below are complete; no staging
+correction has run. Publication, migration, deployment
+and the concrete correction remain separately gated; see the
+[operator procedure](../deployment/duplicate-sale-correction.md). The pending
+financial UI/catalog fix below is preserved as separate uncommitted work.
+
+Final local verification: lint passed 9/9 packages (the existing unused-disable
+warning remains), typecheck passed 13/13 tasks, Prisma validation passed, and
+unit tests passed 334/334 across 71 files. The first complete PostgreSQL run
+was 398/399 across 35 files: the only failure was the schema test's exact
+44-trigger inventory, which needed the three new named correction guards.
+Its exact expectation and the two new function names were updated, and the
+complete rerun passed 399/399 tests across all 35 suites (one worker, temporary
+local databases only). Earlier new-test fixtures were corrected to normalize
+codes and revoke the active grant before testing DENY, without relaxing any
+database, permission or lifecycle assertion. The first combined Chromium
+sales/finances run was 22/24: the paid-duplicate mobile flow passed with stock
+and single-payment assertions, but the lost-response test used an ambiguous
+alert locator (Next also exposes a route announcer), and the DENY fixture
+attempted to insert an exception over an active direct grant. The locator is
+now scoped to the correction region, and the fixture revokes the previous
+exception before inserting DENY in one transaction. No assertions were removed.
+The complete browser rerun passed 24/24 Chromium sales/finances tests, including
+lost response followed by CSRF refusal and exact replay. The 390px correction
+review passed a horizontal-overflow assertion and was visually inspected in
+light/dark screenshots. Final lint passed 9/9, typecheck passed 13/13 and the
+production build passed 8/8 after the fixture and scoped-presentation fixes.
+The first post-browser typecheck found a duplicated tail in the disposable
+Next development route declaration `.next/dev/types/link.d.ts`. Only that
+generated cache file was removed, official `next typegen` regenerated route
+types, and the complete typecheck/build then passed without disabling checks
+or changing TypeScript configuration. The tracked `next-env.d.ts` baseline
+import was preserved; generated artifacts are not part of the functional diff.
+The focused changed-source privacy scan and `git diff --check` passed. No
+commit, push, migration in staging, permission grant or real-sale change is
+included. The next gate is explicit publication/deployment approval followed
+by fresh target/pair validation and a verified operational checkpoint.
+
+After the successful browser runners and build finished, an extra read-only
+check for the two named E2E databases could not connect: Docker Desktop's Linux
+engine pipe was unavailable, and no Docker Desktop/backend process was present.
+The runners had already completed their awaited teardown with exit code 0, but
+that independent cleanup recheck remains unconfirmed. Start Docker again before
+future local PostgreSQL/browser runs; do not delete older unrelated temporary
+databases or restart an external service to work around this local condition.
+
+## Financial catalog correction — catalog prepared; UI local, 2026-10-18
+
+A direct read-only staging check found zero financial categories and zero
+manual entries, explaining the empty required expense-category selector.
+The focused correction adds an explicit, dry-run-first operator command for
+the legacy financial vocabulary (nine categories), audited/idempotent creation,
+empty/error/retry states in the entry dialog, and a finance-protected minimal
+responsible-name directory. No migration or permission grant is needed. See
+[the catalog procedure](../deployment/financial-catalogs.md). Catalog preparation
+was separately authorized and completed below; the API/web improvements remain
+local and unpublished.
+
+Local verification passed lint (9/9 packages; the pre-existing unused-disable
+warning remains), typecheck (13/13 tasks), 332 unit tests across 71 files,
+29 focused PostgreSQL tests across the catalog/entry/read suites, the complete
+11-test Chromium finances/closings suite (including a 390px mobile expense),
+and the production build (8/8 tasks). The PostgreSQL and browser runners used
+temporary local databases only. The full repository PostgreSQL suite was not
+rerun for this focused correction. The first parallel quality attempts were
+interrupted for low available memory; the successful unit run used one worker.
+Browser test selectors and the Strict Mode outage simulation were corrected
+before the final green suite; assertions were not removed.
+
+The owner then explicitly authorized preparing only the nine financial
+categories. A fresh read-only check verified the Neon staging project's direct
+main-branch destination, all twelve finished migrations, an active finance
+actor, an empty catalog and a nine-category dry-run with no writes. Checkpoint
+`checkpoint-pre-financial-catalogs-2026-10-18` was created from main and verified
+`ready`, without compute. The first creation attempt returned exit code 1 and
+created no branch; a read-only branch check confirmed that before the same
+checkpoint step was successfully repeated. No business write preceded it.
+
+The tested operator command then created exactly nine active categories
+(six EXPENSE, three INCOME) and nine actor-attributed audit events. Read-only
+verification preserved all 35 protected non-target table fingerprints and all
+historical audit rows; a repeat dry-run returned no planned changes and nine
+unchanged categories. Financial entries remain at zero. Private preflight,
+checkpoint and verification evidence stays outside Git. No real expense,
+inventory change, permission grant, migration, commit, push or deployment is
+included. Preparing the catalog unblocks the currently deployed form after
+reopening it; publishing the named-responsible UI requires the new API first
+and then the web under a separate publication/deployment request.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.

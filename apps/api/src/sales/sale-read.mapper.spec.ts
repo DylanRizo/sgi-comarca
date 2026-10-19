@@ -59,6 +59,37 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
 }
 
 describe('mapSale', () => {
+  it('resolves a linked payment without inventing another receipt or changing its author/date', () => {
+    const payment = {
+      id: 'original-payment',
+      amount: decimal('30'),
+      currencyCode: 'NIO',
+      methodText: 'Digital',
+      paidAt: new Date('2026-08-27T15:00:00Z'),
+      recordedBy: { id: 'admin', displayName: 'Synthetic admin' },
+    };
+    const view = mapSale(
+      sale({
+        status: 'COMPLETED',
+        paymentStatus: 'PAID',
+        receivedPaymentCorrection: {
+          cancelledAt: new Date('2026-08-27T16:00:00Z'),
+          cancelledBy: payment.recordedBy,
+          reason: 'Synthetic duplicate',
+          sale: { id: 'wrong', saleNumber: 'VTA-000000009' },
+          replacementSale: { id: 'right', saleNumber: 'VTA-000000010' },
+          reassignedPayment: payment,
+        },
+      }),
+    );
+    expect(view.payment).toEqual({
+      ...payment,
+      amount: '30.00',
+      paidAt: payment.paidAt.toISOString(),
+    });
+    expect(view.duplicateCorrection?.sourceSale.id).toBe('wrong');
+    expect(view.duplicateCorrection?.replacementSale.id).toBe('right');
+  });
   it('preserves exact decimal strings', () => {
     const view = mapSale(sale());
     expect(view.subtotal).toBe('25.00');

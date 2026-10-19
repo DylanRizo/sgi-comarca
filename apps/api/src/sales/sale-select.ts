@@ -1,5 +1,23 @@
 import type { Prisma } from '@sgi/database';
 
+const paymentSelect = {
+  amount: true,
+  currencyCode: true,
+  id: true,
+  methodText: true,
+  paidAt: true,
+  recordedBy: { select: { displayName: true, id: true } },
+} satisfies Prisma.SalePaymentSelect;
+
+const correctionSelect = {
+  cancelledAt: true,
+  cancelledBy: { select: { displayName: true, id: true } },
+  reason: true,
+  sale: { select: { id: true, saleNumber: true } },
+  replacementSale: { select: { id: true, saleNumber: true } },
+  reassignedPayment: { select: paymentSelect },
+} satisfies Prisma.SaleCancellationSelect;
+
 /**
  * The single column set every sale read uses, shared by the read service, the
  * creation service and the lifecycle service.
@@ -20,6 +38,8 @@ import type { Prisma } from '@sgi/database';
  * different thing from an operator opening one order (FASE 9 plan §5).
  */
 export const saleSelect = {
+  cancellation: { select: correctionSelect },
+  receivedPaymentCorrection: { select: correctionSelect },
   businessDate: true,
   completedAt: true,
   createdBy: { select: { displayName: true, id: true } },
@@ -46,16 +66,7 @@ export const saleSelect = {
   observations: true,
   origin: true,
   paymentMethodText: true,
-  payment: {
-    select: {
-      amount: true,
-      currencyCode: true,
-      id: true,
-      methodText: true,
-      paidAt: true,
-      recordedBy: { select: { displayName: true, id: true } },
-    },
-  },
+  payment: { select: paymentSelect },
   paymentStatus: true,
   saleNumber: true,
   salesChannelText: true,

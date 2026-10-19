@@ -10,6 +10,7 @@ import type {
   FinanceTotalsView,
   FinancialCategoryView,
   FinancialEntryType,
+  FinancialResponsibleView,
   PaginatedData,
 } from '@sgi/contracts';
 
@@ -37,6 +38,11 @@ export interface DailyClosingQuery {
 }
 
 export const financesApi = {
+  responsibles: (signal?: AbortSignal) =>
+    apiRequest<readonly FinancialResponsibleView[]>(
+      '/api/v1/finances/responsibles',
+      signal ? { signal } : {},
+    ),
   categories: (signal?: AbortSignal) =>
     apiRequest<readonly FinancialCategoryView[]>(
       '/api/v1/finances/categories',

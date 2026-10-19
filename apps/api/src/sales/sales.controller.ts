@@ -28,6 +28,10 @@ import { CreateSaleDto } from './dto/create-sale.dto.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { RecordSalePaymentDto } from './dto/record-sale-payment.dto.js';
+// DTO values must remain runtime imports for validation metadata.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { VoidDuplicateSaleDto } from './dto/void-duplicate-sale.dto.js';
+import { VoidDuplicateSaleService } from './void-duplicate-sale.service.js';
 import { SaleLifecycleService } from './sale-lifecycle.service.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -48,6 +52,8 @@ export class SalesController {
     private readonly creation: CreateSaleService,
     @Inject(SaleLifecycleService)
     private readonly lifecycle: SaleLifecycleService,
+    @Inject(VoidDuplicateSaleService)
+    private readonly duplicateVoid: VoidDuplicateSaleService,
   ) {}
 
   @Post()
@@ -143,6 +149,48 @@ export class SalesController {
       );
     } catch (error) {
       mapSaleError(error);
+    }
+  }
+
+  @Post(':id/void-duplicate')
+  @RequirePermission('sales.cancel')
+  async voidDuplicate(
+    @Headers('idempotency-key') key: string | undefined,
+    @Param() params: SaleIdParamDto,
+    @Body() input: VoidDuplicateSaleDto,
+    @CurrentUser() current: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    try {
+      return readSuccess(
+        await this.duplicateVoid.execute(current.userId, params.id, input, key),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapSaleError(error);
+    }
+  }
+
+  @Get('by-number/:saleNumber')
+  async byNumber(
+    @Param('saleNumber') saleNumber: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<SaleView>> {
+    if (!/^VTA-[0-9]{9}$/u.test(saleNumber))
+      throw new NotFoundException('Sale was not found.');
+    try {
+      return readSuccess(
+        await this.sales.byNumber(saleNumber),
+        request,
+        response,
+      );
+    } catch (error) {
+      if (error instanceof SaleNotFoundError)
+        throw new NotFoundException('Sale was not found.');
+      throw error;
     }
   }
 

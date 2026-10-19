@@ -17,6 +17,7 @@ import type {
   FinanceLineView,
   FinanceTotalsView,
   FinancialCategoryView,
+  FinancialResponsibleView,
   PaginatedData,
 } from '@sgi/contracts';
 import type { Request, Response } from 'express';
@@ -90,6 +91,14 @@ export class FinancesController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<readonly FinancialCategoryView[]>> {
     return readSuccess(await this.finances.categories(), request, response);
+  }
+
+  @Get('responsibles')
+  async responsibles(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiSuccess<readonly FinancialResponsibleView[]>> {
+    return readSuccess(await this.finances.responsibles(), request, response);
   }
 
   @Get('totals')

@@ -60,6 +60,7 @@ export {
   type FinanceTotalsView,
   type FinancialCategoryView,
   type FinancialEntryType,
+  type FinancialResponsibleView,
   type ReopenDailyClosingRequest,
 } from './finances.js';
 export type { HealthData, ReadinessData } from './health.js';
@@ -120,6 +121,8 @@ export {
   type CreateSaleItemRequest,
   type CreateSaleRequest,
   type RecordSalePaymentRequest,
+  type VoidDuplicateSaleRequest,
+  type SaleDuplicateCorrectionView,
   type SaleCreationStatus,
   type SaleItemView,
   type SaleOrigin,

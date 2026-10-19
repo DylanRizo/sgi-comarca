@@ -9,6 +9,9 @@ import {
   bootstrapUserRoles,
 } from '../../../../packages/database/src/bootstrap/manifest.js';
 import { prepareOperationalCatalogs } from '../../../../packages/database/src/bootstrap/operational-catalogs.js';
+import { prepareFinancialCatalogs } from '../../../api/src/finances/prepare-financial-catalogs.js';
+import { CreateSaleService } from '../../../api/src/sales/create-sale.service.js';
+import { SaleLifecycleService } from '../../../api/src/sales/sale-lifecycle.service.js';
 
 function requireDatabaseUrl(): string {
   const value = process.env.SGI_E2E_DATABASE_URL;
@@ -651,6 +654,50 @@ export class AuthenticationDatabase {
     };
   }
 
+  async seedDuplicateSalesFixtures(suffix: string) {
+    const { multiWarehouseCode: wrongCode } = await this.seedSalesFixtures(
+      `${suffix}-WRONG`,
+    );
+    const { multiWarehouseCode: rightCode } = await this.seedSalesFixtures(
+      `${suffix}-RIGHT`,
+    );
+    const actor = await this.client.user.findUniqueOrThrow({
+      where: { loginIdentifier: 'dylan' },
+    });
+    const warehouse = await this.client.warehouse.findUniqueOrThrow({
+      where: { code: 'CASA_DYLAN' },
+    });
+    const wrong = await this.client.product.findUniqueOrThrow({
+      where: { code: wrongCode },
+    });
+    const right = await this.client.product.findUniqueOrThrow({
+      where: { code: rightCode },
+    });
+    const create = new CreateSaleService(this.client);
+    const businessDate = '2026-06-15';
+    const source = await create.create(actor.id, crypto.randomUUID(), {
+      businessDate,
+      status: 'COMPLETED',
+      items: [
+        { productId: wrong.id, warehouseId: warehouse.id, quantity: '2' },
+      ],
+    });
+    await new SaleLifecycleService(this.client).recordPayment(
+      actor.id,
+      source.id,
+      'Digital',
+      crypto.randomUUID(),
+    );
+    const target = await create.create(actor.id, crypto.randomUUID(), {
+      businessDate,
+      status: 'COMPLETED',
+      items: [
+        { productId: right.id, warehouseId: warehouse.id, quantity: '2' },
+      ],
+    });
+    return { source, target, wrongCode, rightCode };
+  }
+
   async balanceQuantity(
     productCode: string,
     warehouseCode: string,
@@ -675,8 +722,18 @@ export class AuthenticationDatabase {
         where: { loginIdentifier: 'dylan' },
       }),
     ]);
-    await this.client.userPermission.create({
-      data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+    await this.transaction(async (transaction) => {
+      await transaction.userPermission.updateMany({
+        where: {
+          userId: user.id,
+          permissionId: permission.id,
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date(), revokedByUserId: user.id },
+      });
+      await transaction.userPermission.create({
+        data: { effect: 'DENY', permissionId: permission.id, userId: user.id },
+      });
     });
   }
 
@@ -709,6 +766,10 @@ export class AuthenticationDatabase {
       }),
     ]);
     return { expenseCategoryId: expense.id, incomeCategoryId: income.id };
+  }
+
+  async prepareFinanceCatalogFixtures(): Promise<void> {
+    await prepareFinancialCatalogs(this.client, 'dylan', true);
   }
 
   async financeCounts(): Promise<{
