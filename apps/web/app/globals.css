@@ -1845,6 +1845,59 @@ a {
   gap: 0.3rem;
 }
 
+.duplicate-void-panel fieldset {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.duplicate-void-panel h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.duplicate-void-panel h3 {
+  margin-block: 0.75rem 0.35rem;
+  font-weight: 700;
+}
+
+.duplicate-void-panel textarea {
+  width: 100%;
+  min-height: 5rem;
+  resize: vertical;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.duplicate-void-panel ul {
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-void-panel .stock-returned-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  min-height: 2.75rem;
+  padding-block: 0.5rem;
+}
+
+.stock-returned-confirmation input[type='checkbox'] {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  min-height: 1.25rem;
+  margin-top: 0.15rem;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
 .detail-grid,
 .totals-panel {
   display: grid;

@@ -71,6 +71,15 @@ export function mapSaleError(error: unknown): never {
           'SALE_INVALID_STATE',
           'Sale is not in a valid state.',
         );
+      case 'SALE_DUPLICATE_TARGET_INVALID':
+      case 'SALE_DAY_ALREADY_CLOSED':
+        throw publicError(
+          HttpStatus.CONFLICT,
+          error.code,
+          error.code === 'SALE_DAY_ALREADY_CLOSED'
+            ? 'The business day already has a closing.'
+            : 'Replacement must be a distinct completed unpaid sale with the same date, currency and total.',
+        );
       case 'SALE_CONCURRENCY_CONFLICT':
         throw publicError(
           HttpStatus.CONFLICT,

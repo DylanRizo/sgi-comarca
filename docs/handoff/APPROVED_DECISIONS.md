@@ -6,6 +6,15 @@ ADR, architecture document, migration, and tests.
 
 ## Business
 
+- ADR-021 (2026-10-18) adds the owner-approved paid-duplicate exception: the
+  active ADMIN with effective `sales.cancel` may atomically cancel a paid
+  completed operational duplicate, restore its stock and link its one existing
+  immutable payment to an already recorded completed unpaid replacement with
+  equal date, currency and total. A closed day, partial correction, refund,
+  physical deletion or correction chain is not supported. Other cancellation
+  rules below remain unchanged. See
+  [ADR-021](../decisions/ADR-021-duplicate-paid-sale-correction.md).
+
 - Monetary values use PostgreSQL `NUMERIC`/Prisma `Decimal`; the principal
   currency is NIO and the presentation symbol is C$.
 - Timestamps are stored in UTC and presented in `America/Managua`.

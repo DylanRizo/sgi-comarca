@@ -256,6 +256,9 @@ export class DailyClosingService {
     }
 
     const businessDate = civilDateUtc(request.businessDate);
+    // Serialize with ADR-021 corrections before reading and freezing figures.
+    const dayScope = `sales.business-day:${request.businessDate}`;
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${dayScope}, 0))`;
     const existing = await transaction.dailyClosing.findUnique({
       select: { id: true },
       where: { businessDate },

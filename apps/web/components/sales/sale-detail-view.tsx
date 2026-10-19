@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 
 import { ReadState, RetryButton } from '@/components/inventory/read-state';
 import { SaleLifecycleActions } from '@/components/sales/sale-lifecycle-actions';
+import { VoidDuplicateSalePanel } from '@/components/sales/void-duplicate-sale-panel';
 import { salesApi } from '@/lib/http/sales-api';
 import {
   formatMoney,
@@ -101,6 +102,47 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
         </ReadState>
       ) : sale ? (
         <>
+          {sale.duplicateCorrection ? (
+            <section
+              className="form-feedback"
+              data-tone="success"
+              aria-label="Corrección documentada"
+            >
+              <h2>
+                {sale.status === 'CANCELLED'
+                  ? 'Anulada por registro duplicado'
+                  : 'Cobro reasignado a esta venta'}
+              </h2>
+              <p>
+                Venta original:{' '}
+                <Link
+                  href={
+                    `/sales/${sale.duplicateCorrection.sourceSale.id}` as Route
+                  }
+                >
+                  {sale.duplicateCorrection.sourceSale.saleNumber}
+                </Link>
+                . Venta correcta:{' '}
+                <Link
+                  href={
+                    `/sales/${sale.duplicateCorrection.replacementSale.id}` as Route
+                  }
+                >
+                  {sale.duplicateCorrection.replacementSale.saleNumber}
+                </Link>
+                .
+              </p>
+              <p>
+                Se conserva un único cobro; no se realizó un reembolso. El
+                inventario del registro equivocado se repuso una sola vez.
+              </p>
+              <p>
+                {sale.duplicateCorrection.reason} ·{' '}
+                {sale.duplicateCorrection.correctedBy.displayName} ·{' '}
+                {formatObservedAt(sale.duplicateCorrection.correctedAt)}
+              </p>
+            </section>
+          ) : null}
           <section className="detail-grid" aria-label="Resumen de la venta">
             <div>
               <span className="detail-label">Vendedor</span>
@@ -203,6 +245,7 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
           </section>
 
           <SaleLifecycleActions onUpdated={setSale} sale={sale} />
+          <VoidDuplicateSalePanel onUpdated={setSale} sale={sale} />
         </>
       ) : null}
     </main>

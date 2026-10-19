@@ -825,13 +825,14 @@ model Sale {
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  seller                User?                  @relation("SaleSeller", fields: [sellerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  createdBy             User?                  @relation("SaleCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  items                 SaleItem[]
-  cancellation          SaleCancellation?
-  inTransitConfirmation InTransitConfirmation?
-  payment               SalePayment?
-  legacyRecords         LegacyRecord[]         @relation("LegacyRecordSale")
+  seller                    User?                  @relation("SaleSeller", fields: [sellerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy                 User?                  @relation("SaleCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  items                     SaleItem[]
+  cancellation              SaleCancellation?      @relation("SaleCancellationSource")
+  receivedPaymentCorrection SaleCancellation?      @relation("SaleCancellationReplacement")
+  inTransitConfirmation     InTransitConfirmation?
+  payment                   SalePayment?
+  legacyRecords             LegacyRecord[]         @relation("LegacyRecordSale")
 
   @@unique([createdByUserId, idempotencyKeyHash], map: "sales_creator_idempotency_key")
   @@index([businessDate], map: "sales_business_date_idx")
@@ -866,17 +867,21 @@ model SaleItem {
 }
 
 model SaleCancellation {
-  id                 String   @id @default(uuid()) @db.Uuid
-  saleId             String   @unique(map: "sale_cancellations_sale_id_key") @map("sale_id") @db.Uuid
-  reason             String   @db.VarChar(500)
-  cancelledByUserId  String   @map("cancelled_by_user_id") @db.Uuid
-  cancelledAt        DateTime @map("cancelled_at") @db.Timestamptz(6)
-  idempotencyKeyHash String?  @map("idempotency_key_hash") @db.Char(64)
-  requestHash        String?  @map("request_hash") @db.Char(64)
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                  String   @id @default(uuid()) @db.Uuid
+  saleId              String   @unique(map: "sale_cancellations_sale_id_key") @map("sale_id") @db.Uuid
+  reason              String   @db.VarChar(500)
+  cancelledByUserId   String   @map("cancelled_by_user_id") @db.Uuid
+  cancelledAt         DateTime @map("cancelled_at") @db.Timestamptz(6)
+  idempotencyKeyHash  String?  @map("idempotency_key_hash") @db.Char(64)
+  requestHash         String?  @map("request_hash") @db.Char(64)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  replacementSaleId   String?  @unique(map: "sale_cancellations_replacement_sale_key") @map("replacement_sale_id") @db.Uuid
+  reassignedPaymentId String?  @unique(map: "sale_cancellations_reassigned_payment_key") @map("reassigned_payment_id") @db.Uuid
 
-  sale        Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  cancelledBy User @relation("SaleCancellationActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sale              Sale         @relation("SaleCancellationSource", fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replacementSale   Sale?        @relation("SaleCancellationReplacement", fields: [replacementSaleId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "sale_cancellations_replacement_sale_fkey")
+  reassignedPayment SalePayment? @relation(fields: [reassignedPaymentId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "sale_cancellations_reassigned_payment_fkey")
+  cancelledBy       User         @relation("SaleCancellationActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([cancelledByUserId, idempotencyKeyHash], map: "sale_cancellations_actor_idempotency_key")
   @@index([cancelledByUserId, cancelledAt], map: "sale_cancellations_actor_time_idx")
@@ -912,8 +917,9 @@ model SalePayment {
   requestHash        String   @map("request_hash") @db.Char(64)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  sale       Sale @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  recordedBy User @relation("SalePaymentActor", fields: [recordedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sale       Sale              @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy User              @relation("SalePaymentActor", fields: [recordedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  correction SaleCancellation?
 
   @@unique([recordedByUserId, idempotencyKeyHash], map: "sale_payments_actor_idempotency_key")
   @@index([recordedByUserId, paidAt(sort: Desc)], map: "sale_payments_actor_time_idx")

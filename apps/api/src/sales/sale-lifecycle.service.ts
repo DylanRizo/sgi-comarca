@@ -3,14 +3,8 @@ import type { DatabaseClient } from '@sgi/database';
 import { createHash } from 'node:crypto';
 
 import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
-import {
-  inventoryDecimalString,
-  inventoryScaledInteger,
-} from '../inventory/inventory-quantity.js';
-import {
-  SaleAuditService,
-  type SaleLineAuditEntry,
-} from './sale-audit.service.js';
+import { SaleAuditService } from './sale-audit.service.js';
+import { restoreSaleInventory } from './restore-sale-inventory.js';
 import { mapSale, type SaleRecord } from './sale-read.mapper.js';
 import { saleSelect } from './sale-select.js';
 import { SaleError } from './sale.errors.js';
@@ -242,6 +236,17 @@ export class SaleLifecycleService {
     }
 
     const current = await this.lockSale(transaction, saleId);
+    const reassigned = await transaction.saleCancellation.findUnique({
+      where: { replacementSaleId: saleId },
+      select: { id: true },
+    });
+    if (
+      reassigned &&
+      current.status === 'COMPLETED' &&
+      current.paymentStatus === 'PAID'
+    ) {
+      return mapSale(await this.loadSale(transaction, saleId));
+    }
     const existing = await transaction.salePayment.findUnique({
       select: { id: true },
       where: { saleId },
@@ -403,80 +408,6 @@ export class SaleLifecycleService {
       throw new SaleError('SALE_INVALID_STATE');
     }
 
-    const items = await transaction.saleItem.findMany({
-      orderBy: [{ productId: 'asc' }, { warehouseId: 'asc' }],
-      select: {
-        id: true,
-        productId: true,
-        quantity: true,
-        warehouseId: true,
-      },
-      where: { saleId },
-    });
-    if (items.length === 0) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-
-    // Match the complete global lock order used by sale creation before
-    // touching balances. Cancellation later inserts movements whose foreign
-    // keys need KEY SHARE locks on these product and warehouse rows. If it
-    // held a balance first while a concurrent creation held the referenced
-    // rows and waited for that balance, PostgreSQL could form a real deadlock.
-    const productIds = [...new Set(items.map((item) => item.productId))].sort();
-    const warehouseIds = [
-      ...new Set(items.map((item) => item.warehouseId)),
-    ].sort();
-    const lockedProducts = await transaction.$queryRaw<Array<{ id: string }>>`
-      SELECT id
-      FROM products
-      WHERE id = ANY(${productIds}::uuid[])
-      ORDER BY id
-      FOR UPDATE
-    `;
-    const lockedWarehouses = await transaction.$queryRaw<Array<{ id: string }>>`
-      SELECT id
-      FROM warehouses
-      WHERE id = ANY(${warehouseIds}::uuid[])
-      ORDER BY id
-      FOR UPDATE
-    `;
-    if (
-      lockedProducts.length !== productIds.length ||
-      lockedWarehouses.length !== warehouseIds.length
-    ) {
-      throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-    }
-
-    const balanceRows = await transaction.$queryRaw<
-      {
-        id: string;
-        product_id: string;
-        warehouse_id: string;
-        quantity: string;
-      }[]
-    >`
-      SELECT id, product_id, warehouse_id, quantity::text AS quantity
-      FROM inventory_balances
-      WHERE product_id = ANY(${productIds}::uuid[])
-        AND warehouse_id = ANY(${warehouseIds}::uuid[])
-      ORDER BY product_id, warehouse_id
-      FOR UPDATE
-    `;
-    const balances = new Map(
-      balanceRows.map((row) => [`${row.product_id}:${row.warehouse_id}`, row]),
-    );
-    // Validate every balance is present before writing anything. A missing
-    // row is an integrity conflict; a balance is never invented to hide it.
-    const running = new Map<string, bigint>();
-    for (const item of items) {
-      const key = `${item.productId}:${item.warehouseId}`;
-      const row = balances.get(key);
-      if (!row) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-      if (!running.has(key)) {
-        const value = inventoryScaledInteger(row.quantity);
-        if (value === null) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-        running.set(key, value);
-      }
-    }
-
     const cancelledAt = this.clock.now();
     const cancellation = await transaction.saleCancellation.create({
       data: {
@@ -489,59 +420,12 @@ export class SaleLifecycleService {
       },
       select: { id: true },
     });
-
-    const auditLines: SaleLineAuditEntry[] = [];
-    for (const item of items) {
-      const key = `${item.productId}:${item.warehouseId}`;
-      const before = running.get(key);
-      if (before === undefined) {
-        throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-      }
-      const quantityScaled = inventoryScaledInteger(item.quantity.toString());
-      if (quantityScaled === null) {
-        throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-      }
-      const after = before + quantityScaled;
-      running.set(key, after);
-
-      const movement = await transaction.inventoryMovement.create({
-        data: {
-          actorUserId,
-          balanceAfter: inventoryDecimalString(after),
-          balanceBefore: inventoryDecimalString(before),
-          occurredAt: cancelledAt,
-          productId: item.productId,
-          quantityDelta: inventoryDecimalString(quantityScaled),
-          saleItemId: item.id,
-          sourceId: saleId,
-          sourceType: 'SALE_CANCELLATION',
-          type: 'SALE_CANCELLATION',
-          warehouseId: item.warehouseId,
-        },
-        select: { id: true },
-      });
-      auditLines.push({
-        balanceAfter: inventoryDecimalString(after),
-        balanceBefore: inventoryDecimalString(before),
-        movementId: movement.id,
-        productId: item.productId,
-        quantity: inventoryDecimalString(quantityScaled),
-        saleItemId: item.id,
-        warehouseId: item.warehouseId,
-      });
-    }
-
-    for (const [key, finalQuantity] of running) {
-      const row = balances.get(key);
-      if (!row) throw new SaleError('SALE_CONCURRENCY_CONFLICT');
-      await transaction.inventoryBalance.update({
-        data: {
-          quantity: inventoryDecimalString(finalQuantity),
-          version: { increment: 1 },
-        },
-        where: { id: row.id },
-      });
-    }
+    const auditLines = await restoreSaleInventory(
+      transaction,
+      actorUserId,
+      saleId,
+      cancelledAt,
+    );
 
     // Payment stays PENDING and completed_at stays null (guard_sale_write).
     await transaction.sale.update({

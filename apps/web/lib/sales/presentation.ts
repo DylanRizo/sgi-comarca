@@ -17,6 +17,8 @@ export function paymentStatusLabel(status: SalePaymentStatus): string {
 
 /** Cancelled orders have no collectible payment in this lifecycle. */
 export function salePaymentLabel(sale: SaleView): string {
+  if (sale.status === 'CANCELLED' && sale.duplicateCorrection)
+    return 'Cobro reasignado';
   return sale.status === 'CANCELLED'
     ? 'No aplica'
     : paymentStatusLabel(sale.paymentStatus);

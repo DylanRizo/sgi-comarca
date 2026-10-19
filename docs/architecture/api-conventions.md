@@ -1,5 +1,16 @@
 # Convenciones de API REST
 
+## Corrección de una venta duplicada pagada (ADR-021)
+
+- `GET /api/v1/sales/by-number/:saleNumber`: detalle privado, `sales.read`.
+- `POST /api/v1/sales/:id/void-duplicate`: privado, CSRF, `Idempotency-Key`,
+  `sales.cancel` efectivo y ADMIN activo. Cuerpo:
+  `{ replacementSaleNumber, reason, stockReturned: true }`.
+- Añade `duplicateCorrection` al detalle/lista, con los dos documentos, actor,
+  fecha y motivo. La venta correcta resuelve el mismo pago original sin copiarlo.
+- `SALE_DUPLICATE_TARGET_INVALID` y `SALE_DAY_ALREADY_CLOSED` son conflictos
+  HTTP 409. La cancelación anterior conserva contrato y elegibilidad.
+
 ## Base y recursos
 
 - Prefijo: `/api/v1`.

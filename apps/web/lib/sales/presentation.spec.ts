@@ -41,6 +41,23 @@ function sale(overrides: Partial<SaleView> = {}): SaleView {
 }
 
 describe('sale presentation', () => {
+  it('distinguishes a reassigned collection from an ordinary unpaid cancellation', () => {
+    expect(
+      salePaymentLabel(
+        sale({
+          status: 'CANCELLED',
+          paymentStatus: 'PAID',
+          duplicateCorrection: {
+            correctedAt: '2026-08-27T16:00:00Z',
+            correctedBy: { id: 'admin', displayName: 'Admin' },
+            reason: 'Synthetic duplicate',
+            sourceSale: { id: 'one', saleNumber: 'VTA-000000001' },
+            replacementSale: { id: 'two', saleNumber: 'VTA-000000002' },
+          },
+        }),
+      ),
+    ).toBe('Cobro reasignado');
+  });
   it('labels fulfillment and payment separately', () => {
     expect(saleStatusLabel('IN_TRANSIT')).toBe('En tránsito');
     expect(saleStatusLabel('COMPLETED')).toBe('Completada');

@@ -90,6 +90,188 @@ test.describe('FASE 7C sales UI flows', () => {
     await database.reset();
   });
 
+  test('voids a paid duplicate on mobile and reuses its payment without selling again', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    const fixture = await database.seedDuplicateSalesFixtures(
+      randomUUID().slice(0, 8),
+    );
+    const before = await database.salesCounts();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/sales/${fixture.source.id}`);
+    await page.getByRole('button', { name: 'Anular venta duplicada' }).click();
+    await page
+      .getByLabel('Número de la venta correcta')
+      .fill(fixture.target.saleNumber);
+    await page.getByRole('button', { name: 'Revisar venta correcta' }).click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Se conservará ${fixture.target.saleNumber}`,
+      }),
+    ).toBeVisible();
+    await page
+      .getByLabel('Motivo de la anulación')
+      .fill('Synthetic duplicated sale with mistaken product');
+    const submit = page.getByRole('button', {
+      name: 'Confirmar anulación y reasignar cobro',
+    });
+    await expect(submit).toBeDisabled();
+    await page
+      .getByRole('checkbox', { name: /Confirmo que todos estos productos/u })
+      .check();
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath('duplicate-sale-review-light-mobile.png'),
+      fullPage: true,
+    });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.screenshot({
+      path: test.info().outputPath('duplicate-sale-review-dark-mobile.png'),
+      fullPage: true,
+    });
+    await page.emulateMedia({ colorScheme: 'light' });
+    await submit.click();
+    await expect(
+      page.getByRole('heading', { name: 'Anulada por registro duplicado' }),
+    ).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: test.info().outputPath('duplicate-sale-mobile.png'),
+      fullPage: true,
+    });
+    await expect(
+      page.getByRole('button', { name: 'Anular venta duplicada' }),
+    ).toHaveCount(0);
+    const after = await database.salesCounts();
+    expect(after.payments).toBe(before.payments);
+    expect(after.sales).toBe(before.sales);
+    expect(after.saleMovements).toBe(before.saleMovements);
+    expect(after.saleCancellationMovements).toBe(
+      before.saleCancellationMovements + 1,
+    );
+    expect(
+      await database.balanceQuantity(fixture.wrongCode, 'CASA_DYLAN'),
+    ).toBe(8);
+    expect(
+      await database.balanceQuantity(fixture.rightCode, 'CASA_DYLAN'),
+    ).toBe(6);
+    await page.goto(`/sales/${fixture.target.id}`);
+    await expect(
+      page.getByRole('heading', { name: 'Cobro reasignado a esta venta' }),
+    ).toBeVisible();
+    await expect(page.getByText('Digital', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Registrar pago' }),
+    ).toHaveCount(0);
+  });
+
+  test('retries an uncertain correction with its same frozen intention', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    const fixture = await database.seedDuplicateSalesFixtures(
+      randomUUID().slice(0, 8),
+    );
+    const before = await database.salesCounts();
+    await page.goto(`/sales/${fixture.source.id}`);
+    await page.getByRole('button', { name: 'Anular venta duplicada' }).click();
+    await page
+      .getByLabel('Número de la venta correcta')
+      .fill(fixture.target.saleNumber);
+    await page.getByRole('button', { name: 'Revisar venta correcta' }).click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Se conservará ${fixture.target.saleNumber}`,
+      }),
+    ).toBeVisible();
+    await page
+      .getByLabel('Motivo de la anulación')
+      .fill('Synthetic lost response');
+    await page
+      .getByRole('checkbox', { name: /Confirmo que todos estos productos/u })
+      .check();
+    let attempts = 0;
+    await page.route('**/void-duplicate', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      attempts += 1;
+      if (attempts === 2)
+        return route.fulfill({
+          status: 403,
+          headers: {
+            'access-control-allow-origin': webUrl,
+            'access-control-allow-credentials': 'true',
+          },
+          json: {
+            error: {
+              code: 'REQUEST_VERIFICATION_FAILED',
+              message: 'Synthetic CSRF refusal',
+              requestId: 'synthetic',
+            },
+          },
+        });
+      if (attempts > 2) return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      await route.abort('failed');
+    });
+    await page
+      .getByRole('button', { name: 'Confirmar anulación y reasignar cobro' })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Reintentar misma corrección' }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Número de la venta correcta')).toBeDisabled();
+    await page
+      .getByRole('button', { name: 'Reintentar misma corrección' })
+      .click();
+    await expect(
+      page
+        .getByRole('region', { name: 'Anulación por duplicado' })
+        .getByRole('alert'),
+    ).toContainText('No se pudo verificar');
+    await expect(page.getByLabel('Número de la venta correcta')).toBeDisabled();
+    await page
+      .getByRole('button', { name: 'Reintentar misma corrección' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Anulada por registro duplicado' }),
+    ).toBeVisible();
+    expect((await database.salesCounts()).saleCancellationMovements).toBe(
+      before.saleCancellationMovements + 1,
+    );
+    expect((await database.salesCounts()).payments).toBe(before.payments);
+  });
+
+  test('hides paid duplicate correction when sales.cancel is denied', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    const fixture = await database.seedDuplicateSalesFixtures(
+      randomUUID().slice(0, 8),
+    );
+    await database.denySalesPermission('sales.cancel');
+    await page.goto(`/sales/${fixture.source.id}`);
+    await expect(
+      page.getByRole('heading', { name: fixture.source.saleNumber }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Anular venta duplicada' }),
+    ).toHaveCount(0);
+  });
+
   test('states how many products match and reveals the rest on demand', async ({
     page,
     request,

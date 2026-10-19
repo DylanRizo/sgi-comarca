@@ -50,6 +50,9 @@ export class ClosingPreviewService {
           createdByUserId: true,
           origin: true,
           paymentMethodText: true,
+          receivedPaymentCorrection: {
+            select: { reassignedPayment: { select: { methodText: true } } },
+          },
           seller: { select: { displayName: true } },
           sellerUserId: true,
           total: true,
@@ -104,7 +107,10 @@ export class ClosingPreviewService {
       };
 
       const amount = cents(sale.total);
-      const bucket = paymentBucket(sale.paymentMethodText);
+      const bucket = paymentBucket(
+        sale.receivedPaymentCorrection?.reassignedPayment?.methodText ??
+          sale.paymentMethodText,
+      );
       if (bucket === 'cash') entry.cash += amount;
       else if (bucket === 'digital') entry.digital += amount;
       else entry.other += amount;

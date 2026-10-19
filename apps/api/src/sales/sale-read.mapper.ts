@@ -1,5 +1,6 @@
 import type {
   SaleItemView,
+  SaleDuplicateCorrectionView,
   SaleOrigin,
   SalePaymentStatus,
   SalePaymentView,
@@ -31,6 +32,8 @@ export interface SaleItemRecord {
 }
 
 export interface SaleRecord {
+  cancellation?: CorrectionRecord | null;
+  receivedPaymentCorrection?: CorrectionRecord | null;
   id: string;
   saleNumber: string;
   origin: SaleOrigin;
@@ -61,6 +64,28 @@ export interface SaleRecord {
   } | null;
   observations: string | null;
   seller: { displayName: string; id: string } | null;
+}
+
+interface CorrectionRecord {
+  cancelledAt: Date;
+  cancelledBy: { id: string; displayName: string };
+  reason: string;
+  sale: { id: string; saleNumber: string };
+  replacementSale: { id: string; saleNumber: string } | null;
+  reassignedPayment: SaleRecord['payment'];
+}
+
+function correctionView(
+  record: CorrectionRecord | null | undefined,
+): SaleDuplicateCorrectionView | null {
+  if (!record?.replacementSale) return null;
+  return {
+    correctedAt: record.cancelledAt.toISOString(),
+    correctedBy: record.cancelledBy,
+    reason: record.reason,
+    sourceSale: record.sale,
+    replacementSale: record.replacementSale,
+  };
 }
 
 /**
@@ -129,7 +154,12 @@ function salePaymentView(
 export function mapSale(sale: SaleRecord): SaleView {
   const seller =
     sale.seller ?? (sale.origin === 'OPERATIONAL' ? sale.createdBy : null);
+  const payment =
+    sale.payment ?? sale.receivedPaymentCorrection?.reassignedPayment;
   return {
+    duplicateCorrection:
+      correctionView(sale.cancellation) ??
+      correctionView(sale.receivedPaymentCorrection),
     businessDate: civilDate(sale.businessDate),
     completedAt: sale.completedAt?.toISOString() ?? null,
     createdAt: sale.createdAt.toISOString(),
@@ -142,7 +172,7 @@ export function mapSale(sale: SaleRecord): SaleView {
     observations: sale.observations,
     origin: sale.origin,
     paymentMethodText: sale.paymentMethodText,
-    payment: sale.payment ? salePaymentView(sale.payment) : null,
+    payment: payment ? salePaymentView(payment) : null,
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
     salesChannelText: sale.salesChannelText,
