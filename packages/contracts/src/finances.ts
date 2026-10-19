@@ -23,6 +23,12 @@ export interface FinancialCategoryView {
   active: boolean;
 }
 
+/** Minimal finance-only directory; no credentials, roles or contact details. */
+export interface FinancialResponsibleView {
+  id: string;
+  displayName: string;
+}
+
 export interface CreateFinancialEntryRequest {
   /** Civil date in America/Managua, `YYYY-MM-DD`. */
   businessDate: string;

@@ -177,7 +177,7 @@ Las mutaciones críticas usan `Idempotency-Key` con hash por actor.
 | sales | `GET /sales`, `GET /sales/:id` | `sales.read` |
 | sales | `POST /sales` / `POST /sales/:id/confirm-in-transit` / `POST /sales/:id/cancel` | `sales.create` / `sales.confirm_in_transit` / `sales.cancel` |
 | sales | `POST /sales/:id/payment` | `sales.record_payment` (ADR-018; pago total de una venta completada, idempotente) |
-| finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories` | `finances.read` |
+| finances | `GET /finances`, `GET /finances/totals`, `GET /finances/categories`, `GET /finances/responsibles` | `finances.read` |
 | finances | `POST /finances` | `finances.manual.create` |
 | closings | `GET /closings`, `GET /closings/:id`, `GET /closings/preview` | `closings.read` |
 | closings | `POST /closings` / `POST /closings/:id/reopen` | `closings.create` / `closings.reopen` |

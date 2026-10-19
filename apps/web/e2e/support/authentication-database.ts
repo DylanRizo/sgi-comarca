@@ -9,6 +9,7 @@ import {
   bootstrapUserRoles,
 } from '../../../../packages/database/src/bootstrap/manifest.js';
 import { prepareOperationalCatalogs } from '../../../../packages/database/src/bootstrap/operational-catalogs.js';
+import { prepareFinancialCatalogs } from '../../../api/src/finances/prepare-financial-catalogs.js';
 
 function requireDatabaseUrl(): string {
   const value = process.env.SGI_E2E_DATABASE_URL;
@@ -709,6 +710,10 @@ export class AuthenticationDatabase {
       }),
     ]);
     return { expenseCategoryId: expense.id, incomeCategoryId: income.id };
+  }
+
+  async prepareFinanceCatalogFixtures(): Promise<void> {
+    await prepareFinancialCatalogs(this.client, 'dylan', true);
   }
 
   async financeCounts(): Promise<{

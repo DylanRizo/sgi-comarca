@@ -1435,6 +1435,21 @@ a {
   margin: 0;
 }
 
+.finance-entry-dialog > header {
+  display: grid;
+  gap: 0.5rem;
+  margin-block-end: 1rem;
+}
+
+.finance-entry-dialog > header p {
+  margin: 0;
+}
+
+.finance-entry-dialog fieldset {
+  display: grid;
+  gap: 1rem;
+}
+
 .adjustment-dialog form {
   display: grid;
   gap: 1rem;

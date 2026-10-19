@@ -1,6 +1,49 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-03.
+Updated: 2026-10-18.
+
+## Financial catalog correction — catalog prepared; UI local, 2026-10-18
+
+A direct read-only staging check found zero financial categories and zero
+manual entries, explaining the empty required expense-category selector.
+The focused correction adds an explicit, dry-run-first operator command for
+the legacy financial vocabulary (nine categories), audited/idempotent creation,
+empty/error/retry states in the entry dialog, and a finance-protected minimal
+responsible-name directory. No migration or permission grant is needed. See
+[the catalog procedure](../deployment/financial-catalogs.md). Catalog preparation
+was separately authorized and completed below; the API/web improvements remain
+local and unpublished.
+
+Local verification passed lint (9/9 packages; the pre-existing unused-disable
+warning remains), typecheck (13/13 tasks), 332 unit tests across 71 files,
+29 focused PostgreSQL tests across the catalog/entry/read suites, the complete
+11-test Chromium finances/closings suite (including a 390px mobile expense),
+and the production build (8/8 tasks). The PostgreSQL and browser runners used
+temporary local databases only. The full repository PostgreSQL suite was not
+rerun for this focused correction. The first parallel quality attempts were
+interrupted for low available memory; the successful unit run used one worker.
+Browser test selectors and the Strict Mode outage simulation were corrected
+before the final green suite; assertions were not removed.
+
+The owner then explicitly authorized preparing only the nine financial
+categories. A fresh read-only check verified the Neon staging project's direct
+main-branch destination, all twelve finished migrations, an active finance
+actor, an empty catalog and a nine-category dry-run with no writes. Checkpoint
+`checkpoint-pre-financial-catalogs-2026-10-18` was created from main and verified
+`ready`, without compute. The first creation attempt returned exit code 1 and
+created no branch; a read-only branch check confirmed that before the same
+checkpoint step was successfully repeated. No business write preceded it.
+
+The tested operator command then created exactly nine active categories
+(six EXPENSE, three INCOME) and nine actor-attributed audit events. Read-only
+verification preserved all 35 protected non-target table fingerprints and all
+historical audit rows; a repeat dry-run returned no planned changes and nine
+unchanged categories. Financial entries remain at zero. Private preflight,
+checkpoint and verification evidence stays outside Git. No real expense,
+inventory change, permission grant, migration, commit, push or deployment is
+included. Preparing the catalog unblocks the currently deployed form after
+reopening it; publishing the named-responsible UI requires the new API first
+and then the web under a separate publication/deployment request.
 
 This document is the repository handoff snapshot. Code, migrations, and tests
 remain authoritative. Revalidate external operational state before acting on it.

@@ -3,6 +3,7 @@ import type {
   FinanceLineView,
   FinanceTotalsView,
   FinancialCategoryView,
+  FinancialResponsibleView,
   PaginatedData,
 } from '@sgi/contracts';
 import type { DatabaseClient, Prisma } from '@sgi/database';
@@ -159,6 +160,14 @@ export function mapClosing(row: ClosingRow): DailyClosingView {
 
 export class FinanceReadService {
   constructor(private readonly database: DatabaseClient) {}
+
+  async responsibles(): Promise<readonly FinancialResponsibleView[]> {
+    return this.database.user.findMany({
+      where: { status: 'ACTIVE', activatedAt: { not: null } },
+      orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
+      select: { id: true, displayName: true },
+    });
+  }
 
   async categories(): Promise<readonly FinancialCategoryView[]> {
     return this.database.financialCategory.findMany({

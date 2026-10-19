@@ -4,6 +4,7 @@ import type {
   FinanceLineView,
   FinancialCategoryView,
   FinancialEntryType,
+  FinancialResponsibleView,
 } from '@sgi/contracts';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
@@ -69,24 +70,33 @@ export function CreateEntryDialog({
   const [entryType, setEntryType] = useState<FinancialEntryType>('EXPENSE');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // No user directory endpoint exists yet, so it defaults to the actor
-  // creating the entry; the field stays editable to name someone else by id.
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [responsibles, setResponsibles] = useState<
+    readonly FinancialResponsibleView[]
+  >([]);
   const [responsibleUserId, setResponsibleUserId] = useState(currentUserId);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    financesApi
-      .categories(controller.signal)
-      .then((loaded) => setCategories(loaded))
-      .catch((loadError: unknown) => {
-        if (!controller.signal.aborted) setError(createEntryError(loadError));
+    Promise.all([
+      financesApi.categories(controller.signal),
+      financesApi.responsibles(controller.signal),
+    ])
+      .then(([loadedCategories, loadedResponsibles]) => {
+        if (controller.signal.aborted) return;
+        setCategories(loadedCategories);
+        setResponsibles(loadedResponsibles);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [reload]);
 
   const availableCategories = categories.filter(
     (category) => category.entryType === entryType && category.active,
@@ -94,15 +104,22 @@ export function CreateEntryDialog({
   const preview = entryPreview(amount);
   const canSubmit =
     preview.kind === 'valid' &&
-    categoryId.length > 0 &&
-    responsibleUserId.trim().length > 0 &&
+    availableCategories.some((category) => category.id === categoryId) &&
+    responsibles.some((user) => user.id === responsibleUserId) &&
     !submitting &&
-    !loading;
+    !loading &&
+    !loadError;
 
   function changeIntent(action: () => void) {
     action();
     setError(null);
     idempotencyKeyRef.current = crypto.randomUUID();
+  }
+
+  function retryLoad() {
+    setLoading(true);
+    setLoadError(false);
+    setReload((value) => value + 1);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -145,7 +162,7 @@ export function CreateEntryDialog({
       <section
         aria-labelledby="create-entry-title"
         aria-modal="true"
-        className="adjustment-dialog"
+        className="adjustment-dialog finance-entry-dialog"
         ref={dialogRef}
         role="dialog"
       >
@@ -160,109 +177,158 @@ export function CreateEntryDialog({
         {loading ? (
           <p>Cargando categorías…</p>
         ) : (
-          <form onSubmit={submit}>
-            <div className="sale-form-grid">
-              <label className="filter-field">
-                <span>Fecha</span>
-                <input
-                  onChange={(event) =>
-                    changeIntent(() => setBusinessDate(event.target.value))
-                  }
-                  required
-                  type="date"
-                  value={businessDate}
-                />
-              </label>
-              <label className="filter-field">
-                <span>Tipo</span>
-                <select
-                  onChange={(event) =>
-                    changeIntent(() => {
-                      setEntryType(event.target.value as FinancialEntryType);
-                      setCategoryId('');
-                    })
-                  }
-                  value={entryType}
+          <form className="work-form" onSubmit={submit}>
+            {loadError ? (
+              <div className="form-feedback" data-tone="error" role="alert">
+                No se pudieron cargar las categorías y los responsables. Tus
+                datos se conservan.
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={retryLoad}
                 >
-                  <option value="EXPENSE">{entryTypeLabel('EXPENSE')}</option>
-                  <option value="INCOME">{entryTypeLabel('INCOME')}</option>
+                  Reintentar carga
+                </button>
+              </div>
+            ) : null}
+            <fieldset disabled={submitting}>
+              <div className="sale-form-grid">
+                <label className="filter-field">
+                  <span>Fecha</span>
+                  <input
+                    onChange={(event) =>
+                      changeIntent(() => setBusinessDate(event.target.value))
+                    }
+                    required
+                    type="date"
+                    value={businessDate}
+                  />
+                </label>
+                <label className="filter-field">
+                  <span>Tipo</span>
+                  <select
+                    onChange={(event) =>
+                      changeIntent(() => {
+                        setEntryType(event.target.value as FinancialEntryType);
+                        setCategoryId('');
+                      })
+                    }
+                    value={entryType}
+                  >
+                    <option value="EXPENSE">{entryTypeLabel('EXPENSE')}</option>
+                    <option value="INCOME">{entryTypeLabel('INCOME')}</option>
+                  </select>
+                </label>
+                <label className="filter-field">
+                  <span>Monto (C$)</span>
+                  <input
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      changeIntent(() => setAmount(event.target.value))
+                    }
+                    placeholder="0.00"
+                    value={amount}
+                  />
+                </label>
+              </div>
+
+              <label className="filter-field">
+                <span>Categoría</span>
+                <select
+                  disabled={loadError || availableCategories.length === 0}
+                  required
+                  onChange={(event) =>
+                    changeIntent(() => setCategoryId(event.target.value))
+                  }
+                  value={categoryId}
+                >
+                  <option value="">
+                    {availableCategories.length === 0
+                      ? 'Sin categorías disponibles'
+                      : 'Selecciona una categoría…'}
+                  </option>
+                  {availableCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </label>
+              {!loadError && availableCategories.length === 0 ? (
+                <div
+                  className="form-feedback"
+                  data-tone="warning"
+                  role="status"
+                >
+                  No hay categorías de{' '}
+                  {entryType === 'EXPENSE' ? 'gastos' : 'ingresos'} activas.
+                  Solicita al administrador preparar el catálogo financiero; las
+                  categorías de productos son independientes.
+                </div>
+              ) : null}
+
               <label className="filter-field">
-                <span>Monto (C$)</span>
-                <input
-                  inputMode="decimal"
+                <span>Responsable</span>
+                <select
+                  required
                   onChange={(event) =>
-                    changeIntent(() => setAmount(event.target.value))
+                    changeIntent(() => setResponsibleUserId(event.target.value))
                   }
-                  placeholder="0.00"
-                  value={amount}
+                  value={responsibleUserId}
+                >
+                  <option value="">Selecciona un responsable…</option>
+                  {responsibles.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="field-help">
+                Tu usuario se selecciona automáticamente. Cámbialo solo si el
+                movimiento corresponde a otra persona.
+              </p>
+
+              <label className="filter-field">
+                <span>Descripción (opcional)</span>
+                <input
+                  maxLength={500}
+                  onChange={(event) =>
+                    changeIntent(() => setDescription(event.target.value))
+                  }
+                  value={description}
                 />
               </label>
-            </div>
 
-            <label className="filter-field">
-              <span>Categoría</span>
-              <select
-                onChange={(event) =>
-                  changeIntent(() => setCategoryId(event.target.value))
-                }
-                value={categoryId}
-              >
-                <option value="">Selecciona…</option>
-                {availableCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              {preview.kind === 'invalid' ? (
+                <div
+                  className="form-feedback"
+                  data-tone="warning"
+                  role="status"
+                >
+                  El monto debe ser mayor que cero, con máximo 2 decimales.
+                </div>
+              ) : preview.kind === 'zero' ? (
+                <div
+                  className="form-feedback"
+                  data-tone="warning"
+                  role="status"
+                >
+                  El monto no puede ser cero.
+                </div>
+              ) : null}
 
-            <label className="filter-field">
-              <span>ID del responsable</span>
-              <input
-                onChange={(event) =>
-                  changeIntent(() => setResponsibleUserId(event.target.value))
-                }
-                placeholder="UUID del usuario responsable"
-                value={responsibleUserId}
-              />
-            </label>
-            <p className="field-help">
-              Se completa con tu propio usuario. Cámbialo sólo si conoces el
-              identificador de otro responsable.
-            </p>
-
-            <label className="filter-field">
-              <span>Descripción (opcional)</span>
-              <input
-                maxLength={500}
-                onChange={(event) =>
-                  changeIntent(() => setDescription(event.target.value))
-                }
-                value={description}
-              />
-            </label>
-
-            {preview.kind === 'invalid' ? (
-              <div className="form-feedback" data-tone="warning" role="status">
-                El monto debe ser mayor que cero, con máximo 2 decimales.
-              </div>
-            ) : preview.kind === 'zero' ? (
-              <div className="form-feedback" data-tone="warning" role="status">
-                El monto no puede ser cero.
-              </div>
-            ) : null}
-
-            {error ? (
-              <div className="form-feedback" data-tone="error" role="alert">
-                {error}
-              </div>
-            ) : null}
+              {error ? (
+                <div className="form-feedback" data-tone="error" role="alert">
+                  {error}
+                </div>
+              ) : null}
+            </fieldset>
 
             <footer className="dialog-actions">
               <button
                 className="secondary-button"
+                disabled={submitting}
                 onClick={onCancel}
                 type="button"
               >
