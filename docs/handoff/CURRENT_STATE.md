@@ -1,8 +1,63 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-18.
+Updated: 2026-10-19.
 
-## Paid duplicate correction — locally verified; staging pending
+## Financial UI and paid-duplicate correction — deployed, 2026-10-19
+
+The owner explicitly authorized publishing the financial correction and the
+paid-duplicate feature in separate commits, applying the migration, deploying
+API/web and executing the concrete correction after checkpoint and fresh checks.
+Finance commit `fc15299` and sales commit `93e65d3` were published separately and
+merged through PR #9 as `47eb82f25380fc163a9e3f0854040d72486df955`.
+Both the PR and integrated commit passed GitHub CI. The integrated tree was
+verified identical to the locally tested feature tree. Fresh pre-commit
+PostgreSQL runs also passed: eight financial-catalog tests and 29 sale/schema
+tests. The earlier complete local gates are recorded below.
+
+Fresh direct read-only staging checks confirmed the intended Neon main branch,
+database, role, applied migrations and the requested sale pair. A strict checksum
+check initially stopped on Windows line endings; comparing LF/CRLF variants
+confirmed identical migration content, without editing historical migrations.
+The first checkpoint CLI attempt exited `3221226505`; a read-only check confirmed
+that no branch was created. The retry returned `ERROR: branches limit exceeded`.
+No schema/business write preceded an independently verified checkpoint.
+
+The owner then explicitly approved private PostgreSQL backups instead of deleting
+any Neon branch. Separate pre-schema and pre-correction custom-format backups
+were created outside Git with verified TLS and a read-only source connection.
+Each was fully restored into a uniquely named temporary local database, and all
+36 protected table fingerprints matched the source. Archive headers, table of
+contents and copied-file checksums were also verified. The temporary restore
+databases and container copies were removed; the private backups remain outside
+the repository. No existing Neon branch was removed or overwritten.
+
+Only `20261019040000_duplicate_sale_correction` was applied. Verification found
+13 finished migrations, none unfinished, 47 non-internal triggers and unchanged
+fingerprints for all 46 checked data tables. No bootstrap or RBAC grant ran.
+Render API was deployed and checked before web, both at functional baseline
+`47eb82f`. The staging branch points to that baseline. The advertised automatic
+deploy did not start after the ordinary push, so exact-commit CLI deployments
+were used. Health/readiness returned 200 with the database up; the new private
+routes returned 401 without a session.
+
+After renewed pair/authorization checks and the second verified backup, the
+owner-approved correction was executed once through Dylan's authenticated web
+session. Direct read-only verification confirmed the source cancelled, the
+replacement paid through the unchanged original payment, the exact stock
+restoration, one new cancellation movement and two actor-attributed audit events.
+All 29 protected/non-target fingerprints remained unchanged. Both linked sale
+pages showed the correction. The deployed finance form loaded six expense
+categories and active responsible names; it was closed without creating an entry.
+Real identifiers, amounts, snapshots, screenshots and backups remain private and
+outside Git. Do not replay the correction or restore over later activity.
+
+The previously pending independent cleanup check is also resolved: neither of
+the two named E2E databases remained after Docker was reopened. No unrelated
+temporary database was deleted. After a paid correction, do not roll back blindly
+to the old API, which cannot interpret reassigned payments; use the operator
+procedure and an explicitly approved incident recovery if needed.
+
+## Paid duplicate correction — pre-release implementation/validation record
 
 The owner approved voiding a mistaken paid duplicate whose correct sale already
 exists, restoring only the mistaken stock and reassigning the single existing
@@ -16,10 +71,11 @@ API and web resolve the original payment through the correction, show both linke
 sales and require review, reason and physical-stock confirmation. Daily closing
 creation and correction serialize by business date; a date with any existing
 closing cannot be corrected. The local gates below are complete; no staging
-correction has run. Publication, migration, deployment
-and the concrete correction remain separately gated; see the
+correction had run at that point. Publication, migration, deployment
+and the concrete correction were separately gated and have since completed as
+recorded above; see the
 [operator procedure](../deployment/duplicate-sale-correction.md). The pending
-financial UI/catalog fix below is preserved as separate uncommitted work.
+financial UI/catalog fix below was preserved as separate work before publication.
 
 Final local verification: lint passed 9/9 packages (the existing unused-disable
 warning remains), typecheck passed 13/13 tasks, Prisma validation passed, and
@@ -49,9 +105,9 @@ types, and the complete typecheck/build then passed without disabling checks
 or changing TypeScript configuration. The tracked `next-env.d.ts` baseline
 import was preserved; generated artifacts are not part of the functional diff.
 The focused changed-source privacy scan and `git diff --check` passed. No
-commit, push, migration in staging, permission grant or real-sale change is
-included. The next gate is explicit publication/deployment approval followed
-by fresh target/pair validation and a verified operational checkpoint.
+commit, push, migration in staging, permission grant or real-sale change was
+included in those local gates. Publication and the operational result are
+recorded in the newer release section above.
 
 After the successful browser runners and build finished, an extra read-only
 check for the two named E2E databases could not connect: Docker Desktop's Linux
@@ -61,7 +117,7 @@ that independent cleanup recheck remains unconfirmed. Start Docker again before
 future local PostgreSQL/browser runs; do not delete older unrelated temporary
 databases or restart an external service to work around this local condition.
 
-## Financial catalog correction — catalog prepared; UI local, 2026-10-18
+## Financial catalog correction — pre-release record, 2026-10-18
 
 A direct read-only staging check found zero financial categories and zero
 manual entries, explaining the empty required expense-category selector.
@@ -71,7 +127,7 @@ empty/error/retry states in the entry dialog, and a finance-protected minimal
 responsible-name directory. No migration or permission grant is needed. See
 [the catalog procedure](../deployment/financial-catalogs.md). Catalog preparation
 was separately authorized and completed below; the API/web improvements remain
-local and unpublished.
+local and unpublished at that point; their deployment is recorded above.
 
 Local verification passed lint (9/9 packages; the pre-existing unused-disable
 warning remains), typecheck (13/13 tasks), 332 unit tests across 71 files,

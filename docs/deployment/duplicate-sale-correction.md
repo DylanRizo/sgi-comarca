@@ -49,6 +49,14 @@ para verificar ambos documentos; nunca aplicar otro ajuste manual.
 2. Revalidar proyecto, rama, base, rol, conexión directa y migraciones en sólo
    lectura. Comprobar estado, importes, pagos, líneas y saldos de ambas ventas.
 3. Crear y verificar el checkpoint operacional antes de cualquier escritura.
+   Si Neon impide crear una rama por su límite, detener ese procedimiento. Sólo
+   con autorización explícita puede sustituirse por un backup privado fuera de
+   Git: conexión directa con TLS verificado y origen de sólo lectura, formato
+   custom, checksum, `pg_restore --list` y restauración completa en una base
+   temporal local aislada. Comparar las huellas de tablas protegidas, eliminar
+   únicamente la base temporal creada y conservar el respaldo privado. No borrar
+   ramas existentes ni reutilizar un respaldo antiguo sin aprobación. Repetir
+   este checkpoint antes de la corrección concreta, ya con el esquema nuevo.
 4. Aplicar sólo la migración aprobada; no corregir datos durante el arranque.
 5. Desplegar primero API y después web en el commit aprobado; comprobar health,
    readiness, privacidad y compatibilidad de las consultas anteriores.
