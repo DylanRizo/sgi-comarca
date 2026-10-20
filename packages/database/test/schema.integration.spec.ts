@@ -46,6 +46,7 @@ const applicationTables = [
   'roles',
   'sale_cancellations',
   'sale_items',
+  'sale_payment_parts',
   'sale_payments',
   'sales',
   'sessions',
@@ -162,18 +163,18 @@ describe('current PostgreSQL operational structure', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(46);
+    expect(actualApplicationTables).toHaveLength(47);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
-  it('has the approved functions and exactly 47 non-internal triggers', async () => {
+  it('has the approved functions and exactly 51 non-internal triggers', async () => {
     const functions = await pool.query<{ proname: string }>(
       [
         'SELECT p.proname',
         'FROM pg_catalog.pg_proc p',
         'JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
         "WHERE n.nspname = 'public'",
-        "AND p.proname IN ('check_inventory_count_line_adjustment', 'check_inventory_count_line_revision', 'check_inventory_count_session_approval', 'check_operational_sale_item_ledger', 'check_stock_receipt_has_items', 'check_stock_receipt_item', 'enforce_duplicate_sale_correction', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_inventory_count_line_update', 'guard_inventory_count_line_write', 'guard_inventory_count_session_write', 'guard_reassigned_sale_payment', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_payment_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
+        "AND p.proname IN ('check_inventory_count_line_adjustment', 'check_inventory_count_line_revision', 'check_inventory_count_session_approval', 'check_operational_sale_item_ledger', 'check_stock_receipt_has_items', 'check_stock_receipt_item', 'enforce_duplicate_sale_correction', 'enforce_inventory_transfer_has_items', 'enforce_inventory_transfer_item_ledger', 'enforce_operational_sale_documents', 'enforce_operational_sale_has_items', 'enforce_operational_sale_item_ledger', 'enforce_sale_payment_parts', 'enforce_session_lifecycle', 'guard_daily_closing_write', 'guard_financial_entry_write', 'guard_inventory_count_line_update', 'guard_inventory_count_line_write', 'guard_inventory_count_session_write', 'guard_reassigned_sale_payment', 'guard_sale_action_insert', 'guard_sale_item_insert', 'guard_sale_payment_insert', 'guard_sale_payment_part_insert', 'guard_sale_write', 'prevent_immutable_row_change')",
         'ORDER BY p.proname',
       ].join(' '),
     );
@@ -204,6 +205,7 @@ describe('current PostgreSQL operational structure', () => {
       { proname: 'enforce_operational_sale_documents' },
       { proname: 'enforce_operational_sale_has_items' },
       { proname: 'enforce_operational_sale_item_ledger' },
+      { proname: 'enforce_sale_payment_parts' },
       { proname: 'enforce_session_lifecycle' },
       { proname: 'guard_daily_closing_write' },
       { proname: 'guard_financial_entry_write' },
@@ -214,6 +216,7 @@ describe('current PostgreSQL operational structure', () => {
       { proname: 'guard_sale_action_insert' },
       { proname: 'guard_sale_item_insert' },
       { proname: 'guard_sale_payment_insert' },
+      { proname: 'guard_sale_payment_part_insert' },
       { proname: 'guard_sale_write' },
       { proname: 'prevent_immutable_row_change' },
     ]);
@@ -352,12 +355,28 @@ describe('current PostgreSQL operational structure', () => {
         trigger_name: 'sale_items_operational_ledger',
       },
       {
+        table_name: 'sale_payment_parts',
+        trigger_name: 'sale_payment_parts_complete',
+      },
+      {
+        table_name: 'sale_payment_parts',
+        trigger_name: 'sale_payment_parts_immutable',
+      },
+      {
+        table_name: 'sale_payment_parts',
+        trigger_name: 'sale_payment_parts_insert_guard',
+      },
+      {
         table_name: 'sale_payments',
         trigger_name: 'sale_payments_immutable',
       },
       {
         table_name: 'sale_payments',
         trigger_name: 'sale_payments_operational_guard',
+      },
+      {
+        table_name: 'sale_payments',
+        trigger_name: 'sale_payments_parts_complete',
       },
       {
         table_name: 'sale_payments',

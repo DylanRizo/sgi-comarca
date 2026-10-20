@@ -115,7 +115,7 @@ export class SalesController {
         await this.lifecycle.recordPayment(
           current.userId,
           params.id,
-          input.paymentMethodText,
+          input,
           idempotencyKey,
         ),
         request,

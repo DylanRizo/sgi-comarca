@@ -11,6 +11,7 @@ import {
   canRecordPayment,
 } from '@/lib/sales/presentation';
 import { useAuth } from '@/providers/auth-provider';
+import { RecordSalePaymentPanel } from '@/components/sales/record-sale-payment-panel';
 
 function lifecycleError(error: unknown): string {
   if (error instanceof ApiHttpError) {
@@ -41,11 +42,9 @@ export function SaleLifecycleActions({
   const submissionRef = useRef(false);
   const confirmKeyRef = useRef(crypto.randomUUID());
   const cancelKeyRef = useRef(crypto.randomUUID());
-  const paymentKeyRef = useRef(crypto.randomUUID());
   const [cancelling, setCancelling] = useState(false);
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethodText, setPaymentMethodText] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -69,10 +68,8 @@ export function SaleLifecycleActions({
       onUpdated(await action());
       confirmKeyRef.current = crypto.randomUUID();
       cancelKeyRef.current = crypto.randomUUID();
-      paymentKeyRef.current = crypto.randomUUID();
       setCancelling(false);
       setRecordingPayment(false);
-      setPaymentMethodText('');
       setReason('');
     } catch (actionError) {
       setError(lifecycleError(actionError));
@@ -140,55 +137,11 @@ export function SaleLifecycleActions({
           </div>
         </div>
       ) : recordingPayment ? (
-        <div className="sale-cancel-panel">
-          <p>
-            Se registrará el pago total de esta venta. El registro conserva
-            fecha, responsable y método de pago, y no modifica el inventario.
-          </p>
-          <label>
-            <span>Medio de pago</span>
-            <input
-              autoComplete="off"
-              maxLength={160}
-              onChange={(event) => {
-                setPaymentMethodText(event.target.value);
-                setError(null);
-              }}
-              placeholder="Efectivo, transferencia, tarjeta…"
-              value={paymentMethodText}
-            />
-          </label>
-          <div className="dialog-actions">
-            <button
-              className="secondary-button"
-              onClick={() => {
-                setRecordingPayment(false);
-                setPaymentMethodText('');
-                setError(null);
-              }}
-              type="button"
-            >
-              Volver
-            </button>
-            <button
-              className="primary-button"
-              disabled={submitting || paymentMethodText.trim().length === 0}
-              onClick={() =>
-                void run(async () =>
-                  salesApi.recordPayment(
-                    sale.id,
-                    { paymentMethodText: paymentMethodText.trim() },
-                    await getCsrfToken(),
-                    paymentKeyRef.current,
-                  ),
-                )
-              }
-              type="button"
-            >
-              {submitting ? 'Registrando…' : 'Confirmar pago'}
-            </button>
-          </div>
-        </div>
+        <RecordSalePaymentPanel
+          sale={sale}
+          onUpdated={onUpdated}
+          onClose={() => setRecordingPayment(false)}
+        />
       ) : (
         <div className="dialog-actions">
           {mayConfirm ? (
@@ -228,7 +181,6 @@ export function SaleLifecycleActions({
               disabled={submitting}
               onClick={() => {
                 setError(null);
-                setPaymentMethodText(sale.paymentMethodText ?? '');
                 setRecordingPayment(true);
               }}
               type="button"

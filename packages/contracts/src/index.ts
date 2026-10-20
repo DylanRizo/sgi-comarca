@@ -121,6 +121,7 @@ export {
   type CreateSaleItemRequest,
   type CreateSaleRequest,
   type RecordSalePaymentRequest,
+  type SplitPaymentLineRequest,
   type VoidDuplicateSaleRequest,
   type SaleDuplicateCorrectionView,
   type SaleCreationStatus,
