@@ -2,7 +2,7 @@
 
 Updated: 2026-10-19.
 
-## Hybrid payments — PR #10 merged, staging migration gate pending
+## Hybrid payments — PR #10 deployed to staging, 2026-10-19
 
 The owner requested reviewing, correcting, implementing and deploying PR #10.
 Its original commit `b20fceb` was a proposal/contracts-only change over the
@@ -35,23 +35,51 @@ and a committed payment with a lost response followed by a refused retry and
 safe replay. No real sale/payment was created to test this feature.
 Fresh read-only staging preflight confirmed
 13 applied migrations, 47 triggers, 27 permissions and exactly the pending
-`20261019160000_sale_payment_parts`; no staging write has occurred for this task.
+`20261019160000_sale_payment_parts`; no staging write had occurred at that preflight.
 Implementation commit `a27efac9929f12f76ee7f92055059b04920d0ff6` was published
 to the existing PR's fork branch with maintainer editing enabled. All GitHub CI
 steps passed, and PR #10 was merged as
 `ceb86c2e56ee72b12a7f7da9102dad8a2b5b03a4`. The merged tree is identical to the
 tested PR head. The local branch is `codex/review-split-payments`.
 
-The explicit approval requested for this new migration and a fresh private
-backup verified by full restore has not yet been received. The previous task's
-backup authorization is not reused for this new gate. No new backup, staging
-migration, bootstrap or RBAC write has run. Both Render services still track
-`codex/staging-pilot`, which remains at the previously deployed `47eb82f`;
-publishing and merging this PR did not advance that deployment branch.
-The current login/health/readiness return 200 and unauthenticated sales returns
-401. After approval, create and verify the fresh checkpoint, revalidate the
-direct target, apply only the pending migration, verify unchanged historical
-data, and deploy API before web at the merged functional SHA.
+The owner explicitly approved this migration and a fresh private backup verified
+by restore. Fresh preflight confirmed the direct Neon main/database/role target,
+the 13 original migrations and the single approved pending migration. Neon still
+had ten branches; none was deleted or modified for the checkpoint. A new full
+custom-format PostgreSQL backup was created outside Git using verified TLS and
+a read-only source connection. Its header, table of contents and copied-file
+checksum passed. A full restore into a uniquely named local temporary database
+matched all 36 protected-table fingerprints. That temporary database and the
+container archive copy were removed; the private backup remains recoverable.
+
+Only `20261019160000_sale_payment_parts` was applied. Immediate verification
+confirmed 14 finished migrations, none unfinished, 51 triggers, zero payment
+parts and unchanged fingerprints for all 46 pre-existing data tables. The
+permission catalog remains at 27; no bootstrap, RBAC change or historical data
+write ran. The process destination was not persisted into a file or environment.
+
+Render API was deployed first at `ceb86c2`, then verified live before advancing
+`codex/staging-pilot` by ordinary fast-forward to the same SHA. The automatic web
+deployment did not start, so an exact-commit CLI deployment was used. Both API
+and web are live at `ceb86c2e56ee72b12a7f7da9102dad8a2b5b03a4`; documentation-only
+commits on main are not additional functional deployments. Login, health and
+readiness return 200, while unauthenticated sales returns 401. An initial smoke
+assertion incorrectly expected 401 for a POST without Origin: the versioned
+origin guard correctly returns 403. Repeating the explicit cases passed with
+403 `REQUEST_VERIFICATION_FAILED` without Origin and 401 `SESSION_INVALID` with
+the allowed web Origin; no application/security change was needed.
+
+Post-deployment direct read-only verification passed all 17 protected-table
+fingerprints against the post-migration snapshot, with no real payment parts.
+No real sale/payment was created for deployment testing, and the previous
+paid-duplicate correction was not replayed. Private operational evidence and
+the backup stay outside Git. After the owner renewed the session, the browser
+successfully loaded authenticated sales. The combined Completed + Pending filter
+confirmed no eligible sale on which to open the live payment panel. No paid sale
+was changed and no fake sale was created just to expose the form. The panel's
+complete flow and 390px light/dark coverage are verified by the 26 passing local
+Chromium cases; an authenticated live panel inspection remains unavailable until
+an actual eligible sale exists. Private browser evidence records that distinction.
 See [the procedure](../deployment/split-payments.md).
 
 ## Financial UI and paid-duplicate correction — deployed, 2026-10-19
