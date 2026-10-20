@@ -7,6 +7,10 @@ const paymentSelect = {
   methodText: true,
   paidAt: true,
   recordedBy: { select: { displayName: true, id: true } },
+  parts: {
+    orderBy: { position: 'asc' as const },
+    select: { id: true, amount: true, methodText: true },
+  },
 } satisfies Prisma.SalePaymentSelect;
 
 const correctionSelect = {

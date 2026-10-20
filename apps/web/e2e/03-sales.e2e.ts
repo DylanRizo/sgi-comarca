@@ -90,6 +90,163 @@ test.describe('FASE 7C sales UI flows', () => {
     await database.reset();
   });
 
+  test('records a hybrid payment on mobile with exact remaining amount and visible breakdown', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    const fixture = await database.seedDuplicateSalesFixtures(
+      randomUUID().slice(0, 8),
+    );
+    const before = await database.salesCounts();
+    const stock = await database.balanceQuantity(
+      fixture.rightCode,
+      'CASA_DYLAN',
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/sales/${fixture.target.id}`);
+    await page
+      .getByRole('button', { name: 'Registrar pago', exact: true })
+      .click();
+    const panel = page.getByRole('region', {
+      name: 'Registrar pago de la venta',
+    });
+    await panel.getByLabel('Tipo de pago').selectOption('split');
+    await panel.getByLabel('Importe 1 (C$)').fill('8');
+    await panel.getByLabel('Importe 2 (C$)').fill('11.99');
+    const confirm = panel.getByRole('button', {
+      name: 'Confirmar pago',
+      exact: true,
+    });
+    await expect(confirm).toBeDisabled();
+    await panel.getByLabel('Importe 2 (C$)').fill('12');
+    await expect(confirm).toBeEnabled();
+    for (const theme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+        if (document.activeElement instanceof HTMLElement)
+          document.activeElement.blur();
+      });
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: test.info().outputPath(`hybrid-payment-${theme}-mobile.png`),
+        fullPage: true,
+      });
+    }
+    await confirm.press('Enter');
+    const breakdown = page.getByRole('region', { name: 'Desglose del pago' });
+    await expect(breakdown).toContainText('Efectivo');
+    await expect(breakdown).toContainText('C$8.00');
+    await expect(breakdown).toContainText('Digital');
+    await expect(breakdown).toContainText('C$12.00');
+    await expect(
+      page.getByRole('button', { name: 'Registrar pago', exact: true }),
+    ).toHaveCount(0);
+    expect(await database.paymentParts(fixture.target.id)).toEqual([
+      { amount: '8.00', methodText: 'Efectivo' },
+      { amount: '12.00', methodText: 'Digital' },
+    ]);
+    const after = await database.salesCounts();
+    expect(after.payments).toBe(before.payments + 1);
+    expect(after.saleMovements).toBe(before.saleMovements);
+    expect(
+      await database.balanceQuantity(fixture.rightCode, 'CASA_DYLAN'),
+    ).toBe(stock);
+    await page.reload();
+    await expect(
+      page.getByRole('region', { name: 'Desglose del pago' }),
+    ).toBeVisible();
+  });
+
+  test('freezes a lost-response hybrid payment and replays the same key and lines', async ({
+    page,
+    request,
+  }) => {
+    await activateAndLogin(request, page);
+    const fixture = await database.seedDuplicateSalesFixtures(
+      randomUUID().slice(0, 8),
+    );
+    const before = await database.salesCounts();
+    await page.goto(`/sales/${fixture.target.id}`);
+    await page
+      .getByRole('button', { name: 'Registrar pago', exact: true })
+      .click();
+    const panel = page.getByRole('region', {
+      name: 'Registrar pago de la venta',
+    });
+    await panel.getByLabel('Tipo de pago').selectOption('split');
+    await panel.getByLabel('Importe 1 (C$)').fill('8');
+    await panel.getByLabel('Importe 2 (C$)').fill('12');
+    let calls = 0,
+      originalKey = '',
+      originalBody = '';
+    await page.route(
+      `**/api/v1/sales/${fixture.target.id}/payment`,
+      async (route) => {
+        if (route.request().method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        const currentKey = route.request().headers()['idempotency-key'] ?? '';
+        const currentBody = route.request().postData() ?? '';
+        if (calls++ === 0) {
+          originalKey = currentKey;
+          originalBody = currentBody;
+          const response = await route.fetch();
+          expect(response.status()).toBe(201);
+          await route.abort('failed');
+        } else {
+          expect(currentKey).toBe(originalKey);
+          expect(currentBody).toBe(originalBody);
+          if (calls === 2) {
+            await route.fulfill({
+              status: 403,
+              contentType: 'application/json',
+              headers: {
+                'access-control-allow-origin': webUrl,
+                'access-control-allow-credentials': 'true',
+              },
+              body: JSON.stringify({
+                error: {
+                  code: 'CSRF_TOKEN_INVALID',
+                  message: 'Synthetic transient CSRF refusal',
+                  requestId: randomUUID(),
+                },
+              }),
+            });
+          } else await route.continue();
+        }
+      },
+    );
+    await panel
+      .getByRole('button', { name: 'Confirmar pago', exact: true })
+      .click();
+    await expect(panel.getByRole('alert')).toBeVisible();
+    await expect(panel.getByLabel('Importe 1 (C$)')).toBeDisabled();
+    await expect(panel.getByLabel('Tipo de pago')).toBeDisabled();
+    await panel
+      .getByRole('button', { name: 'Reintentar el mismo pago' })
+      .click();
+    await expect(panel.getByRole('alert')).toContainText(
+      'No se autorizó este intento',
+    );
+    await expect(panel.getByLabel('Importe 1 (C$)')).toBeDisabled();
+    await panel
+      .getByRole('button', { name: 'Reintentar el mismo pago' })
+      .click();
+    await expect(
+      page.getByRole('region', { name: 'Desglose del pago' }),
+    ).toBeVisible();
+    expect((await database.salesCounts()).payments).toBe(before.payments + 1);
+    expect(await database.paymentParts(fixture.target.id)).toHaveLength(2);
+    expect(calls).toBe(3);
+  });
+
   test('voids a paid duplicate on mobile and reuses its payment without selling again', async ({
     page,
     request,

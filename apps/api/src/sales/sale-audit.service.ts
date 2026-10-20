@@ -68,6 +68,7 @@ export type SalePaidAuditInput = {
   currencyCode: string;
   occurredAt: Date;
   paymentId: string;
+  paymentLines?: { methodText: string; amount: string }[];
   saleId: string;
 };
 
@@ -159,6 +160,12 @@ export class SaleAuditService {
           currencyCode: input.currencyCode,
           newPaymentStatus: 'PAID',
           paymentId: input.paymentId,
+          ...(input.paymentLines
+            ? {
+                paymentLines: input.paymentLines,
+                paymentLineCount: input.paymentLines.length,
+              }
+            : {}),
           previousPaymentStatus: 'PENDING',
         },
         occurredAt: input.occurredAt,

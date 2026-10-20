@@ -1,82 +1,103 @@
-# ADR-022 — Registro de pagos divididos (Split Payments) y pagos mixtos en ventas operacionales
+# ADR-022 — Pago híbrido con un recibo y partidas inmutables
 
-- Estado: `PROPOSED_FOR_IMPLEMENTATION`
+- Estado: `ACCEPTED_FOR_IMPLEMENTATION`
 - Fecha: 2026-10-19
-- Alcance: ventas operacionales completadas, registro de pagos múltiples, cierre de caja diario
-- Aprobador: propietario del proyecto
+- Aprobador: propietario, mediante la solicitud de revisar, corregir, implementar y desplegar PR #10.
+- Alcance: liquidación total de una venta operacional completada en una sola operación.
 
-## Contexto
+## Contexto y revisión de la propuesta
 
-En la operación comercial cotidiana de La Comarca (tanto en mostrador físico como en entregas con repartidor), los clientes frecuentemente solicitan liquidar una misma venta combinando dos métodos de pago (ejemplo: C$ 400.00 en efectivo y C$ 600.00 mediante tarjeta o transferencia bancaria en una orden de C$ 1,000.00).
+Un cliente puede liquidar una venta combinando efectivo y medios digitales.
+PR #10 proponía quitar el recibo único por venta, pero sólo incluía contratos,
+DTO y documentación. El CI fallaba porque el controlador enviaba un método
+opcional al servicio que todavía exigía un string. Tampoco existían persistencia,
+comando de cobro dividido, interfaz ni pruebas del nuevo recorrido.
 
-La arquitectura actual, establecida en ADR-018, fijó una premisa deliberadamente restrictiva para V1:
-> *"Cada pago crea exactamente un documento `SalePayment` inmutable con el total y moneda de la venta... Pagos parciales, devoluciones y reembolsos quedan fuera de alcance."*
-
-Esta restricción se encuentra blindada en múltiples capas:
-1. **Base de Datos:** La tabla `sale_payments` cuenta con la restricción `CONSTRAINT "sale_payments_sale_id_key" UNIQUE ("sale_id")`, prohibiendo más de un registro de pago por venta.
-2. **Trigger PostgreSQL:** `guard_sale_payment_insert()` aborta cualquier inserción cuyo `NEW.amount` sea distinto a `sale_total`.
-3. **Cierre Diario:** `closing-preview.service.ts` clasifica el total íntegro de la venta (`sale.total`) en `cash` o `digital` basándose en el texto único `paymentMethodText`. Si un cajero intenta escribir "Efectivo / Tarjeta", el monto completo cae en `unspecified` o se asigna a un solo rubro, descuadrando el arqueo físico de la gaveta de efectivo (`realCash`) al final de la jornada.
+Eliminar la unicidad de `sale_payments.sale_id` habría invalidado ADR-021,
+que reasigna exactamente un recibo existente sin copiar ni alterar el pago.
+Exponer el primer importe parcial como `payment.amount` también habría roto
+la semántica del detalle existente. Se corrige la solución técnica conservando
+las reglas de pago total y el historial de ADR-018/ADR-021.
 
 ## Decisión
 
-1. **Relación 1 a N (`Sale` → `SalePayment[]`):**
-   Se relaja la restricción `UNIQUE ("sale_id")` en la tabla `sale_payments` a un índice estándar `sale_payments_sale_idx`. Una venta puede tener uno o múltiples registros de pago inmutables.
+1. Mantener la relación única `Sale -> SalePayment`, su importe total, moneda,
+   actor, fecha, hashes e inmutabilidad. Para un pago híbrido se añaden de una a
+   diez `SalePaymentPart` inmutables, con posición, método e importe.
+   El formulario comienza con dos líneas. No se registran abonos en momentos
+   diferentes, saldo a crédito, pagos pendientes parciales ni reembolsos.
+2. El comando privado existente acepta exactamente una modalidad:
+   `{ paymentMethodText }` o `{ splitPayments: [{ methodText, amount }] }`.
+   Rechaza ambos campos, ninguno, nulos, listas vacías o mayores de diez.
+   Cada importe dividido es positivo, usa hasta dos decimales y respeta los
+   límites monetarios del servidor. El método se recorta y se limita a 160
+   caracteres. La suma debe igualar exactamente el total, en centavos enteros,
+   nunca aritmética binaria de punto flotante.
+3. Una sola transacción autoriza `sales.record_payment`, bloquea la venta,
+   crea el recibo y sus partidas, marca `PAID` y registra la auditoría.
+   No modifica inventario ni crea asientos financieros. La identidad/idempotencia
+   del recibo sigue siendo la unidad de cobro, no cada medio.
+4. La migración aditiva `20261019160000_sale_payment_parts` no elimina la
+   unicidad ni reemplaza los controles de ADR-021. Añade la tabla, restricciones,
+   dos funciones y cuatro triggers. Las partidas sólo se insertan mientras la
+   venta de origen está completada y pendiente; no pueden agregarse después
+   de cobrar. Son inmutables y una comprobación diferida exige, al commit, el
+   estado pagado y la suma exacta si hay partidas. Un recibo nuevo tampoco
+   puede quedar confirmado sin liquidar la venta.
+5. Se mantienen los hashes canónicos de solicitudes antiguas de pago único.
+   El hash híbrido cubre la venta y todas las líneas normalizadas, incluyendo
+   sus importes. Un reintento con la misma clave y el mismo contenido devuelve
+   el recibo existente; una intención distinta con esa clave se rechaza.
+   Las solicitudes concurrentes nunca crean otro recibo o juego de partidas.
+   La auditoría conserva `sales.payment_recorded` y añade el desglose cuando
+   corresponde; no registra claves, cookies ni hashes.
+6. `SaleView.payment` sigue representando el recibo **total**. El campo aditivo
+   `payments` expone sus partidas con el actor, moneda y fecha heredados del
+   recibo; los recibos anteriores y pagos únicos devuelven una sola línea.
+   Los pagos antiguos no se reescriben ni se les inventa un desglose.
+7. La reasignación de ADR-021 continúa enlazando el mismo recibo y, por ello,
+   todas sus partidas. El registro equivocado deja de contar por su estado
+   cancelado; el correcto muestra el pago híbrido intacto. No se copian recibos,
+   partidas, ingresos ni movimientos de la venta correcta.
+8. El preview de cierres usa primero el recibo efectivamente registrado o
+   reasignado y distribuye sus partidas por medio. Efectivo/cash es efectivo;
+   digital, tarjeta, transferencia y sus variantes explícitas documentadas en
+   el clasificador son digitales. Un método desconocido o texto combinado
+   sin importes va a `unspecified`; no se adivina un reparto.
+   Si no hay recibo (venta pendiente o legacy), se conserva el fallback al
+   texto original y total. Cada venta cuenta una vez por vendedor.
+   No cambia el reconocimiento de ingresos: sólo ventas completadas, con
+   canceladas y tránsito excluidos. No cambia la fórmula ni los snapshots
+   históricos de cierres; no se recalculan asientos o cierres persistidos.
+9. La interfaz ofrece Pago único o Pago híbrido/mixto; muestra total, asignado
+   y restante. Sólo permite confirmar el híbrido con importes válidos y
+   restante cero. El detalle muestra el desglose y el total del único recibo.
+   Ante respuesta perdida o inválida conserva clave, importes e intención,
+   bloquea su edición y ofrece reintentar exactamente la misma solicitud.
+   Renueva CSRF al reintentar; un rechazo posterior no borra la incertidumbre
+   del primer envío.
+10. La autorización existente no cambia. No se añade permiso, rol, ruta pública,
+    dependencia ni tarea automática de backfill.
 
-2. **Validación atómica de suma de pagos:**
-   Se admite registrar pagos divididos mediante el comando de cobro. El payload puede enviar un pago único tradicional (`paymentMethodText`) o una lista de desgloses (`splitPayments: [{ methodText, amount }]`).
-   - Cada línea de pago debe tener `amount > 0` con un máximo de 2 decimales.
-   - La suma exacta de los montos debe ser igual al `total` de la venta (`sum(amounts) === sale.total`).
-   - La operación se ejecuta en una sola transacción atómica bajo bloqueo exclusivo de la venta (`FOR UPDATE`). Al completarse, la venta transiciona a `paymentStatus = 'PAID'`.
+## Validación y errores
 
-3. **Trigger de Coherencia en PostgreSQL:**
-   Se actualiza `guard_sale_payment_insert()` para verificar que:
-   - La venta esté en estado `OPERATIONAL`, `COMPLETED` y `PENDING`.
-   - La suma acumulada de los pagos existentes más `NEW.amount` no exceda `sale.total`.
-   - La moneda de cada pago coincida con `sale.currency_code`.
+- Errores estructurales o modalidad ambigua: HTTP 400.
+- `SALE_PAYMENT_AMOUNT_INVALID`: HTTP 400 para importes inválidos, no positivos,
+  fuera de límites o con demasiados decimales.
+- `SALE_SPLIT_PAYMENT_SUM_MISMATCH`: HTTP 400 cuando la suma no cubre el total.
+- Se conservan los errores de autorización, estado e idempotencia anteriores.
+- El pago único de una venta de total cero sigue siendo compatible; una partida
+  híbrida de importe cero nunca es válida.
 
-4. **Arqueo Exacto en Cierre Diario (`DailyClosing`):**
-   `closing-preview.service.ts` y `daily-closing.service.ts` se actualizan para calcular las contribuciones por cajero/vendedor iterando sobre **cada documento individual `SalePayment`** en lugar de sobre la venta global:
-   - Cada pago con método normalizado `efectivo` / `cash` suma a `entry.cash`.
-   - Cada pago con método normalizado `digital` / `tarjeta` / `transferencia` suma a `entry.digital`.
-   - Si una venta de C$ 1,000.00 se pagó C$ 400.00 en efectivo y C$ 600.00 en tarjeta, el cierre diario exige en caja exactamente C$ 400.00 en efectivo físico y C$ 600.00 en saldo digital, logrando un arqueo de caja exacto al centavo.
+## Aceptación y despliegue
 
-5. **Retrocompatibilidad Total:**
-   - Las ventas históricas con un solo pago continúan leyendo su pago sin alteraciones.
-   - En `@sgi/contracts`, `SaleView` mantiene `payment: SalePaymentView | null` (apuntando al primer pago o pago representativo) y añade `payments: SalePaymentView[]` para vistas que deseen mostrar el desglose completo.
-   - Si una venta futura o histórica no tiene desglose en `SalePayment`, el cálculo de cierre diario mantiene su fallback a `sale.paymentMethodText`.
+Probar centavos exactos, autorización/CSRF, forma exclusiva, límites, rollback
+completo, concurrencia, reintentos, inmutabilidad, lectura de pagos anteriores,
+cierres por vendedor y reasignación de un recibo híbrido mediante ADR-021.
+Revisar móvil en claro/oscuro y respuestas perdidas sin crear ventas reales.
 
-6. **Interfaz de Usuario (Web POS):**
-   En el panel de cobro (`sale-lifecycle-actions.tsx`):
-   - Se ofrece un selector: **Pago único** (Efectivo o Digital) o **Pago dividido / mixto**.
-   - En modo dividido, la interfaz muestra dos o más filas de captura (por defecto: Efectivo y Tarjeta/Digital), calculando en tiempo real:
-     - `Total venta`: C$ X,XXX.XX
-     - `Total asignado`: C$ X,XXX.XX
-     - `Diferencia / Restante`: C$ X,XXX.XX
-   - El botón "Confirmar pago" permanece deshabilitado hasta que la diferencia sea exactamente C$ 0.00.
-
-7. **Errores de Dominio Tipados:**
-   Se incorporan a `SalesPublicErrorCode`:
-   - `SALE_SPLIT_PAYMENT_SUM_MISMATCH`: Error HTTP 400 si la suma de pagos no coincide con el total.
-   - `SALE_PAYMENT_AMOUNT_INVALID`: Error HTTP 400 si algún monto es menor o igual a cero o presenta más de 2 decimales.
-
-8. **Idempotencia y Auditoría:**
-   - La clave de idempotencia cubre el hash canónico del arreglo completo de pagos.
-   - Se registra un evento de auditoría `SALE_PAID` que documenta el total cobrado y el número de líneas de pago emitidas.
-
-## Consecuencias
-
-### Positivas
-- Se elimina la fricción operativa en el punto de venta cuando los clientes dividen su cuenta.
-- El arqueo físico de caja (`realCash` vs `systemSales`) en el cierre diario cuadra al centavo con el efectivo real recibido en gaveta.
-- Se mantiene la inmutabilidad de cada recibo de pago y la integridad contable del ledger.
-
-### Negativas / Restricciones
-- La migración de base de datos debe eliminar el índice único `sale_payments_sale_id_key` y reemplazar el trigger `guard_sale_payment_insert()`.
-- Requiere ejecutar la migración en el entorno de staging (Neon) bajo la ventana de mantenimiento y checkpoint aprobado.
-
-## Aceptación Verificable
-
-- **PostgreSQL:** Permite insertar múltiples pagos asociados al mismo `sale_id` siempre que la suma no exceda el total; rechaza inserciones excedentes con código `23514`.
-- **API:** `POST /api/v1/sales/:id/payment` acepta `{ splitPayments: [...] }` y rechaza montos con suma errónea (`SALE_SPLIT_PAYMENT_SUM_MISMATCH`).
-- **Cierre Diario:** Un día con una venta de C$ 1,000 (C$ 400 efectivo + C$ 600 tarjeta) refleja en `closing-preview` exactamente C$ 400 en `cashAmount` y C$ 600 en `digitalAmount`.
-- **Frontend:** La interfaz valida visualmente en tiempo real que el restante sea 0.00 antes de permitir el envío.
+Aplicar la migración únicamente con gate explícito, destino directo verificado
+y un checkpoint privado recuperable; no usar un backup antiguo como autorización.
+Desplegar API antes de web y comprobar la privacidad de las rutas existentes.
+Conservar evidencia operativa fuera de Git. Después de registrar el primer
+recibo con partidas, no volver a una API antigua que ignora su desglose.

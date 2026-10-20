@@ -7,16 +7,13 @@ import type { DatabaseClient } from '@sgi/database';
 
 import { centsToMoney, moneyToCents } from '../common/money.js';
 import { daySalesFigures } from './daily-closing.service.js';
+import { paymentBucket } from './payment-bucket.js';
 
-/** Cash and digital as the business writes them; anything else is unspecified. */
-function paymentBucket(
-  method: string | null,
-): 'cash' | 'digital' | 'unspecified' {
-  const normalized = (method ?? '').trim().toLowerCase();
-  if (normalized === 'efectivo' || normalized === 'cash') return 'cash';
-  if (normalized === 'digital') return 'digital';
-  return 'unspecified';
-}
+const receiptSelect = {
+  amount: true,
+  methodText: true,
+  parts: { select: { amount: true, methodText: true } },
+} as const;
 
 function cents(value: { toFixed(places: number): string }): bigint {
   return moneyToCents(value.toFixed(2)) ?? 0n;
@@ -50,8 +47,9 @@ export class ClosingPreviewService {
           createdByUserId: true,
           origin: true,
           paymentMethodText: true,
+          payment: { select: receiptSelect },
           receivedPaymentCorrection: {
-            select: { reassignedPayment: { select: { methodText: true } } },
+            select: { reassignedPayment: { select: receiptSelect } },
           },
           seller: { select: { displayName: true } },
           sellerUserId: true,
@@ -106,14 +104,20 @@ export class ClosingPreviewService {
         unspecifiedAmount: '0.00',
       };
 
-      const amount = cents(sale.total);
-      const bucket = paymentBucket(
-        sale.receivedPaymentCorrection?.reassignedPayment?.methodText ??
-          sale.paymentMethodText,
-      );
-      if (bucket === 'cash') entry.cash += amount;
-      else if (bucket === 'digital') entry.digital += amount;
-      else entry.other += amount;
+      const receipt =
+        sale.payment ?? sale.receivedPaymentCorrection?.reassignedPayment;
+      const parts = receipt
+        ? receipt.parts.length
+          ? receipt.parts
+          : [receipt]
+        : [{ amount: sale.total, methodText: sale.paymentMethodText }];
+      for (const part of parts) {
+        const amount = cents(part.amount);
+        const bucket = paymentBucket(part.methodText);
+        if (bucket === 'cash') entry.cash += amount;
+        else if (bucket === 'digital') entry.digital += amount;
+        else entry.other += amount;
+      }
       entry.saleCount += 1;
 
       bySeller.set(key, entry);

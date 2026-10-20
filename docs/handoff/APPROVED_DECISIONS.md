@@ -6,11 +6,12 @@ ADR, architecture document, migration, and tests.
 
 ## Business
 
-- ADR-022 (2026-10-19) introduces the split payments and mixed payments proposal
-  for completed operational sales: allows relaxing the 1:1 constraint on
-  `SalePayment` to 1:N, validating that `sum(amounts) === sale.total`, and
-  segregating each payment line into cash or digital in `closing-preview` for
-  exact cash drawer reconciliations. See
+- ADR-022 (2026-10-19), approved through the owner's implementation request,
+  preserves one immutable full `SalePayment` and adds immutable allocation
+  parts for hybrid payments. The sum must equal the sale total atomically;
+  partial settlements remain unsupported. Closing previews use the recorded
+  receipt/parts, and ADR-021 reassigns that same receipt with all parts intact.
+  No historical payment, closing snapshot or permission is rewritten. See
   [ADR-022](../decisions/ADR-022-split-payment-recording.md).
 
 - ADR-021 (2026-10-18) adds the owner-approved paid-duplicate exception: the

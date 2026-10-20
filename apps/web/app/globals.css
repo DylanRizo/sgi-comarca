@@ -1854,6 +1854,49 @@ a {
   border: 0;
 }
 
+.payment-record-panel fieldset {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.payment-part-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.payment-part-row label {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.payment-summary,
+.payment-breakdown ul {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payment-summary > div,
+.payment-breakdown li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.payment-summary dd {
+  margin: 0;
+  font-weight: 700;
+}
+
 .duplicate-void-panel h2 {
   font-size: 1.1rem;
   font-weight: 700;

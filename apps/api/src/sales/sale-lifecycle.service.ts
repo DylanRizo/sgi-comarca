@@ -1,4 +1,4 @@
-import type { SaleView } from '@sgi/contracts';
+import type { RecordSalePaymentRequest, SaleView } from '@sgi/contracts';
 import type { DatabaseClient } from '@sgi/database';
 import { createHash } from 'node:crypto';
 
@@ -8,6 +8,12 @@ import { restoreSaleInventory } from './restore-sale-inventory.js';
 import { mapSale, type SaleRecord } from './sale-read.mapper.js';
 import { saleSelect } from './sale-select.js';
 import { SaleError } from './sale.errors.js';
+import { moneyToCents } from '../common/money.js';
+import {
+  paymentIntent,
+  prepareSalePayment,
+  type PreparedSalePayment,
+} from './sale-payment-request.js';
 
 type TransactionClient = Omit<
   DatabaseClient,
@@ -92,23 +98,17 @@ export class SaleLifecycleService {
   async recordPayment(
     actorUserId: string,
     saleId: string,
-    rawPaymentMethodText: string,
+    input: string | RecordSalePaymentRequest,
     idempotencyKey: string | undefined,
   ): Promise<SaleView> {
-    const paymentMethodText = rawPaymentMethodText?.trim() ?? '';
-    if (!paymentMethodText || paymentMethodText.length > 160) {
-      throw new SaleError('SALES_REQUEST_INVALID');
-    }
-    const hashes = this.hashes(
-      idempotencyKey,
-      JSON.stringify({ paymentMethodText, saleId }),
-    );
+    const payment = prepareSalePayment(input);
+    const hashes = this.hashes(idempotencyKey, paymentIntent(saleId, payment));
     return this.run((transaction) =>
       this.recordPaymentInTransaction(
         transaction,
         actorUserId,
         saleId,
-        paymentMethodText,
+        payment,
         hashes,
       ),
     );
@@ -210,7 +210,7 @@ export class SaleLifecycleService {
     transaction: TransactionClient,
     actorUserId: string,
     saleId: string,
-    paymentMethodText: string,
+    prepared: PreparedSalePayment,
     hashes: { idempotencyKeyHash: string; requestHash: string },
   ): Promise<SaleView> {
     await this.authorize(transaction, actorUserId, 'sales.record_payment');
@@ -260,6 +260,9 @@ export class SaleLifecycleService {
     if (current.status !== 'COMPLETED' || current.paymentStatus !== 'PENDING') {
       throw new SaleError('SALE_INVALID_STATE');
     }
+    if (prepared.parts && prepared.totalCents !== moneyToCents(current.total)) {
+      throw new SaleError('SALE_SPLIT_PAYMENT_SUM_MISMATCH');
+    }
 
     const paidAt = this.clock.now();
     const payment = await transaction.salePayment.create({
@@ -267,7 +270,7 @@ export class SaleLifecycleService {
         amount: current.total,
         currencyCode: current.currencyCode,
         idempotencyKeyHash: hashes.idempotencyKeyHash,
-        methodText: paymentMethodText,
+        methodText: prepared.methodText,
         paidAt,
         recordedByUserId: actorUserId,
         requestHash: hashes.requestHash,
@@ -275,6 +278,16 @@ export class SaleLifecycleService {
       },
       select: { id: true },
     });
+    if (prepared.parts) {
+      await transaction.salePaymentPart.createMany({
+        data: prepared.parts.map((part, index) => ({
+          paymentId: payment.id,
+          position: index + 1,
+          methodText: part.methodText,
+          amount: part.amount,
+        })),
+      });
+    }
     await transaction.sale.update({
       data: { paymentStatus: 'PAID' },
       where: { id: saleId },
@@ -285,6 +298,7 @@ export class SaleLifecycleService {
       currencyCode: current.currencyCode,
       occurredAt: paidAt,
       paymentId: payment.id,
+      ...(prepared.parts ? { paymentLines: prepared.parts } : {}),
       saleId,
     });
 

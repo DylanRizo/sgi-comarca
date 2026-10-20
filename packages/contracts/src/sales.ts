@@ -126,7 +126,7 @@ export interface SaleView {
   paymentStatus: SalePaymentStatus;
   /** Immutable full-payment evidence; absent until payment is recorded. */
   payment: SalePaymentView | null;
-  /** Additive: list of all payment lines recorded for this sale. */
+  /** Allocations of the same full receipt; single/historical payments yield one line. */
   payments?: SalePaymentView[];
   /** Additive: the original payment is linked, never copied into another receipt. */
   duplicateCorrection?: SaleDuplicateCorrectionView | null;

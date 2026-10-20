@@ -920,10 +920,24 @@ model SalePayment {
   sale       Sale              @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   recordedBy User              @relation("SalePaymentActor", fields: [recordedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   correction SaleCancellation?
+  parts      SalePaymentPart[]
 
   @@unique([recordedByUserId, idempotencyKeyHash], map: "sale_payments_actor_idempotency_key")
   @@index([recordedByUserId, paidAt(sort: Desc)], map: "sale_payments_actor_time_idx")
   @@map("sale_payments")
+}
+
+model SalePaymentPart {
+  id         String  @id @default(uuid()) @db.Uuid
+  paymentId  String  @map("payment_id") @db.Uuid
+  position   Int
+  amount     Decimal @db.Decimal(18, 2)
+  methodText String  @map("method_text") @db.VarChar(160)
+
+  payment SalePayment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([paymentId, position], map: "sale_payment_parts_payment_position_key")
+  @@map("sale_payment_parts")
 }
 
 model FinancialCategory {

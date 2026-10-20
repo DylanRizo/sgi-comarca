@@ -698,6 +698,18 @@ export class AuthenticationDatabase {
     return { source, target, wrongCode, rightCode };
   }
 
+  async paymentParts(saleId: string) {
+    const parts = await this.client.salePaymentPart.findMany({
+      where: { payment: { saleId } },
+      orderBy: { position: 'asc' },
+      select: { amount: true, methodText: true },
+    });
+    return parts.map((part) => ({
+      amount: part.amount.toFixed(2),
+      methodText: part.methodText,
+    }));
+  }
+
   async balanceQuantity(
     productCode: string,
     warehouseCode: string,

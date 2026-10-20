@@ -10,8 +10,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-const positiveMoney = /^(?:[1-9]\d*|0\.\d{1,2}|[1-9]\d*\.\d{1,2})$/u;
-
 export class SplitPaymentLineDto {
   @IsString()
   @MaxLength(160)
@@ -19,10 +17,7 @@ export class SplitPaymentLineDto {
   methodText!: string;
 
   @IsString()
-  @Matches(positiveMoney, {
-    message:
-      'El monto debe ser un valor monetario mayor a cero con hasta 2 decimales.',
-  })
+  @MaxLength(64)
   amount!: string;
 }
 

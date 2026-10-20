@@ -61,6 +61,7 @@ export interface SaleRecord {
     methodText: string;
     paidAt: Date;
     recordedBy: { displayName: string; id: string };
+    parts?: { id: string; amount: DecimalLike; methodText: string }[];
   } | null;
   observations: string | null;
   seller: { displayName: string; id: string } | null;
@@ -173,6 +174,16 @@ export function mapSale(sale: SaleRecord): SaleView {
     origin: sale.origin,
     paymentMethodText: sale.paymentMethodText,
     payment: payment ? salePaymentView(payment) : null,
+    payments: payment
+      ? payment.parts?.length
+        ? payment.parts.map((part) => ({
+            ...salePaymentView(payment),
+            id: part.id,
+            amount: moneyString(part.amount),
+            methodText: part.methodText,
+          }))
+        : [salePaymentView(payment)]
+      : [],
     paymentStatus: sale.paymentStatus,
     saleNumber: sale.saleNumber,
     salesChannelText: sale.salesChannelText,

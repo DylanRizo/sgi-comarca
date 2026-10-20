@@ -2,6 +2,43 @@
 
 Updated: 2026-10-19.
 
+## Hybrid payments — PR #10 locally validated, publication pending
+
+The owner requested reviewing, correcting, implementing and deploying PR #10.
+Its original commit `b20fceb` was a proposal/contracts-only change over the
+documented release and failed CI Typecheck: an optional method was passed to
+the old string-only payment service. The working implementation keeps the
+unique full receipt and adds immutable `SalePaymentPart` allocations instead
+of removing the uniqueness that ADR-021 depends on. ADR-022 records that
+technical correction, exact full settlement, legacy hash compatibility and
+the unchanged recognition/permission rules.
+
+The API validates an exclusive request mode and exact positive split totals;
+the database prevents incomplete or late/mutable allocations. Closing previews
+use the recorded or reassigned receipt and count each sale once. The responsive
+web payment panel shows the remaining amount and freezes payload/key after
+an uncertain response. Existing receipts and the concrete previous correction
+are not rewritten or replayed. No dependency or public route is added.
+
+Local quality gates passed: Prisma validation/generation, lint (nine tasks),
+typecheck (thirteen tasks), 373 unit tests in 74 files, 409 PostgreSQL integration
+tests in 36 files and the production build (eight tasks). The existing unused
+ESLint directive warning in user administration is unchanged. The initial strict
+optional-property type error in audit metadata was fixed without weakening types.
+The schema tests verify all 47 tables and 51 triggers on isolated local databases;
+new cases cover concurrency, exact sums, rollback, immutable/late allocations,
+HTTP authorization/CSRF and ADR-021 reassignment of the original hybrid receipt.
+
+Chromium passed all 26 Sales/Finances tests, including keyboard confirmation at
+390px, light/dark screenshots without horizontal overflow, visible breakdown,
+and a committed payment with a lost response followed by a refused retry and
+safe replay. No real sale/payment was created to test this feature.
+Fresh read-only staging preflight confirmed
+13 applied migrations, 47 triggers, 27 permissions and exactly the pending
+`20261019160000_sale_payment_parts`; no staging write has occurred for this task.
+Publication, CI, the explicit migration/checkpoint gate and API-before-web
+deployment remain pending. See [the procedure](../deployment/split-payments.md).
+
 ## Financial UI and paid-duplicate correction — deployed, 2026-10-19
 
 The owner explicitly authorized publishing the financial correction and the

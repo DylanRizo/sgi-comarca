@@ -186,6 +186,29 @@ export function SaleDetailView({ saleId }: Readonly<{ saleId: string }>) {
             ) : null}
           </section>
 
+          {sale.payment && (sale.payments?.length ?? 0) > 1 ? (
+            <section
+              className="sale-cancel-panel payment-breakdown"
+              aria-label="Desglose del pago"
+            >
+              <h2>Desglose del pago</h2>
+              <ul>
+                {sale.payments?.map((part) => (
+                  <li key={part.id}>
+                    <span>{part.methodText}</span>
+                    <strong>
+                      {formatMoney(part.amount, sale.currencyCode)}
+                    </strong>
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Un único cobro total:{' '}
+                {formatMoney(sale.payment.amount, sale.currencyCode)}.
+              </p>
+            </section>
+          ) : null}
+
           <div className="data-table-wrap">
             <table className="data-table sale-item-table">
               <caption className="visually-hidden">
