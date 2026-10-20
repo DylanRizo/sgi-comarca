@@ -1,5 +1,17 @@
 # Convenciones de API REST
 
+## Especificaciones técnicas, medidas, materiales y fotos en catálogo (ADR-023)
+
+- `GET /api/v1/products/:id` y `GET /api/v1/inventory/products/:id`: público interno (`inventory.read`).
+  - La respuesta de `product` (`ProductDetail`) expone:
+    - `materialsDescription: string | null`: descripción de composición textil/física.
+    - `measurementChart: string | null`: guía o tabla de medidas libre para el SKU.
+    - `photosUrl: string | null`: URL de Google Drive, nube o catálogo fotográfico.
+- `POST /api/v1/products` y `PATCH /api/v1/products/:id`: privado, CSRF, `Idempotency-Key`, `products.manage`.
+  - Permite enviar opcionalmente `materialsDescription`, `measurementChart` y `photosUrl`.
+  - Si se suministran o modifican estos campos, el actor debe contar con rol `ADMIN` o tener loginIdentifier `'luden'`. En caso contrario, responde con HTTP 403 `STOCK_PERMISSION_DENIED`.
+  - Modificar otros atributos del producto (nombre, categoría, unidad, stock mínimo) sin alterar las especificaciones técnicas está permitido para cualquier operador con `products.manage`.
+
 ## Registro de pagos divididos / pagos mixtos (ADR-022)
 
 - `POST /api/v1/sales/:id/payment`: privado, CSRF, `Idempotency-Key`, `sales.record_payment`.

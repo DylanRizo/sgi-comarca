@@ -36,6 +36,9 @@ export interface ProductSummary {
 
 export interface ProductDetail extends ProductSummary {
   description: string | null;
+  materialsDescription?: string | null;
+  measurementChart?: string | null;
+  photosUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }

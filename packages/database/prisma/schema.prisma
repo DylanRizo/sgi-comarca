@@ -517,6 +517,9 @@ model Product {
   code         String   @unique(map: "products_code_key") @db.VarChar(64)
   name         String   @db.VarChar(200)
   description  String?
+  materialsDescription String?  @map("materials_description") @db.Text
+  measurementChart     String?  @map("measurement_chart") @db.Text
+  photosUrl            String?  @map("photos_url") @db.VarChar(1024)
   unitId       String?  @map("unit_id") @db.Uuid
   groupId      String?  @map("group_id") @db.Uuid
   minimumStock Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)

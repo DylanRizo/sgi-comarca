@@ -39,6 +39,21 @@ export class ProductFieldsDto {
   @IsString()
   @Matches(/^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/u)
   minimumStock!: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  materialsDescription?: string | null;
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  measurementChart?: string | null;
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  @Matches(/^https?:\/\/.+/i, {
+    message: 'photosUrl must be a valid http or https URL.',
+  })
+  photosUrl?: string | null;
 }
 export class CreateProductDto extends ProductFieldsDto {
   @IsOptional()

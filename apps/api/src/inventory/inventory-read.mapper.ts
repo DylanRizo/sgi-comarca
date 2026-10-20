@@ -50,6 +50,9 @@ export interface InventoryProductRecord {
   code: string;
   createdAt: Date;
   description: string | null;
+  materialsDescription?: string | null;
+  measurementChart?: string | null;
+  photosUrl?: string | null;
   id: string;
   inventoryBalances: readonly BalanceRecord[];
   minimumStock: DecimalValue;
@@ -140,6 +143,9 @@ export function mapProductInventory(
       createdAt: product.createdAt.toISOString(),
       description: product.description,
       id: product.id,
+      materialsDescription: product.materialsDescription ?? null,
+      measurementChart: product.measurementChart ?? null,
+      photosUrl: product.photosUrl ?? null,
       minimumStock: product.minimumStock.toString(),
       name: product.name,
       unit: product.unit

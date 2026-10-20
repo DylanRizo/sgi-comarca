@@ -143,6 +143,9 @@ export class ProductReadService {
       createdAt: product.createdAt.toISOString(),
       description: product.description,
       id: product.id,
+      materialsDescription: product.materialsDescription ?? null,
+      measurementChart: product.measurementChart ?? null,
+      photosUrl: product.photosUrl ?? null,
       minimumStock: product.minimumStock.toString(),
       name: product.name,
       unit: product.unit

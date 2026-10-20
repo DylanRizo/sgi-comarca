@@ -6,6 +6,13 @@ ADR, architecture document, migration, and tests.
 
 ## Business
 
+- ADR-023 (2026-10-20) introduces product technical specifications, measurement
+  chart per SKU, material composition description, and multimedia/photo links.
+  Fields are accessible for read to all operational staff with catalog read
+  access, while creation and editing are strictly restricted to the ADMIN role
+  and user `luden`. See
+  [ADR-023](../decisions/ADR-023-product-enrichment-and-specs.md).
+
 - ADR-022 (2026-10-19), approved through the owner's implementation request,
   preserves one immutable full `SalePayment` and adds immutable allocation
   parts for hybrid payments. The sum must equal the sale total atomically;

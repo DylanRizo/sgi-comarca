@@ -2784,3 +2784,72 @@ a {
       color-mix(in srgb, var(--brand-muted) 35%, transparent);
   }
 }
+
+/*
+ * ADR-023: Product technical specifications, measurement charts, materials, and photos
+ */
+.product-specs-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .product-specs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.spec-card {
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.spec-card h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.spec-card p {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.measurement-chart-content {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+  padding: 0.8rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.enrichment-specs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.015));
+  margin-top: 0.5rem;
+}
+
+.enrichment-specs-panel h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
