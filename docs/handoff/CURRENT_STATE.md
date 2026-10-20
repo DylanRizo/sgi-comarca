@@ -2,7 +2,7 @@
 
 Updated: 2026-10-19.
 
-## Hybrid payments — PR #10 locally validated, publication pending
+## Hybrid payments — PR #10 merged, staging migration gate pending
 
 The owner requested reviewing, correcting, implementing and deploying PR #10.
 Its original commit `b20fceb` was a proposal/contracts-only change over the
@@ -36,8 +36,23 @@ safe replay. No real sale/payment was created to test this feature.
 Fresh read-only staging preflight confirmed
 13 applied migrations, 47 triggers, 27 permissions and exactly the pending
 `20261019160000_sale_payment_parts`; no staging write has occurred for this task.
-Publication, CI, the explicit migration/checkpoint gate and API-before-web
-deployment remain pending. See [the procedure](../deployment/split-payments.md).
+Implementation commit `a27efac9929f12f76ee7f92055059b04920d0ff6` was published
+to the existing PR's fork branch with maintainer editing enabled. All GitHub CI
+steps passed, and PR #10 was merged as
+`ceb86c2e56ee72b12a7f7da9102dad8a2b5b03a4`. The merged tree is identical to the
+tested PR head. The local branch is `codex/review-split-payments`.
+
+The explicit approval requested for this new migration and a fresh private
+backup verified by full restore has not yet been received. The previous task's
+backup authorization is not reused for this new gate. No new backup, staging
+migration, bootstrap or RBAC write has run. Both Render services still track
+`codex/staging-pilot`, which remains at the previously deployed `47eb82f`;
+publishing and merging this PR did not advance that deployment branch.
+The current login/health/readiness return 200 and unauthenticated sales returns
+401. After approval, create and verify the fresh checkpoint, revalidate the
+direct target, apply only the pending migration, verify unchanged historical
+data, and deploy API before web at the merged functional SHA.
+See [the procedure](../deployment/split-payments.md).
 
 ## Financial UI and paid-duplicate correction — deployed, 2026-10-19
 
