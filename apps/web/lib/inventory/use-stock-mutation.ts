@@ -20,9 +20,13 @@ export function useStockMutation() {
     running.current = true;
     setBusy(true);
     setError('');
+    const wasUncertain = uncertain;
     attempt.current ??= { key: crypto.randomUUID(), work };
     try {
-      await attempt.current.work(attempt.current.key, await getCsrfToken());
+      await attempt.current.work(
+        attempt.current.key,
+        await getCsrfToken(wasUncertain),
+      );
       completed.current = true;
       attempt.current = null;
       setUncertain(false);
@@ -31,7 +35,7 @@ export function useStockMutation() {
         !(failure instanceof ApiHttpError) ||
         failure.status >= 500 ||
         failure.status < 400;
-      setUncertain(ambiguous);
+      setUncertain(wasUncertain || ambiguous);
       setError(
         ambiguous
           ? 'No pudimos confirmar la respuesta. Conservamos tu operación: pulsa Reintentar para recuperar el resultado sin duplicarla.'
@@ -39,7 +43,7 @@ export function useStockMutation() {
             ? 'No se pudo completar la operación. Revisa los campos y los permisos de tu sesión.'
             : failure.message,
       );
-      if (!ambiguous) attempt.current = null;
+      if (!wasUncertain && !ambiguous) attempt.current = null;
     } finally {
       running.current = false;
       setBusy(false);
