@@ -33,6 +33,11 @@ export const bootstrapRoles = [
 
 export const bootstrapPermissions = [
   {
+    code: 'products.specifications.manage',
+    description:
+      'Editar medidas, materiales y carpeta de fotos de los productos.',
+  },
+  {
     code: 'products.manage',
     description: 'Crear y editar fichas de productos y categorías.',
   },
@@ -176,6 +181,7 @@ export const bootstrapUserRoles = [
 ] as const;
 
 export const bootstrapRolePermissions = [
+  { roleCode: 'ADMIN', permissionCode: 'products.specifications.manage' },
   { roleCode: 'INVENTORY_MANAGER', permissionCode: 'products.manage' },
   { roleCode: 'INVENTORY_MANAGER', permissionCode: 'stock-receipts.create' },
   { roleCode: 'FINANCE', permissionCode: 'inventory.valuation.manage' },
@@ -235,6 +241,10 @@ export const bootstrapRolePermissions = [
 export const bootstrapUserPermissions = [
   { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
   { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
+  {
+    loginIdentifier: 'luden',
+    permissionCode: 'products.specifications.manage',
+  },
 ] as const;
 
 export const administratorRoleCode = 'ADMIN';
@@ -242,10 +252,12 @@ export const administratorRoleCode = 'ADMIN';
 /**
  * Permissions that only the holder of the ADMIN role may receive as a direct
  * GRANT (ADR-020). `sales.cancel` and `inventory.audit.approve` keep DEC-021
- * and the count/approve separation; the rest are the ADMIN role's own
+ * and the count/approve separation; the rest are the ADMIN role's administrative
  * permissions, because handing them out one by one would build a second
  * administrator piecemeal. Once a database is in use the panel owns who holds
  * what, so bootstrap enforces this invariant instead of the per-person list.
+ * ADR-023's products.specifications.manage is a delegable catalog capability,
+ * not an administrator-only permission, even though ADMIN also receives it.
  */
 export const administratorOnlyPermissionCodes = [
   'inventory.audit.approve',

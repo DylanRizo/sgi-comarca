@@ -147,7 +147,7 @@ describe('current PostgreSQL operational structure', () => {
     await pool.end();
   });
 
-  it('has exactly 45 application tables and only the Prisma technical table', async () => {
+  it('has exactly 47 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -165,6 +165,50 @@ describe('current PostgreSQL operational structure', () => {
     expect(actualApplicationTables).toEqual(applicationTables);
     expect(actualApplicationTables).toHaveLength(47);
     expect(technicalTables).toEqual(['_prisma_migrations']);
+  });
+
+  it('adds nullable bounded product specification columns without defaults', async () => {
+    const columns = await pool.query(
+      `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name IN ('materials_description','measurement_chart','photos_url') ORDER BY column_name`,
+    );
+    expect(columns.rows).toEqual([
+      {
+        column_name: 'materials_description',
+        data_type: 'text',
+        is_nullable: 'YES',
+        column_default: null,
+        character_maximum_length: null,
+      },
+      {
+        column_name: 'measurement_chart',
+        data_type: 'text',
+        is_nullable: 'YES',
+        column_default: null,
+        character_maximum_length: null,
+      },
+      {
+        column_name: 'photos_url',
+        data_type: 'character varying',
+        is_nullable: 'YES',
+        column_default: null,
+        character_maximum_length: 1024,
+      },
+    ]);
+    await inRollback(async (client) => {
+      const id = await insertProduct(client, 'SPECS_NULL');
+      expect(
+        (
+          await client.query(
+            'SELECT materials_description,measurement_chart,photos_url FROM products WHERE id=$1',
+            [id],
+          )
+        ).rows[0],
+      ).toEqual({
+        materials_description: null,
+        measurement_chart: null,
+        photos_url: null,
+      });
+    });
   });
 
   it('has the approved functions and exactly 51 non-internal triggers', async () => {

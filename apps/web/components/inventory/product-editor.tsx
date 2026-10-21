@@ -6,6 +6,7 @@ import type {
   UnitSummary,
   WarehouseSummary,
 } from '@sgi/contracts';
+import { productPhotosFolderUrl } from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ import { inventoryApi } from '@/lib/http/inventory-api';
 import { useStockMutation } from '@/lib/inventory/use-stock-mutation';
 import { useAuth } from '@/providers/auth-provider';
 import { emptyReceipt, ReceiptFields, receiptInput } from './receipt-fields';
+import { ProductSpecificationsFields } from './product-specifications-fields';
 
 const emptyProduct: ProductInput = {
   code: '',
@@ -24,6 +26,9 @@ const emptyProduct: ProductInput = {
   unitId: '',
   groupId: '',
   description: '',
+  materialsDescription: '',
+  measurementChart: '',
+  photosUrl: '',
   minimumStock: '0',
 };
 export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
@@ -34,6 +39,8 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
   const canValue =
     permissions.includes('inventory.valuation.manage') &&
     permissions.includes('finances.read');
+  const [canEnrich, setCanEnrich] = useState(false);
+  const [specificationsError, setSpecificationsError] = useState('');
   const [product, setProduct] = useState<ProductInput>(emptyProduct),
     [original, setOriginal] = useState<ProductDetail | null>(null);
   const [receipt, setReceipt] = useState(emptyReceipt),
@@ -58,10 +65,12 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
       productId
         ? inventoryApi.productInventory(productId)
         : Promise.resolve(null),
+      stockOperationsApi.specificationsAccess(),
     ])
-      .then(([units, groups, warehouses, existing, inventory]) => {
+      .then(([units, groups, warehouses, existing, inventory, access]) => {
         if (!current) return;
         setLoadError('');
+        setCanEnrich(access.canEditSpecifications);
         setCatalogs({
           units: units.items,
           groups,
@@ -76,6 +85,9 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
             unitId: existing.unit?.id ?? '',
             groupId: existing.group?.id ?? '',
             description: existing.description ?? '',
+            materialsDescription: existing.materialsDescription ?? '',
+            measurementChart: existing.measurementChart ?? '',
+            photosUrl: existing.photosUrl ?? '',
             minimumStock: existing.minimumStock,
           });
         } else
@@ -96,27 +108,42 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
       current = false;
     };
   }, [productId, reload]);
-  const edit = (field: keyof ProductInput, value: string) =>
+  const photosLink = productPhotosFolderUrl(product.photosUrl, URL);
+  const edit = (field: keyof ProductInput, value: string) => {
     setProduct((previous) => ({ ...previous, [field]: value }));
+    setSpecificationsError('');
+  };
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (canEnrich && !photosLink.valid) {
+      setSpecificationsError(
+        'Usa un enlace HTTPS de carpeta de Google Drive, sin usuario ni contraseña en la dirección.',
+      );
+      return;
+    }
     if (step < 2 && !productId) {
       setStep(step + 1);
       return;
     }
     void mutation.execute(async (key, csrf) => {
+      const productPayload: ProductInput = { ...product };
+      if (!canEnrich) {
+        delete productPayload.materialsDescription;
+        delete productPayload.measurementChart;
+        delete productPayload.photosUrl;
+      }
       const result =
         productId && original
           ? await stockOperationsApi.editProduct(
               productId,
-              { ...product, expectedUpdatedAt: original.updatedAt },
+              { ...productPayload, expectedUpdatedAt: original.updatedAt },
               csrf,
               key,
             )
           : (
               await stockOperationsApi.createProduct(
                 {
-                  ...product,
+                  ...productPayload,
                   ...(withReceipt
                     ? { initialReceipt: receiptInput(receipt) }
                     : {}),
@@ -271,6 +298,12 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
                       }
                     />
                   </FormField>
+                  <ProductSpecificationsFields
+                    product={product}
+                    canEdit={canEnrich}
+                    error={specificationsError}
+                    onChange={edit}
+                  />
                 </div>
               ) : step === 1 ? (
                 <>
@@ -342,6 +375,38 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
                       <dt>Stock mínimo</dt>
                       <dd>{product.minimumStock}</dd>
                     </div>
+                    {product.materialsDescription ? (
+                      <div>
+                        <dt>Materiales</dt>
+                        <dd>{product.materialsDescription}</dd>
+                      </div>
+                    ) : null}
+                    {product.measurementChart ? (
+                      <div>
+                        <dt>Medidas (SKU)</dt>
+                        <dd style={{ whiteSpace: 'pre-wrap' }}>
+                          {product.measurementChart}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {product.photosUrl ? (
+                      <div>
+                        <dt>Fotos</dt>
+                        <dd>
+                          {photosLink.valid && photosLink.value ? (
+                            <a
+                              href={photosLink.value}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Abrir carpeta de fotos en Google Drive
+                            </a>
+                          ) : (
+                            'Enlace de carpeta no válido'
+                          )}
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
                   {withReceipt ? (
                     <div className="work-panel">

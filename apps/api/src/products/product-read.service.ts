@@ -8,6 +8,8 @@ import type { DatabaseClient } from '@sgi/database';
 import type { CatalogListQueryDto } from '../common/dto/read-query.dto.js';
 import { pageOffset, pageResult } from '../common/pagination.js';
 import { ReadModelNotFoundError } from '../common/read-http.js';
+import { authorizeStock } from '../inventory/stock-command.js';
+import { canEditProductSpecifications } from './product-specifications.js';
 
 const VOICE_CANDIDATE_LIMIT = 100;
 const ACCENTED_CHARACTERS: Readonly<Record<string, string>> = {
@@ -70,6 +72,16 @@ function toProductSummary(
 
 export class ProductReadService {
   constructor(private readonly database: DatabaseClient) {}
+
+  async specificationsAccess(actorUserId: string) {
+    await authorizeStock(this.database, actorUserId, 'products.manage');
+    return {
+      canEditSpecifications: await canEditProductSpecifications(
+        this.database,
+        actorUserId,
+      ),
+    };
+  }
 
   async list(
     input: CatalogListQueryDto,
@@ -143,6 +155,9 @@ export class ProductReadService {
       createdAt: product.createdAt.toISOString(),
       description: product.description,
       id: product.id,
+      materialsDescription: product.materialsDescription ?? null,
+      measurementChart: product.measurementChart ?? null,
+      photosUrl: product.photosUrl ?? null,
       minimumStock: product.minimumStock.toString(),
       name: product.name,
       unit: product.unit

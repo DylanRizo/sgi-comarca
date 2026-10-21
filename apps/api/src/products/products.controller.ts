@@ -16,6 +16,9 @@ import type {
 import type { Request, Response } from 'express';
 
 import { RequirePermission } from '../auth/decorators/require-permission.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AuthenticatedRequestContext } from '../auth/http/auth-http-context.js';
+import { mapStockOperationError } from '../stock-receipts/stock-operation-http.exception.js';
 // DTO values must remain runtime imports so Nest emits validation metadata.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CatalogListQueryDto } from '../common/dto/read-query.dto.js';
@@ -40,6 +43,24 @@ export class ProductsController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiSuccess<PaginatedData<ProductSummary>>> {
     return readSuccess(await this.products.list(query), request, response);
+  }
+
+  @Get('specifications-access')
+  @RequirePermission('products.manage')
+  async specificationsAccess(
+    @CurrentUser() actor: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    try {
+      return readSuccess(
+        await this.products.specificationsAccess(actor.userId),
+        request,
+        response,
+      );
+    } catch (error) {
+      mapStockOperationError(error);
+    }
   }
 
   @Get(':id')

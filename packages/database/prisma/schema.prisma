@@ -513,16 +513,19 @@ model Unit {
 }
 
 model Product {
-  id           String   @id @default(uuid()) @db.Uuid
-  code         String   @unique(map: "products_code_key") @db.VarChar(64)
-  name         String   @db.VarChar(200)
-  description  String?
-  unitId       String?  @map("unit_id") @db.Uuid
-  groupId      String?  @map("group_id") @db.Uuid
-  minimumStock Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                   String   @id @default(uuid()) @db.Uuid
+  code                 String   @unique(map: "products_code_key") @db.VarChar(64)
+  name                 String   @db.VarChar(200)
+  description          String?
+  materialsDescription String?  @map("materials_description") @db.Text
+  measurementChart     String?  @map("measurement_chart") @db.Text
+  photosUrl            String?  @map("photos_url") @db.VarChar(1024)
+  unitId               String?  @map("unit_id") @db.Uuid
+  groupId              String?  @map("group_id") @db.Uuid
+  minimumStock         Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   unit                       Unit?                       @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   group                      ProductGroup?               @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: Restrict)

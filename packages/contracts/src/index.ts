@@ -160,3 +160,7 @@ export type {
   ValuationInput,
   StockOperationErrorCode,
 } from './stock-operations.js';
+export {
+  productPhotosFolderUrl,
+  type ProductSpecificationsAccessView,
+} from './product-specifications.js';

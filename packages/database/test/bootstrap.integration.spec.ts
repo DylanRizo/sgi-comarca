@@ -168,10 +168,10 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(credentialCount).toBe(0);
     expect(sessionCount).toBe(0);
     expect(invitationCount).toBe(0);
-    expect(permissions).toHaveLength(27);
+    expect(permissions).toHaveLength(28);
     expect(userRoles).toHaveLength(11);
-    expect(rolePermissions).toHaveLength(27);
-    expect(userPermissions).toHaveLength(2);
+    expect(rolePermissions).toHaveLength(28);
+    expect(userPermissions).toHaveLength(3);
     expect(userRoles.filter(({ role }) => role.code === 'ADMIN')).toHaveLength(
       1,
     );
@@ -182,7 +182,7 @@ describe.sequential('FASE 3B bootstrap', () => {
     expect(bootstrapAuditLogs[0]).toEqual({
       afterData: null,
       beforeData: null,
-      metadata: { createdRecordCount: 80, phase: '7A-RBAC' },
+      metadata: { createdRecordCount: 83, phase: '7A-RBAC' },
     });
   });
 
@@ -321,7 +321,7 @@ describe.sequential('FASE 3B bootstrap', () => {
 
     expect(restrictedRoleAssignments).toBe(0);
     expect(administrativeRoleAssignments).toBe(1);
-    expect(administrativeRolePermissions).toBe(7);
+    expect(administrativeRolePermissions).toBe(8);
     expect(salesRoleAssignments).toBe(4);
     expect(salesRolePermissions).toBe(6);
     expect(transferGrants).toEqual([1, 0]);
@@ -604,19 +604,30 @@ describe.sequential('FASE 3B bootstrap', () => {
     await runBootstrap(client);
   });
 
-  it('declares every ADMIN role permission as administrator-only', () => {
-    // ADR-020: granting an ADMIN permission directly to someone else would
-    // build a second administrator piecemeal, so the restricted list must
-    // cover the whole role, including permissions added to it later.
+  it('keeps every administrative capability restricted, with only ADR-023 catalog editing delegable', () => {
+    // ADR-020 still restricts every administrative capability. ADR-023 adds
+    // exactly one nonadministrative catalog capability that can be delegated.
     const adminPermissions = bootstrapRolePermissions
       .filter(({ roleCode }) => roleCode === administratorRoleCode)
       .map(({ permissionCode }) => permissionCode);
     expect(adminPermissions.length).toBeGreaterThan(0);
+    expect(
+      adminPermissions.filter(
+        (code) =>
+          !administratorOnlyPermissionCodes.includes(
+            code as (typeof administratorOnlyPermissionCodes)[number],
+          ),
+      ),
+    ).toEqual(['products.specifications.manage']);
     for (const code of adminPermissions) {
-      expect(administratorOnlyPermissionCodes).toContain(code);
+      if (code === 'products.specifications.manage')
+        expect(administratorOnlyPermissionCodes).not.toContain(code);
+      else expect(administratorOnlyPermissionCodes).toContain(code);
     }
     for (const { permissionCode } of bootstrapUserPermissions) {
-      expect(administratorOnlyPermissionCodes).toContain(permissionCode);
+      if (permissionCode === 'products.specifications.manage')
+        expect(administratorOnlyPermissionCodes).not.toContain(permissionCode);
+      else expect(administratorOnlyPermissionCodes).toContain(permissionCode);
     }
   });
 

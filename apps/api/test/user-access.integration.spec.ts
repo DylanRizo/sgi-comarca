@@ -612,7 +612,7 @@ describe.sequential('user access administration (ADR-020)', () => {
 
     const permissions = await read(dylan, '/api/v1/permissions').expect(200);
     expect(permissions.headers['cache-control']).toBe('no-store');
-    expect(permissions.body.data).toHaveLength(27);
+    expect(permissions.body.data).toHaveLength(28);
     expect(Object.keys(permissions.body.data[0] as object).sort()).toEqual([
       'code',
       'description',

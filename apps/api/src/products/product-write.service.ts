@@ -7,6 +7,11 @@ import {
   type StockTransaction,
 } from '../inventory/stock-command.js';
 import { ProductReadService } from './product-read.service.js';
+import {
+  canEditProductSpecifications,
+  resolveProductSpecifications,
+  type ProductSpecifications,
+} from './product-specifications.js';
 
 export class ProductWriteService {
   constructor(private readonly client: DatabaseClient) {}
@@ -17,6 +22,13 @@ export class ProductWriteService {
     input: ProductInput,
   ) {
     const data = await this.validated(transaction, input);
+    if (data.materialsDescription || data.measurementChart || data.photosUrl) {
+      const allowed = await canEditProductSpecifications(
+        transaction,
+        actorUserId,
+      );
+      if (!allowed) throw new StockOperationError('STOCK_PERMISSION_DENIED');
+    }
     await this.lockCode(transaction, data.code);
     if (
       await transaction.product.findUnique({
@@ -38,6 +50,10 @@ export class ProductWriteService {
           unitId: data.unitId,
           groupId: data.groupId,
           minimumStock: data.minimumStock.toString(),
+          description: data.description,
+          materialsDescription: data.materialsDescription,
+          measurementChart: data.measurementChart,
+          photosUrl: data.photosUrl,
         },
       },
     });
@@ -58,13 +74,29 @@ export class ProductWriteService {
       { id, ...input },
       ['products.manage'],
       async (transaction) => {
-        const data = await this.validated(transaction, input);
         // Receipts take the same product-row lock before changing inventory.
         await transaction.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR UPDATE`;
         const before = await transaction.product.findUnique({ where: { id } });
         if (!before) throw new StockOperationError('STOCK_RESOURCE_NOT_FOUND');
         if (before.updatedAt.toISOString() !== input.expectedUpdatedAt)
           throw new StockOperationError('STOCK_OPERATION_CONFLICT');
+
+        const data = await this.validated(transaction, input, before);
+        const materialsChanging =
+          data.materialsDescription !== before.materialsDescription;
+        const measurementsChanging =
+          data.measurementChart !== before.measurementChart;
+        const photosChanging = data.photosUrl !== before.photosUrl;
+
+        if (materialsChanging || measurementsChanging || photosChanging) {
+          const allowed = await canEditProductSpecifications(
+            transaction,
+            actorUserId,
+          );
+          if (!allowed)
+            throw new StockOperationError('STOCK_PERMISSION_DENIED');
+        }
+
         await this.lockCode(transaction, data.code);
         const duplicate = await transaction.product.findFirst({
           where: { code: data.code, NOT: { id } },
@@ -102,6 +134,9 @@ export class ProductWriteService {
               groupId: before.groupId,
               description: before.description,
               minimumStock: before.minimumStock.toString(),
+              materialsDescription: before.materialsDescription,
+              measurementChart: before.measurementChart,
+              photosUrl: before.photosUrl,
             },
             afterData: {
               code: updated.code,
@@ -110,6 +145,9 @@ export class ProductWriteService {
               groupId: updated.groupId,
               description: updated.description,
               minimumStock: updated.minimumStock.toString(),
+              materialsDescription: updated.materialsDescription,
+              measurementChart: updated.measurementChart,
+              photosUrl: updated.photosUrl,
             },
           },
         });
@@ -123,7 +161,11 @@ export class ProductWriteService {
     await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`product.code:${code}`}, 0))`;
   }
 
-  private async validated(transaction: StockTransaction, input: ProductInput) {
+  private async validated(
+    transaction: StockTransaction,
+    input: ProductInput,
+    before?: ProductSpecifications,
+  ) {
     const code = input.code?.trim().toUpperCase(),
       name = input.name?.trim();
     if (
@@ -135,6 +177,9 @@ export class ProductWriteService {
       (input.description?.length ?? 0) > 2000
     )
       throw new StockOperationError('STOCK_REQUEST_INVALID');
+
+    const specifications = resolveProductSpecifications(input, before);
+
     const minimumStock = decimalInput(input.minimumStock);
     const unit = await transaction.unit.findFirst({
       where: { id: input.unitId, active: true },
@@ -146,6 +191,7 @@ export class ProductWriteService {
     });
     if (!unit || !group)
       throw new StockOperationError('STOCK_RESOURCE_NOT_FOUND');
+
     return {
       code,
       name,
@@ -153,6 +199,7 @@ export class ProductWriteService {
       unitId: unit.id,
       groupId: group.id,
       description: input.description?.trim() || null,
+      ...specifications,
     };
   }
 }

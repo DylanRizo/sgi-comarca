@@ -6,6 +6,16 @@ ADR, architecture document, migration, and tests.
 
 ## Business
 
+- ADR-023 (2026-10-20) introduces product technical specifications, measurement
+  chart per SKU, material composition description, and multimedia/photo links.
+  Fields are accessible for read to all operational staff with catalog read
+  access. The owner approved a delegable `products.specifications.manage`
+  capability, initially granted explicitly to ADMIN and Luden. It also requires
+  effective `products.manage`, honors DENY and is managed through the audited
+  access panel, not usernames. The schema migration with fresh verified backup
+  and separate staging RBAC update to 28 permissions are explicitly approved. See
+  [ADR-023](../decisions/ADR-023-product-enrichment-and-specs.md).
+
 - ADR-022 (2026-10-19), approved through the owner's implementation request,
   preserves one immutable full `SalePayment` and adds immutable allocation
   parts for hybrid payments. The sum must equal the sale total atomically;
@@ -132,7 +142,8 @@ and the operational pricing boundary.
 - `ADMIN` grants exactly `integrations.manage`, `users.read`,
   `users.roles.manage`, `users.invitations.create`,
   `users.credentials.revoke`, `users.sessions.revoke`, and
-  `users.status.manage`; it is not a superuser or bypass.
+  `users.status.manage`, plus ADR-023's delegable catalog capability
+  `products.specifications.manage`; it is not a superuser or bypass.
 - `FINANCE` grants `finances.read`, `finances.manual.create`, `closings.read`,
   `closings.create`, `closings.reopen`, and `inventory.valuation.manage`.
 - `INVENTORY_MANAGER` grants `products.manage`, `stock-receipts.create`,
@@ -149,7 +160,8 @@ and the operational pricing boundary.
 - Dylan has `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, and `SALES`, plus direct
   `sales.cancel` and `inventory.audit.approve`. Samantha has `FINANCE`,
   `INVENTORY_MANAGER`, and `SALES`.
-  Jean and Luden have `INVENTORY_MANAGER` and `SALES`.
+  Jean and Luden have `INVENTORY_MANAGER` and `SALES`; Luden initially receives
+  direct `products.specifications.manage` (ADR-023).
 - A direct active `DENY` wins over any direct or role grant. There are no
   wildcards, prefix matching, role inheritance, or ADMIN bypass.
 - `inventory.read`, `inventory.adjust`, and `transfers.create` remain separate
@@ -162,7 +174,7 @@ See [authorization-matrix.md](../architecture/authorization-matrix.md) and
   exceptions belong to the administration panel, not to the manifest. The
   panel never assigns or removes `ADMIN` (exactly one remains); grants
   administrator-only permissions (`sales.cancel`, `inventory.audit.approve` and
-  the seven `ADMIN` role permissions) only to the ADMIN; and never denies the
+  the seven administrative `ADMIN` role permissions) only to the ADMIN; and never denies the
   ADMIN `users.read` or `users.roles.manage`. `db:bootstrap` and
   `auth:recover-admin` validate the exact catalog plus those invariants instead
   of per-person assignments. Disabled users can be reactivated with

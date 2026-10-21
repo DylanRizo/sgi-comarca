@@ -10,8 +10,12 @@ import { AuthenticationDatabase } from './support/authentication-database.js';
 const apiUrl = process.env.SGI_E2E_API_URL ?? 'http://localhost:3101';
 const webUrl = process.env.SGI_E2E_WEB_URL ?? 'http://localhost:3100';
 const database = new AuthenticationDatabase();
-async function login(request: APIRequestContext, page: Page) {
-  const token = await database.createInvitation();
+async function login(
+  request: APIRequestContext,
+  page: Page,
+  identifier = 'dylan',
+) {
+  const token = await database.createInvitation(identifier);
   expect(
     (
       await request.post(`${apiUrl}/api/v1/auth/activate`, {
@@ -21,7 +25,7 @@ async function login(request: APIRequestContext, page: Page) {
     ).status(),
   ).toBe(201);
   await page.goto('/login');
-  await page.getByLabel('Usuario').fill('dylan');
+  await page.getByLabel('Usuario').fill(identifier);
   await page.getByLabel('Contraseña').fill('calm river orchard lantern');
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page).toHaveURL('/app');
@@ -32,6 +36,167 @@ test.describe('Operational product and receipt journeys', () => {
     await database.prepareOperationalFixtures();
   });
   test.afterAll(async () => database.disconnect());
+  test('creates safe product specifications and preserves the mobile layout in both themes', async ({
+    page,
+    request,
+  }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(request, page);
+    await page
+      .getByRole('link', { name: 'Nuevo producto', exact: true })
+      .click();
+    await page.getByLabel(/^Código/u).fill('E2E-SPECS-MOBILE');
+    await page
+      .getByLabel('Nombre del producto')
+      .fill('Ficha técnica sintética');
+    await page
+      .getByLabel('Descripción de materiales')
+      .fill('Tejido <b>sin HTML</b>\nCuidados: agua fría.');
+    await page
+      .getByLabel('Tabla de medidas para este SKU')
+      .fill('Pecho: 95–102 cm\nLargo: 68 cm\n' + 'x'.repeat(160));
+    await page
+      .getByLabel('Carpeta de fotos en Google Drive')
+      .fill('https://drive.google.com.evil.invalid/drive/folders/test');
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect(page.getByRole('main').getByRole('alert')).toContainText(
+      'enlace HTTPS de carpeta de Google Drive',
+    );
+    const url =
+      'https://drive.google.com/drive/folders/synthetic-mobile?usp=sharing';
+    await page.getByLabel('Carpeta de fotos en Google Drive').fill(url);
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect(
+      page.getByRole('link', {
+        name: 'Abrir carpeta de fotos en Google Drive',
+      }),
+    ).toHaveAttribute('href', url);
+    await page
+      .getByRole('button', { name: 'Guardar producto', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Ficha técnica sintética',
+        exact: true,
+      }),
+    ).toBeVisible();
+    const specs = page.getByRole('region', {
+      name: 'Especificaciones del producto y multimedia',
+    });
+    await expect(specs).toContainText('Tejido <b>sin HTML</b>');
+    await expect(specs.locator('b')).toHaveCount(0);
+    await expect(specs.getByRole('link')).toHaveAttribute(
+      'rel',
+      'noopener noreferrer',
+    );
+    for (const theme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute('data-theme', value),
+        theme,
+      );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+      await specs.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: info.outputPath(`product-specifications-${theme}-mobile.png`),
+        fullPage: true,
+      });
+    }
+    await page.reload();
+    await expect(
+      page.getByRole('region', {
+        name: 'Especificaciones del producto y multimedia',
+      }),
+    ).toContainText('Largo: 68 cm');
+  });
+  test('keeps technical fields readonly for Jean and omits them from an ordinary edit', async ({
+    page,
+    request,
+  }) => {
+    await login(request, page);
+    const csrf = await page.request.get(apiUrl + '/api/v1/auth/csrf');
+    const token = (await csrf.json()).data.csrfToken as string;
+    const units = (
+      await (
+        await page.request.get(
+          apiUrl + '/api/v1/units?active=true&page=1&pageSize=100',
+        )
+      ).json()
+    ).data.items as { id: string; code: string }[];
+    const groups = (
+      await (await page.request.get(apiUrl + '/api/v1/product-groups')).json()
+    ).data as { id: string; code: string }[];
+    const created = await page.request.post(apiUrl + '/api/v1/products', {
+      headers: {
+        Origin: webUrl,
+        'X-CSRF-Token': token,
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      data: {
+        code: 'E2E-SPECS-READONLY',
+        name: 'Especificaciones protegidas',
+        unitId: units.find((u) => u.code === 'UNIDADES')!.id,
+        groupId: groups.find((g) => g.code === 'GENERAL')!.id,
+        minimumStock: '0',
+        materialsDescription: 'Material original',
+        measurementChart: 'Pecho: 100 cm',
+        photosUrl: 'https://drive.google.com/drive/folders/synthetic-readonly',
+      },
+    });
+    expect(created.status()).toBe(201);
+    const id = (await created.json()).data.product.id as string;
+    await page.context().clearCookies();
+    await login(request, page, 'jean');
+    await page.goto('/products/' + id + '/edit');
+    await expect(page.getByLabel('Descripción de materiales')).toHaveJSProperty(
+      'readOnly',
+      true,
+    );
+    await expect(
+      page.getByLabel('Tabla de medidas para este SKU'),
+    ).toHaveJSProperty('readOnly', true);
+    await expect(
+      page.getByLabel('Carpeta de fotos en Google Drive'),
+    ).toHaveJSProperty('readOnly', true);
+    let edited = false;
+    await page.route('**/api/v1/products/' + id, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        edited = true;
+        const data = route.request().postDataJSON() as Record<string, unknown>;
+        for (const field of [
+          'materialsDescription',
+          'measurementChart',
+          'photosUrl',
+        ])
+          expect(data).not.toHaveProperty(field);
+      }
+      await route.continue();
+    });
+    await page
+      .getByLabel('Descripción (opcional)')
+      .fill('Cambio ordinario de la ficha');
+    await page
+      .getByRole('button', { name: 'Guardar cambios', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Especificaciones protegidas',
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(edited).toBe(true);
+    await expect(
+      page.getByText('Material original', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Pecho: 100 cm', { exact: true }),
+    ).toBeVisible();
+  });
   test('creates product and first receipt, then edits only its description', async ({
     page,
     request,

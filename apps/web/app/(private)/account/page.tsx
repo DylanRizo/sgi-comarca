@@ -8,6 +8,8 @@ const labels: Record<string, string> = {
   'inventory.read': 'Consultar productos y existencias',
   'inventory.adjust': 'Ajustar existencias',
   'products.manage': 'Crear y editar productos',
+  'products.specifications.manage':
+    'Editar medidas, materiales y carpeta de fotos',
   'stock-receipts.create': 'Registrar entradas',
   'inventory.valuation.manage': 'Completar costos y precios',
   'transfers.create': 'Transferir entre bodegas',

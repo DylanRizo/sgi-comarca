@@ -1,6 +1,7 @@
 'use client';
 
 import type { ProductInventoryView } from '@sgi/contracts';
+import { productPhotosFolderUrl } from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -53,6 +54,7 @@ export function ProductDetailView({
   }, [productId, refreshSession, reload]);
 
   const errorPresentation = error ? presentReadError(error) : null;
+  const photosLink = productPhotosFolderUrl(state?.product.photosUrl, URL);
 
   function retry() {
     setError(null);
@@ -128,6 +130,53 @@ export function ProductDetailView({
               <dd>{state.balances.length}</dd>
             </div>
           </dl>
+
+          {state.product.materialsDescription ||
+          state.product.measurementChart ||
+          state.product.photosUrl ? (
+            <section aria-labelledby="specs-title" className="detail-section">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Ficha técnica</p>
+                  <h2 id="specs-title">
+                    Especificaciones del producto y multimedia
+                  </h2>
+                </div>
+                {photosLink.valid && photosLink.value ? (
+                  <a
+                    className="secondary-button"
+                    href={photosLink.value}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Abrir carpeta de fotos en Google Drive
+                  </a>
+                ) : null}
+              </div>
+              {photosLink.valid && photosLink.value ? (
+                <p className="hint">
+                  Se abre en otra pestaña. El acceso depende de los permisos de
+                  la carpeta en Drive.
+                </p>
+              ) : null}
+              <div className="product-specs-grid">
+                {state.product.materialsDescription ? (
+                  <article className="spec-card">
+                    <h3>Descripción de materiales</h3>
+                    <p>{state.product.materialsDescription}</p>
+                  </article>
+                ) : null}
+                {state.product.measurementChart ? (
+                  <article className="spec-card">
+                    <h3>Tabla de medidas (SKU)</h3>
+                    <pre className="measurement-chart-content">
+                      {state.product.measurementChart}
+                    </pre>
+                  </article>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <section aria-labelledby="balances-title" className="detail-section">
             <div className="section-heading">

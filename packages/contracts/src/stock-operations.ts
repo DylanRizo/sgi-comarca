@@ -17,6 +17,9 @@ export interface ProductInput {
   groupId: string;
   description?: string;
   minimumStock: string;
+  materialsDescription?: string | null;
+  measurementChart?: string | null;
+  photosUrl?: string | null;
 }
 export interface ReceiptInput {
   productId: string;

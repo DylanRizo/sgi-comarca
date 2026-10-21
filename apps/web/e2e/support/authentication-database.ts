@@ -441,13 +441,13 @@ export class AuthenticationDatabase {
     return { items, movements, transfers };
   }
 
-  async createInvitation(): Promise<string> {
+  async createInvitation(identifier = 'dylan'): Promise<string> {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const createdAt = new Date();
     const user = await this.client.user.findUniqueOrThrow({
       select: { id: true },
-      where: { loginIdentifier: 'dylan' },
+      where: { loginIdentifier: identifier },
     });
     await this.client.userInvitation.create({
       data: {

@@ -8,7 +8,10 @@ pedir que se completara la Fase A del
 
 Numerada 020 porque ADR-018 (pagos de ventas) y ADR-019 (valoración en
 transferencias) se aprobaron antes en la línea desplegada. El manifiesto
-vigente tiene 27 permisos; esta decisión no añade ninguno.
+al aprobar esta decisión tenía 27 permisos; esta decisión no añade ninguno.
+ADR-023 añade posteriormente una capacidad de catálogo delegable al rol ADMIN:
+no es uno de sus siete permisos administrativos reservados y no cambia los
+nueve códigos protegidos que se enumeran abajo.
 
 Esta decisión autoriza código y pruebas locales. No autoriza por sí sola
 desplegar, ejecutar `db:bootstrap` ni cambiar asignaciones en staging. Esas
