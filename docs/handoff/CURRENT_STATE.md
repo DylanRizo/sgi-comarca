@@ -2,7 +2,7 @@
 
 Updated: 2026-10-21.
 
-## Product specifications — PR #11 under review, no staging mutation
+## Product specifications — PR #11 deployed to staging, 2026-10-21
 
 The owner requested reviewing, correcting, implementing and deploying PR #11
 (`4f41b4d`, fork branch `feat/adr-023-product-enrichment`) over the documented
@@ -22,7 +22,7 @@ Luden, with later delegation/revocation through the existing access panel. The
 separate live provisioning are documented in ADR-023. The owner separately
 authorized the additive migration with a new private backup verified by full
 restore, plus the staging permission catalog/ADMIN/Luden changes with audit.
-No real staging grant or schema write has occurred yet.
+Those separately approved operational gates are now complete, as recorded below.
 
 The first 33 focused unit cases passed. An initial contracts build failed because
 the universal package intentionally excludes DOM/Node globals; the shared URL
@@ -47,9 +47,59 @@ alert; test locators were scoped to the main content rather than weakening the
 assertions, and the complete selected run passed. The lost-response/refused-retry
 case proves one product, one first receipt balance and one movement with the same
 key/payload across three attempts. No real product was edited for those tests.
-Docker was initially stopped and is now ready for local-only PostgreSQL validation. No schema write, real product
-edit, backup, bootstrap or deployment has run for this task. The previous live
-release below is historical until revalidated against the intended environment.
+Docker was initially stopped and was started for local-only PostgreSQL validation.
+The review was published in two separate commits: `beabacd` for specifications,
+validation and delegable access, and `05d513e` for uncertain stock-request recovery.
+Both were pushed normally to the existing fork branch. PR #11 passed all remote
+CI steps and was merged as `24978808c09278bfb619cdd05dfc7a99cd489f88`;
+its tree is identical to the tested PR head. The merged commit also passed CI.
+The local branch remains `codex/review-product-enrichment` and includes the merge
+by fast-forward. No unrelated change or legacy source was modified.
+
+Fresh direct read-only Neon preflight confirmed 14 completed migrations, exactly
+the approved pending migration, 51 triggers, 47 application tables and 27
+permissions. Ten Neon branches remained untouched. Two fresh private full
+custom-format backups were verified by complete isolated local restoration;
+each matched all 48 source tables, including authentication and the migration
+ledger, using an exported consistent snapshot. Header, TOC and copied SHA-256
+were checked. The first migration attempt stopped **before any write** because
+an automatic `INTEGRATION_CATALOG_READ` changed audit/key-usage/rate-limit state
+after the checkpoint. Read-only diagnosis confirmed no business-data change.
+A second fresh verified backup passed the unchanged strict comparison; neither
+the safety guard nor historical data was altered to get past it. Only the local
+temporary restore databases and container archive copies were removed; the
+private backups and operational evidence remain outside Git.
+
+Only `20261020160000_product_enrichment_specs` was applied. Verification confirmed
+15 completed migrations, none pending or unfinished, the same 51 triggers and
+47 application tables, unchanged pre-existing data, and three nullable columns
+with no defaults and all values NULL. The versioned `runBootstrap` command then
+created exactly one permission, one ADMIN role grant and one audit event; users,
+roles, credentials and personal assignments were unchanged. A separate approved
+`UserAccessService.replaceOverrides` operation added only Luden's new GRANT and
+one administrative audit event while preserving every other override. Initial
+effective access was verified true for Dylan/Luden and false for Jean/Samantha.
+No new administrator, financial permission or identity bypass was introduced.
+
+Render API was deployed first at `2497880` and confirmed live with health and
+readiness 200 before the ordinary fast-forward of `codex/staging-pilot`. Web
+auto-deploy did not start, so an explicit exact-commit deployment was used. Both
+services are live at `24978808c09278bfb619cdd05dfc7a99cd489f88`. Deployment IDs,
+backup metadata and full fingerprints are private operational evidence, not Git
+artifacts. A final direct read-only comparison against the post-grant baseline
+found no additional changes in any table. Login returns 200; unauthenticated
+GET specifications-access and POST products with the allowed Origin return
+401 `SESSION_INVALID`. No real product, stock, sale or payment was changed to test
+the release, and no connection string was persisted in a file or parent shell.
+
+The browser reloaded the published site successfully but remained at login.
+The owner was asked to sign in; authenticated live form inspection remains
+pending, not a claimed successful visual check. The complete synthetic local
+form/detail flows and 390px light/dark evidence passed as described above.
+Next user check: Products → Editar ficha → Medidas, materiales y fotos.
+See [the release procedure](../deployment/product-specifications.md).
+Documentation-only commits may move main beyond this functional baseline;
+they do not represent another deployment or require an exact HEAD match.
 
 ## Hybrid payments — PR #10 deployed to staging, 2026-10-19
 

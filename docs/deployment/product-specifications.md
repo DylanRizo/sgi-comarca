@@ -49,3 +49,35 @@ grant, revoke or deny this capability. `products.manage` is also necessary and
 DENY wins. Existing readers may consult the technical information; unauthorized
 editors can still edit the ordinary product sheet without overwriting it.
 The link does not share a Drive folder or change Google's access permissions.
+
+## Verified release — 2026-10-21
+
+PR #11 was merged as `24978808c09278bfb619cdd05dfc7a99cd489f88` after green CI;
+the merged tree equals the tested head and its own CI also passed. API was
+verified live before the pilot branch fast-forward and web deployment. Both
+services are live at that exact functional commit. Web required an explicit
+deployment because the automatic one did not start. Private deployment IDs,
+backup archives and full verification records stay outside Git.
+
+The first pre-write comparison caught an automatic integration catalog read
+after the checkpoint. It stopped before migration. Read-only diagnosis and a
+new full backup/restoration resolved the stale checkpoint without weakening
+the strict comparison or altering business data. Both restores matched all
+48 tables; the final schema is 15 finished migrations, zero pending, 51 triggers
+and 47 application tables. Only the three approved nullable columns were added,
+with no data backfill.
+
+The versioned bootstrap command added one permission, one ADMIN role grant and
+one audit. The separately authorized versioned administration command added
+Luden's single GRANT and audit, preserving his other overrides. Catalog count
+is 28; initial effective technical-edit access is Dylan/Luden only. The final
+read-only comparison found no additional table changes. Health/readiness/login
+and private-route authentication checks passed. No real business write was
+performed for testing, and no connection string was saved.
+
+Local gates: lint, types, 405 unit tests, 421 PostgreSQL integration tests,
+production build, schema validation and 18 selected Chromium cases passed.
+The published browser currently requires owner login; authenticated live form
+inspection is pending. Do not confuse the passing synthetic 390px light/dark
+screenshots with a live authenticated check, and do not create real data just
+to expose a form. Continue at Products → Editar ficha after sign-in.
