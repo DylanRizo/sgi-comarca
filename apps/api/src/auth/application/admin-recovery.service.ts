@@ -33,6 +33,7 @@ const approvedPermissionCodes = [
   'inventory.read',
   'inventory.valuation.manage',
   'products.manage',
+  'products.specifications.manage',
   'reports.read',
   'sales.cancel',
   'sales.confirm_in_transit',
@@ -51,6 +52,7 @@ const approvedPermissionCodes = [
 
 const approvedRolePermissionKeys = [
   'ADMIN:integrations.manage',
+  'ADMIN:products.specifications.manage',
   'ADMIN:users.credentials.revoke',
   'ADMIN:users.invitations.create',
   'ADMIN:users.read',

@@ -6,6 +6,7 @@ import type {
   ProductCreatedView,
   ProductDetail,
   ProductGroupView,
+  ProductSpecificationsAccessView,
   ReceiptInput,
   ReceiptView,
   UnitSummary,
@@ -19,6 +20,10 @@ const mutation = (
   idempotencyKey: string,
 ) => ({ body, csrfToken, idempotencyKey, method: 'POST' as const });
 export const stockOperationsApi = {
+  specificationsAccess: () =>
+    apiRequest<ProductSpecificationsAccessView>(
+      '/api/v1/products/specifications-access',
+    ),
   groups: () => apiRequest<ProductGroupView[]>('/api/v1/product-groups'),
   createGroup: (name: string, csrf: string, key: string) =>
     apiRequest<ProductGroupView>(

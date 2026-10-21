@@ -138,6 +138,39 @@ test.describe('Administration settings', () => {
     );
     await expect(permissionRow('sales.create')).toContainText('Sin acceso');
 
+    // ADR-023 is a catalog capability, not an administrator-only grant.
+    const specs = dialog.getByLabel(
+      'Excepción para products.specifications.manage',
+    );
+    await expect(specs.locator('option[value="GRANT"]')).toBeEnabled();
+    await specs.selectOption('GRANT');
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().endsWith('/permissions') &&
+          response.status() === 200,
+      ),
+      dialog.getByRole('button', { name: 'Guardar excepciones' }).click(),
+    ]);
+    await expect(permissionRow('products.specifications.manage')).toContainText(
+      'Permitido',
+    );
+    await specs.selectOption('NONE');
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().endsWith('/permissions') &&
+          response.status() === 200,
+      ),
+      dialog.getByRole('button', { name: 'Guardar excepciones' }).click(),
+    ]);
+    await expect(permissionRow('products.specifications.manage')).toContainText(
+      'Sin acceso',
+    );
+    await expect(permissionRow('sales.create')).toContainText('Sin acceso');
+
     await dialog.getByRole('button', { name: 'Cerrar' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(jeanRow).toContainText('FINANCE');

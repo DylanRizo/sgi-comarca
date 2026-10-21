@@ -2,15 +2,19 @@
 
 ## Especificaciones técnicas, medidas, materiales y fotos en catálogo (ADR-023)
 
-- `GET /api/v1/products/:id` y `GET /api/v1/inventory/products/:id`: público interno (`inventory.read`).
+- `GET /api/v1/products/:id` y `GET /api/v1/inventory/products/:id`: consulta privada autenticada (`inventory.read`).
   - La respuesta de `product` (`ProductDetail`) expone:
     - `materialsDescription: string | null`: descripción de composición textil/física.
     - `measurementChart: string | null`: guía o tabla de medidas libre para el SKU.
-    - `photosUrl: string | null`: URL de Google Drive, nube o catálogo fotográfico.
+    - `photosUrl: string | null`: enlace HTTPS a una carpeta de Google Drive; no archivo adjunto ni acceso concedido automáticamente.
+- `GET /api/v1/products/specifications-access`: privado, `products.manage`;
+  devuelve `{ canEditSpecifications: boolean }` desde la misma política del servidor.
 - `POST /api/v1/products` y `PATCH /api/v1/products/:id`: privado, CSRF, `Idempotency-Key`, `products.manage`.
   - Permite enviar opcionalmente `materialsDescription`, `measurementChart` y `photosUrl`.
-  - Si se suministran o modifican estos campos, el actor debe contar con rol `ADMIN` o tener loginIdentifier `'luden'`. En caso contrario, responde con HTTP 403 `STOCK_PERMISSION_DENIED`.
+  - Cambiar estos campos exige además `products.specifications.manage` efectivo, delegable desde el panel de accesos. Los grants iniciales son ADMIN y Luden; el servidor no comprueba nombres para autorizar. Sin capacidad responde HTTP 403 `STOCK_PERMISSION_DENIED`.
   - Modificar otros atributos del producto (nombre, categoría, unidad, stock mínimo) sin alterar las especificaciones técnicas está permitido para cualquier operador con `products.manage`.
+  - Omitir una especificación conserva su valor; `null` o texto vacío lo elimina explícitamente con autorización. Materiales y medidas admiten 4.000 y 8.000 caracteres, respectivamente; URL, 1.024. El enlace exige host exacto, HTTPS y ruta de carpeta de Drive, sin credenciales.
+  - `ADMIN` no evita un `DENY` de cualquiera de los dos permisos. La lista paginada y las proyecciones externas no se amplían con estos textos/enlaces.
 
 ## Registro de pagos divididos / pagos mixtos (ADR-022)
 

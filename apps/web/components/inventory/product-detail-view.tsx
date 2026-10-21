@@ -1,6 +1,7 @@
 'use client';
 
 import type { ProductInventoryView } from '@sgi/contracts';
+import { productPhotosFolderUrl } from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -53,6 +54,7 @@ export function ProductDetailView({
   }, [productId, refreshSession, reload]);
 
   const errorPresentation = error ? presentReadError(error) : null;
+  const photosLink = productPhotosFolderUrl(state?.product.photosUrl, URL);
 
   function retry() {
     setError(null);
@@ -140,17 +142,23 @@ export function ProductDetailView({
                     Especificaciones del producto y multimedia
                   </h2>
                 </div>
-                {state.product.photosUrl ? (
+                {photosLink.valid && photosLink.value ? (
                   <a
                     className="secondary-button"
-                    href={state.product.photosUrl}
+                    href={photosLink.value}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Ver fotos del producto ↗
+                    Abrir carpeta de fotos en Google Drive
                   </a>
                 ) : null}
               </div>
+              {photosLink.valid && photosLink.value ? (
+                <p className="hint">
+                  Se abre en otra pestaña. El acceso depende de los permisos de
+                  la carpeta en Drive.
+                </p>
+              ) : null}
               <div className="product-specs-grid">
                 {state.product.materialsDescription ? (
                   <article className="spec-card">

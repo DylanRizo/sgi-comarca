@@ -45,6 +45,7 @@ describe('FASE 3B bootstrap manifest', () => {
         'inventory.read',
         'inventory.valuation.manage',
         'products.manage',
+        'products.specifications.manage',
         'stock-receipts.create',
         'reports.read',
         'sales.cancel',
@@ -97,6 +98,7 @@ describe('FASE 3B bootstrap manifest', () => {
     ).toEqual(
       [
         'ADMIN:integrations.manage',
+        'ADMIN:products.specifications.manage',
         'ADMIN:users.credentials.revoke',
         'ADMIN:users.invitations.create',
         'ADMIN:users.read',
@@ -128,11 +130,15 @@ describe('FASE 3B bootstrap manifest', () => {
     expect(bootstrapUserPermissions).toEqual([
       { loginIdentifier: 'dylan', permissionCode: 'sales.cancel' },
       { loginIdentifier: 'dylan', permissionCode: 'inventory.audit.approve' },
+      {
+        loginIdentifier: 'luden',
+        permissionCode: 'products.specifications.manage',
+      },
     ]);
-    expect(bootstrapPermissions).toHaveLength(27);
+    expect(bootstrapPermissions).toHaveLength(28);
     expect(bootstrapUserRoles).toHaveLength(11);
-    expect(bootstrapRolePermissions).toHaveLength(27);
-    expect(bootstrapUserPermissions).toHaveLength(2);
+    expect(bootstrapRolePermissions).toHaveLength(28);
+    expect(bootstrapUserPermissions).toHaveLength(3);
   });
 
   it('separates counting a warehouse from approving the count into the ledger', () => {

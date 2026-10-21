@@ -6,6 +6,7 @@ import type {
   UnitSummary,
   WarehouseSummary,
 } from '@sgi/contracts';
+import { productPhotosFolderUrl } from '@sgi/contracts';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ import { inventoryApi } from '@/lib/http/inventory-api';
 import { useStockMutation } from '@/lib/inventory/use-stock-mutation';
 import { useAuth } from '@/providers/auth-provider';
 import { emptyReceipt, ReceiptFields, receiptInput } from './receipt-fields';
+import { ProductSpecificationsFields } from './product-specifications-fields';
 
 const emptyProduct: ProductInput = {
   code: '',
@@ -37,10 +39,8 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
   const canValue =
     permissions.includes('inventory.valuation.manage') &&
     permissions.includes('finances.read');
-  const canEnrich =
-    auth.kind === 'authenticated' &&
-    (auth.session.permissions.includes('users.roles.manage') ||
-      auth.session.identifier === 'luden');
+  const [canEnrich, setCanEnrich] = useState(false);
+  const [specificationsError, setSpecificationsError] = useState('');
   const [product, setProduct] = useState<ProductInput>(emptyProduct),
     [original, setOriginal] = useState<ProductDetail | null>(null);
   const [receipt, setReceipt] = useState(emptyReceipt),
@@ -65,10 +65,12 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
       productId
         ? inventoryApi.productInventory(productId)
         : Promise.resolve(null),
+      stockOperationsApi.specificationsAccess(),
     ])
-      .then(([units, groups, warehouses, existing, inventory]) => {
+      .then(([units, groups, warehouses, existing, inventory, access]) => {
         if (!current) return;
         setLoadError('');
+        setCanEnrich(access.canEditSpecifications);
         setCatalogs({
           units: units.items,
           groups,
@@ -106,23 +108,30 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
       current = false;
     };
   }, [productId, reload]);
-  const edit = (field: keyof ProductInput, value: string) =>
+  const photosLink = productPhotosFolderUrl(product.photosUrl, URL);
+  const edit = (field: keyof ProductInput, value: string) => {
     setProduct((previous) => ({ ...previous, [field]: value }));
+    setSpecificationsError('');
+  };
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (canEnrich && !photosLink.valid) {
+      setSpecificationsError(
+        'Usa un enlace HTTPS de carpeta de Google Drive, sin usuario ni contraseña en la dirección.',
+      );
+      return;
+    }
     if (step < 2 && !productId) {
       setStep(step + 1);
       return;
     }
     void mutation.execute(async (key, csrf) => {
-      const productPayload: ProductInput = canEnrich
-        ? product
-        : {
-            ...product,
-            materialsDescription: original?.materialsDescription ?? null,
-            measurementChart: original?.measurementChart ?? null,
-            photosUrl: original?.photosUrl ?? null,
-          };
+      const productPayload: ProductInput = { ...product };
+      if (!canEnrich) {
+        delete productPayload.materialsDescription;
+        delete productPayload.measurementChart;
+        delete productPayload.photosUrl;
+      }
       const result =
         productId && original
           ? await stockOperationsApi.editProduct(
@@ -289,72 +298,12 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
                       }
                     />
                   </FormField>
-                  <div className="enrichment-specs-panel">
-                    <h3>Especificaciones técnicas y multimedia (ADR-023)</h3>
-                    {!canEnrich ? (
-                      <p className="hint">
-                        La edición de medidas, materiales y fotos está reservada
-                        para Administración y Luden.
-                      </p>
-                    ) : null}
-                    <FormField
-                      label="Descripción de materiales"
-                      hint="Detalle de composición textil o características físicas del producto."
-                    >
-                      <textarea
-                        rows={3}
-                        maxLength={4000}
-                        disabled={!canEnrich}
-                        value={product.materialsDescription ?? ''}
-                        placeholder={
-                          canEnrich
-                            ? 'Ej. 85% Poliéster, 15% Elastano. Tela de alta compresión y secado rápido.'
-                            : 'Solo editable por Administración o Luden'
-                        }
-                        onChange={(event) =>
-                          edit('materialsDescription', event.target.value)
-                        }
-                      />
-                    </FormField>
-                    <FormField
-                      label="Tabla de medidas para este SKU"
-                      hint="Medidas específicas, rangos o guía de tallas aplicables (formato libre o tabla)."
-                    >
-                      <textarea
-                        rows={4}
-                        maxLength={8000}
-                        disabled={!canEnrich}
-                        value={product.measurementChart ?? ''}
-                        placeholder={
-                          canEnrich
-                            ? 'Ej. Pecho: 95-102 cm\nCintura: 82-88 cm\nLargo: 68 cm'
-                            : 'Solo editable por Administración o Luden'
-                        }
-                        onChange={(event) =>
-                          edit('measurementChart', event.target.value)
-                        }
-                      />
-                    </FormField>
-                    <FormField
-                      label="URL de fotos del producto"
-                      hint="Enlace a Google Drive o nube con las fotos oficiales del producto (http:// o https://)."
-                    >
-                      <input
-                        type="url"
-                        maxLength={1024}
-                        disabled={!canEnrich}
-                        value={product.photosUrl ?? ''}
-                        placeholder={
-                          canEnrich
-                            ? 'https://drive.google.com/...'
-                            : 'Solo editable por Administración o Luden'
-                        }
-                        onChange={(event) =>
-                          edit('photosUrl', event.target.value)
-                        }
-                      />
-                    </FormField>
-                  </div>
+                  <ProductSpecificationsFields
+                    product={product}
+                    canEdit={canEnrich}
+                    error={specificationsError}
+                    onChange={edit}
+                  />
                 </div>
               ) : step === 1 ? (
                 <>
@@ -444,13 +393,17 @@ export function ProductEditor({ productId }: Readonly<{ productId?: string }>) {
                       <div>
                         <dt>Fotos</dt>
                         <dd>
-                          <a
-                            href={product.photosUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Ver enlace de fotos ↗
-                          </a>
+                          {photosLink.valid && photosLink.value ? (
+                            <a
+                              href={photosLink.value}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Abrir carpeta de fotos en Google Drive
+                            </a>
+                          ) : (
+                            'Enlace de carpeta no válido'
+                          )}
                         </dd>
                       </div>
                     ) : null}

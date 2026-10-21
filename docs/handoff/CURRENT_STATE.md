@@ -1,6 +1,55 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-19.
+Updated: 2026-10-21.
+
+## Product specifications — PR #11 under review, no staging mutation
+
+The owner requested reviewing, correcting, implementing and deploying PR #11
+(`4f41b4d`, fork branch `feat/adr-023-product-enrichment`) over the documented
+main baseline `a0c2aa6`. Its original CI was green but it lacked PostgreSQL and
+browser coverage for the new fields. Local branch is
+`codex/review-product-enrichment`; there are no unrelated working-tree changes.
+
+The review strengthens the photo link from an HTTP-prefix regex to a shared
+HTTPS Drive-folder policy, supports explicit clearing and omitted-value
+preservation, and removes unsafe draft links. The editor now obtains a private
+server-computed capability instead of guessing ADMIN from `users.roles.manage`.
+Readonly fields are omitted on save, while the backend independently enforces
+both effective product-management and specifications-management permissions.
+The owner approved initially granting the new delegable capability to ADMIN and
+Luden, with later delegation/revocation through the existing access panel. The
+28-permission manifest, unchanged nine reserved administrative capabilities and
+separate live provisioning are documented in ADR-023. The owner separately
+authorized the additive migration with a new private backup verified by full
+restore, plus the staging permission catalog/ADMIN/Luden changes with audit.
+No real staging grant or schema write has occurred yet.
+
+The first 33 focused unit cases passed. An initial contracts build failed because
+the universal package intentionally excludes DOM/Node globals; the shared URL
+policy now accepts the caller's standard URL constructor without widening those
+types or adding dependencies. PostgreSQL and browser cases have been added for
+permissions, clearing, stale edits, idempotency, first receipts, escaped text and
+mobile themes. Lint (9 tasks), typecheck (13 tasks), all 405 unit tests and the
+complete 421-test PostgreSQL suite (37 files) passed. The RBAC change required
+aligning exact bootstrap/session expectations, the temporary import-database
+catalog count and the deliberately independent break-glass authorization matrix.
+Recovery's seven cases and the complete final suite pass without loosening the
+unique-ADMIN or nine reserved-capability invariants. An earlier failed recovery
+test left temporary fixture assignments that caused a downstream suite failure;
+correcting its catalog restored the full baseline. One interrupted local test
+database was positively identified by this run's PID and removed while idle;
+no operational database was touched. Production build passed all eight tasks.
+Chromium passed all 18 selected Inventory, Products/Receipts, Counts, Settings
+and Stock-retry tests together. New mobile light/dark screenshots were visually
+reviewed at 390px with escaped multiline text, long-word wrapping and no
+horizontal overflow. The first browser run hit Next's separate route-announcer
+alert; test locators were scoped to the main content rather than weakening the
+assertions, and the complete selected run passed. The lost-response/refused-retry
+case proves one product, one first receipt balance and one movement with the same
+key/payload across three attempts. No real product was edited for those tests.
+Docker was initially stopped and is now ready for local-only PostgreSQL validation. No schema write, real product
+edit, backup, bootstrap or deployment has run for this task. The previous live
+release below is historical until revalidated against the intended environment.
 
 ## Hybrid payments — PR #10 deployed to staging, 2026-10-19
 

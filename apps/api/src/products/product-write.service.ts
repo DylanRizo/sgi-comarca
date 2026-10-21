@@ -7,6 +7,11 @@ import {
   type StockTransaction,
 } from '../inventory/stock-command.js';
 import { ProductReadService } from './product-read.service.js';
+import {
+  canEditProductSpecifications,
+  resolveProductSpecifications,
+  type ProductSpecifications,
+} from './product-specifications.js';
 
 export class ProductWriteService {
   constructor(private readonly client: DatabaseClient) {}
@@ -16,18 +21,14 @@ export class ProductWriteService {
     actorUserId: string,
     input: ProductInput,
   ) {
-    if (
-      input.materialsDescription?.trim() ||
-      input.measurementChart?.trim() ||
-      input.photosUrl?.trim()
-    ) {
-      const allowed = await this.isEnrichmentAuthorized(
+    const data = await this.validated(transaction, input);
+    if (data.materialsDescription || data.measurementChart || data.photosUrl) {
+      const allowed = await canEditProductSpecifications(
         transaction,
         actorUserId,
       );
       if (!allowed) throw new StockOperationError('STOCK_PERMISSION_DENIED');
     }
-    const data = await this.validated(transaction, input);
     await this.lockCode(transaction, data.code);
     if (
       await transaction.product.findUnique({
@@ -49,6 +50,7 @@ export class ProductWriteService {
           unitId: data.unitId,
           groupId: data.groupId,
           minimumStock: data.minimumStock.toString(),
+          description: data.description,
           materialsDescription: data.materialsDescription,
           measurementChart: data.measurementChart,
           photosUrl: data.photosUrl,
@@ -79,19 +81,15 @@ export class ProductWriteService {
         if (before.updatedAt.toISOString() !== input.expectedUpdatedAt)
           throw new StockOperationError('STOCK_OPERATION_CONFLICT');
 
+        const data = await this.validated(transaction, input, before);
         const materialsChanging =
-          input.materialsDescription !== undefined &&
-          (input.materialsDescription?.trim() || null) !==
-            before.materialsDescription;
+          data.materialsDescription !== before.materialsDescription;
         const measurementsChanging =
-          input.measurementChart !== undefined &&
-          (input.measurementChart?.trim() || null) !== before.measurementChart;
-        const photosChanging =
-          input.photosUrl !== undefined &&
-          (input.photosUrl?.trim() || null) !== before.photosUrl;
+          data.measurementChart !== before.measurementChart;
+        const photosChanging = data.photosUrl !== before.photosUrl;
 
         if (materialsChanging || measurementsChanging || photosChanging) {
-          const allowed = await this.isEnrichmentAuthorized(
+          const allowed = await canEditProductSpecifications(
             transaction,
             actorUserId,
           );
@@ -99,7 +97,6 @@ export class ProductWriteService {
             throw new StockOperationError('STOCK_PERMISSION_DENIED');
         }
 
-        const data = await this.validated(transaction, input, before);
         await this.lockCode(transaction, data.code);
         const duplicate = await transaction.product.findFirst({
           where: { code: data.code, NOT: { id } },
@@ -160,25 +157,6 @@ export class ProductWriteService {
     return new ProductReadService(this.client).get(id);
   }
 
-  private async isEnrichmentAuthorized(
-    transaction: StockTransaction,
-    actorUserId: string,
-  ): Promise<boolean> {
-    const actor = await transaction.user.findUnique({
-      where: { id: actorUserId },
-      select: {
-        loginIdentifier: true,
-        userRoles: {
-          where: { revokedAt: null, role: { code: 'ADMIN' } },
-          select: { id: true },
-        },
-      },
-    });
-    return (
-      Boolean(actor?.userRoles.length) || actor?.loginIdentifier === 'luden'
-    );
-  }
-
   private async lockCode(transaction: StockTransaction, code: string) {
     await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`product.code:${code}`}, 0))`;
   }
@@ -186,11 +164,7 @@ export class ProductWriteService {
   private async validated(
     transaction: StockTransaction,
     input: ProductInput,
-    before?: {
-      materialsDescription: string | null;
-      measurementChart: string | null;
-      photosUrl: string | null;
-    },
+    before?: ProductSpecifications,
   ) {
     const code = input.code?.trim().toUpperCase(),
       name = input.name?.trim();
@@ -200,17 +174,11 @@ export class ProductWriteService {
       !name ||
       name.length < 2 ||
       name.length > 200 ||
-      (input.description?.length ?? 0) > 2000 ||
-      (input.materialsDescription?.length ?? 0) > 4000 ||
-      (input.measurementChart?.length ?? 0) > 8000 ||
-      (input.photosUrl?.length ?? 0) > 1024
+      (input.description?.length ?? 0) > 2000
     )
       throw new StockOperationError('STOCK_REQUEST_INVALID');
 
-    const trimmedPhotosUrl = input.photosUrl?.trim() || null;
-    if (trimmedPhotosUrl && !/^https?:\/\/.+/iu.test(trimmedPhotosUrl)) {
-      throw new StockOperationError('STOCK_REQUEST_INVALID');
-    }
+    const specifications = resolveProductSpecifications(input, before);
 
     const minimumStock = decimalInput(input.minimumStock);
     const unit = await transaction.unit.findFirst({
@@ -224,21 +192,6 @@ export class ProductWriteService {
     if (!unit || !group)
       throw new StockOperationError('STOCK_RESOURCE_NOT_FOUND');
 
-    const materialsDescription =
-      input.materialsDescription === undefined && before
-        ? before.materialsDescription
-        : input.materialsDescription?.trim() || null;
-
-    const measurementChart =
-      input.measurementChart === undefined && before
-        ? before.measurementChart
-        : input.measurementChart?.trim() || null;
-
-    const photosUrl =
-      input.photosUrl === undefined && before
-        ? before.photosUrl
-        : trimmedPhotosUrl;
-
     return {
       code,
       name,
@@ -246,9 +199,7 @@ export class ProductWriteService {
       unitId: unit.id,
       groupId: group.id,
       description: input.description?.trim() || null,
-      materialsDescription,
-      measurementChart,
-      photosUrl,
+      ...specifications,
     };
   }
 }

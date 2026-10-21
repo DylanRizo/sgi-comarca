@@ -21,8 +21,10 @@ export const administratorRoleCode = 'ADMIN';
 /**
  * Permissions that only the administrator may hold as a direct GRANT:
  * `sales.cancel` (DEC-021), `inventory.audit.approve` (whoever counts must not
- * approve their own count), and the ADMIN role's own permissions, because
+ * approve their own count), and the ADMIN role's administrative permissions, because
  * handing those out one by one would build a second administrator piecemeal.
+ * ADR-023's products.specifications.manage remains delegable and is deliberately
+ * absent from this list, even though the ADMIN role also grants it.
  */
 export const administratorOnlyPermissionCodes = [
   'inventory.audit.approve',

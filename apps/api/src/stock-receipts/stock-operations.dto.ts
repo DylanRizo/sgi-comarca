@@ -50,9 +50,6 @@ export class ProductFieldsDto {
   @IsOptional()
   @IsString()
   @MaxLength(1024)
-  @Matches(/^https?:\/\/.+/i, {
-    message: 'photosUrl must be a valid http or https URL.',
-  })
   photosUrl?: string | null;
 }
 export class CreateProductDto extends ProductFieldsDto {

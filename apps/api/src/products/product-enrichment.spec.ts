@@ -37,15 +37,20 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
     });
   });
 
-  it('rejects enrichment creation when actor is neither ADMIN nor luden', async () => {
+  it('rejects enrichment creation without the effective specifications permission', async () => {
     const service = new ProductWriteService({} as DatabaseClient);
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ allowed: false }]),
       user: {
         findUnique: vi.fn().mockResolvedValue({
           loginIdentifier: 'samantha',
+          status: 'ACTIVE',
+          activatedAt: new Date(),
           userRoles: [],
         }),
       },
+      unit: { findFirst: vi.fn().mockResolvedValue({ id: 'u1' }) },
+      productGroup: { findFirst: vi.fn().mockResolvedValue({ id: 'g1' }) },
     } as unknown as StockTransaction;
 
     await expect(
@@ -60,12 +65,15 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
     ).rejects.toMatchObject({ code: 'STOCK_PERMISSION_DENIED' });
   });
 
-  it('allows enrichment creation when actor is luden', async () => {
+  it('allows enrichment creation with Luden’s initial specifications grant', async () => {
     const service = new ProductWriteService({} as DatabaseClient);
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ allowed: true }]),
       user: {
         findUnique: vi.fn().mockResolvedValue({
           loginIdentifier: 'luden',
+          status: 'ACTIVE',
+          activatedAt: new Date(),
           userRoles: [],
         }),
       },
@@ -89,7 +97,7 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
       minimumStock: '5',
       materialsDescription: 'Spandex blend',
       measurementChart: 'Talla M: 100cm',
-      photosUrl: 'https://drive.google.com/folder-luden',
+      photosUrl: 'https://drive.google.com/drive/folders/synthetic-luden',
     });
 
     expect(created.id).toBe('prod-new');
@@ -97,17 +105,20 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
       data: expect.objectContaining({
         materialsDescription: 'Spandex blend',
         measurementChart: 'Talla M: 100cm',
-        photosUrl: 'https://drive.google.com/folder-luden',
+        photosUrl: 'https://drive.google.com/drive/folders/synthetic-luden',
       }),
     });
   });
 
-  it('allows enrichment creation when actor is ADMIN', async () => {
+  it('allows enrichment creation with the ADMIN role’s specifications grant', async () => {
     const service = new ProductWriteService({} as DatabaseClient);
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ allowed: true }]),
       user: {
         findUnique: vi.fn().mockResolvedValue({
           loginIdentifier: 'dylan',
+          status: 'ACTIVE',
+          activatedAt: new Date(),
           userRoles: [{ id: 'role-admin' }],
         }),
       },
@@ -129,7 +140,7 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
       unitId: 'u1',
       groupId: 'g1',
       minimumStock: '2',
-      photosUrl: 'https://drive.google.com/admin-folder',
+      photosUrl: 'https://drive.google.com/drive/folders/synthetic-admin',
     });
 
     expect(created.id).toBe('prod-admin');
@@ -141,6 +152,8 @@ describe('Product enrichment specs and authorization (ADR-023)', () => {
       user: {
         findUnique: vi.fn().mockResolvedValue({
           loginIdentifier: 'luden',
+          status: 'ACTIVE',
+          activatedAt: new Date(),
           userRoles: [],
         }),
       },

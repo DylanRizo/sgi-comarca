@@ -1,9 +1,10 @@
 # ADR-023 — Especificaciones técnicas de producto, tabla de medidas, materiales y enlaces multimedia
 
-- Estado: `PROPOSED_FOR_IMPLEMENTATION`
+- Estado: `ACCEPTED_FOR_IMPLEMENTATION`
 - Fecha: 2026-10-20
 - Alcance: Catálogo de productos (`Product`), ficha técnica, guía de medidas por SKU, materiales, enlaces multimedia y permisos de edición restringidos.
-- Aprobador: propietario del proyecto
+- Fuente: solicitud del propietario de revisar, corregir, implementar y desplegar PR #11.
+- Aprobación del propietario: inicialmente Dylan y Luden pueden editar; Administración puede delegar o retirar ese permiso. También autorizó la migración con un backup privado verificado por restauración y la actualización explícita de staging a 28 permisos, con grant a ADMIN y Luden y auditoría.
 
 ## Contexto
 
@@ -14,7 +15,7 @@ En el flujo operativo y de atención comercial de La Comarca, los clientes consu
 
 Hasta la fecha, el modelo de datos de `Product` únicamente contemplaba `code`, `name`, `description`, `unitId`, `groupId` y `minimumStock`. Toda la información de medidas o materiales debía incrustarse en el campo genérico `description` o consultarse por fuera del sistema en chats o carpetas dispersas, generando demoras en la respuesta al cliente.
 
-Asimismo, la gestión de inventario básica (`products.manage`) está asignada a los roles operativos de almacén, pero las especificaciones técnicas maestras, composición de catálogo y enlaces oficiales a fotos deben mantenerse estrictamente gobernadas para evitar alteraciones no coordinadas. El propietario ha determinado que la edición de estas especificaciones técnicas debe estar **restringida exclusivamente al rol Administrador (`ADMIN`) y al usuario catalogador `luden`**.
+La gestión de inventario básica (`products.manage`) está asignada a los roles operativos de almacén. La propuesta original comprobaba rol y nombre de usuario. El propietario pidió poder delegar ese acceso posteriormente: se sustituye esa excepción por una capacidad efectiva explícita, no por una lista de identidades en código.
 
 ## Decisión
 
@@ -22,28 +23,35 @@ Asimismo, la gestión de inventario básica (`products.manage`) está asignada a
    Se agregan tres columnas opcionales a la tabla `products`:
    - `materials_description` (`TEXT`): Texto libre multilínea que detalla la composición de materiales y especificaciones textiles/físicas.
    - `measurement_chart` (`TEXT`): Texto libre multilínea con la tabla, rangos o guía de medidas aplicables al SKU (soporta viñetas, tablas de texto y dimensiones).
-   - `photos_url` (`VARCHAR(1024)`): URL web segura (`http://` o `https://`) que apunta a la carpeta de Google Drive, nube o catálogo fotográfico oficial.
+   - `photos_url` (`VARCHAR(1024)`): enlace HTTPS a una carpeta de Google Drive.
+   - Materiales admite 4.000 caracteres y medidas, 8.000. Son textos planos escapados, no HTML. Quien registra las medidas indica sus unidades; no se convierten ni infieren.
+   - Una política compartida usa el constructor URL de la plataforma y exige host exacto `drive.google.com`, sin credenciales ni puerto no estándar, con ruta `/drive/folders/:id` o `/drive/u/:account/folders/:id`. Rechaza dominios parecidos, esquemas ejecutables, archivos sueltos y controles dentro de la dirección. No basta comprobar un prefijo.
+   - Omitir un campo en edición conserva lo guardado; `null` o texto vacío lo elimina explícitamente si el actor puede editarlo. En creación, la omisión produce `NULL`. No se copia la descripción antigua ni se inventa información para completar las columnas.
 
 2. **Gobernanza y Autorización Estricta:**
-   - **Lectura Pública Interna:** Cualquier usuario con acceso a consultar productos o inventario (`inventory.read` / `sales.read`) puede ver estos campos en la ficha de detalle (`ProductDetailView`).
-   - **Escritura y Modificación:** Solo un usuario con rol `ADMIN` (Dylan) o cuyo identificador de acceso sea `'luden'` puede suministrar o modificar `materialsDescription`, `measurementChart` o `photosUrl` tanto al crear (`createProduct`) como al editar (`editProduct`). Si otro usuario con `products.manage` intenta modificarlos, el servidor rechaza la transacción con `STOCK_PERMISSION_DENIED`.
+   - **Lectura privada autenticada:** `inventory.read` permite ver los campos en la ficha de detalle; `sales.read` por sí solo no abre el catálogo.
+   - **Escritura y modificación:** exige `products.manage` y `products.specifications.manage` efectivos. Inicialmente el nuevo permiso se concede explícitamente al rol ADMIN y directamente a Luden; Samantha y Jean no lo reciben. El servidor rechaza cambios técnicos sin esa capacidad con `STOCK_PERMISSION_DENIED`.
+   - Administración puede conceder, retirar o denegar la capacidad mediante el panel existente y sus operaciones auditadas. No se asigna ADMIN ni se conceden privilegios financieros. Los nueve permisos administrativos reservados de ADR-020 no cambian: esta capacidad de catálogo es delegable, aunque ADMIN también la reciba.
    - Si un usuario no autorizado edita otros campos del producto (nombre, categoría, unidad, stock mínimo), los valores existentes de especificaciones técnicas se preservan intactos sin lanzar error.
+   - La identidad debe estar activa y activada. Un `DENY` de cualquiera de las dos capacidades prevalece, incluso para ADMIN. La autorización se comprueba en el servidor para cada mutación, sin excepción por nombre o rol.
 
 3. **Creación y Edición en Web POS (`apps/web`):**
    - Se habilitan los campos en el formulario de creación (`/products/new`) y edición (`/products/:id/edit`).
-   - El panel evalúa la sesión del usuario (`session.permissions.includes('users.roles.manage') || session.identifier === 'luden'`). Si el usuario no tiene privilegios de enriquecimiento técnico, los campos se presentan deshabilitados con una indicación clara.
+   - El panel consulta `GET /api/v1/products/specifications-access`, privado y protegido con `products.manage`, que devuelve `{ canEditSpecifications }` usando la misma política del servidor. No deduce ADMIN de `users.roles.manage` ni de un nombre escrito en la interfaz.
+   - Sin acceso de edición, los campos permiten leer/copiar y se omiten de la solicitud al guardar. No se reenvían valores copiados para simular una edición autorizada. Los enlaces inválidos tampoco se activan en la revisión previa o el detalle.
    - En la vista de detalle (`/products/:id`), se renderiza una sección destacada **"Especificaciones del Producto & Multimedia"** con formateo preservado para medidas y botón de apertura segura (`target="_blank" rel="noopener noreferrer"`) para el enlace de fotos.
 
 4. **Compatibilidad con Clientes Externos y Bot de Marketplace:**
    - La adición de columnas es aditiva y retrocompatible.
-   - Los endpoints de consulta (`ProductReadService.get`, `ProductReadService.list`) exponen los campos en `ProductDetail`.
+   - Los dos detalles internos de producto exponen los campos. La lista paginada conserva su resumen ligero y no transporta estos textos largos por fila.
+   - No se amplía la proyección externa de Marketplace, la respuesta audible de Alexa ni ninguna ruta pública.
 
 ## Consecuencias
 
 ### Positivas
 - Respuesta comercial inmediata: vendedores y cajeros acceden a medidas, materiales y fotos en un clic desde la ficha del producto.
 - Flexibilidad total: al ser campos de texto libre multilínea, admiten cualquier línea de producto presente o futura (ropa, fajas, accesorios, suplementos).
-- Integridad del catálogo: únicamente Administración y Luden pueden definir o actualizar el material oficial y enlaces multimedia.
+- Integridad del catálogo: inicialmente Administración y Luden actualizan la información; otras personas pueden hacerlo solo si Administración les delega la capacidad.
 
 ### Consideraciones
 - Requiere migración SQL aditiva en PostgreSQL (`ALTER TABLE products ADD COLUMN ...`).
@@ -51,5 +59,17 @@ Asimismo, la gestión de inventario básica (`products.manage`) está asignada a
 ## Aceptación Verificable
 
 - **PostgreSQL:** La tabla `products` acepta valores nulos y textos en las tres nuevas columnas sin alterar datos históricos.
-- **API (Creación y Edición):** `ADMIN` y `luden` pueden crear y actualizar los tres campos. Usuarios sin rol `ADMIN` ni login `luden` reciben `STOCK_PERMISSION_DENIED` al intentar suministrar o modificar dichos campos.
+- **API:** comprobar grants iniciales, delegación y revocación auditadas, DENY para ambos editores iniciales y edición ordinaria sin sobrescribir campos protegidos. El nombre del usuario no determina la autorización.
 - **Frontend Web:** La ficha de detalle muestra ordenadamente las especificaciones, preserva saltos de línea en medidas y abre el enlace de fotos. El formulario bloquea la edición a usuarios no autorizados.
+
+## Enlace y acceso a Google Drive
+
+Se guarda un enlace, no archivos adjuntos. El SGI no descarga, enumera, indexa ni incrusta fotos, no conecta una cuenta Google y no modifica permisos de carpetas. Abrir en otra pestaña usa `noopener noreferrer`. La existencia de la carpeta y el acceso de cada persona dependen de Drive: validar la sintaxis no confirma existencia o acceso.
+
+## Consistencia, pruebas y despliegue
+
+Se conservan CSRF, idempotencia, bloqueo del producto, `expectedUpdatedAt`, bloqueo de código/unidad con historial y auditoría de antes/después. Producto y primera entrada siguen siendo una transacción; editar especificaciones no escribe existencias ni snapshots de venta/entrada.
+
+Probar clearing/omisión, DENY, límites, enlaces engañosos, concurrencia, respuesta perdida, auditoría, primera entrada y móvil claro/oscuro sin desbordamiento ni ejecución de HTML. No editar fichas reales para probar un despliegue.
+
+La migración `20261020160000_product_enrichment_specs` añade tres columnas opcionales sin defaults ni backfill; no añade tabla, trigger, permiso o rol. Staging exige destino directo verificado y un backup privado fresco comprobado por restauración completa. Comparar los datos anteriores de Productos excluyendo las nuevas columnas, que deben quedar nulas. La actualización RBAC tiene aprobación separada: bootstrap actualiza catálogo y grants por rol, sin resembrar asignaciones personales en una base en uso (ADR-020). Conceder el permiso a Luden es una operación administrativa auditada independiente, conservando sus demás excepciones. Desplegar API antes de web. No cargar información real ni modificar stock para probar.

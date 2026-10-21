@@ -1,7 +1,7 @@
 # Matriz de autorización
 
-Estado vigente: el manifiesto desplegado contiene 27 permisos, 27 grants por rol
-y 2 grants directos (`packages/database/src/bootstrap/manifest.ts` es la fuente
+Estado del manifiesto aprobado para ADR-023: 28 permisos, 28 grants por rol
+y 3 grants directos iniciales (`packages/database/src/bootstrap/manifest.ts` es la fuente
 ejecutable). La base es
 [ADR-007](../decisions/ADR-007-phase-3b-authentication-authorization.md),
 ampliada por las decisiones aprobadas de FASE 5A (lectura de inventario), 6A
@@ -22,20 +22,21 @@ integración) y ADR-018 (registro de pagos de ventas, `sales.record_payment`).
 `ADMIN` no significa superusuario. Un usuario ADMIN obtiene exclusivamente sus
 siete grants administrativos (cuatro de cuentas, `users.read`,
 `users.roles.manage` e `integrations.manage`) más cualquier rol o grant
-adicional asignado de forma explícita.
+adicional asignado de forma explícita. ADR-023 añade un octavo grant al rol:
+`products.specifications.manage`, capacidad de catálogo delegable, no administrativa.
 
 ## Roles y RolePermission iniciales
 
 | Rol | Permisos activos exactos |
 |---|---|
-| `ADMIN` | `integrations.manage`, `users.read`, `users.roles.manage`, `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage` |
+| `ADMIN` | `integrations.manage`, `users.read`, `users.roles.manage`, `users.invitations.create`, `users.credentials.revoke`, `users.sessions.revoke`, `users.status.manage`, `products.specifications.manage` |
 | `PARTNER` | Ninguno |
 | `INVENTORY_MANAGER` | `products.manage`, `stock-receipts.create`, `inventory.adjust`, `inventory.read`, `inventory.audit.create`, `transfers.create`, `reports.read`, `analytics.read` |
 | `SALES` | `sales.create`, `sales.confirm_in_transit`, `sales.read`, `sales.record_payment`, `reports.read`, `analytics.read` |
 | `FINANCE` | `finances.read`, `finances.manual.create`, `closings.read`, `closings.create`, `closings.reopen`, `inventory.valuation.manage` |
 | `READ_ONLY` | Ninguno |
 
-Existen 27 `RolePermission` activos: siete ADMIN, seis FINANCE, ocho
+Existen 28 `RolePermission` iniciales: ocho ADMIN, seis FINANCE, ocho
 INVENTORY_MANAGER y seis SALES. `transfers.create` se concede exclusivamente a
 `INVENTORY_MANAGER`; no es un privilegio implícito de `ADMIN`.
 `inventory.valuation.manage` (completar costos y precios por bodega) pertenece a
@@ -54,7 +55,7 @@ columna monetaria exige `finances.read`, que ninguno de esos dos roles tiene.
 | Dylan | `ADMIN`, `FINANCE`, `INVENTORY_MANAGER`, `SALES` | `GRANT sales.cancel`, `GRANT inventory.audit.approve` |
 | Samantha | `FINANCE`, `INVENTORY_MANAGER`, `SALES` | Ninguno |
 | Jean | `INVENTORY_MANAGER`, `SALES` | Ninguno |
-| Luden | `INVENTORY_MANAGER`, `SALES` | Ninguno |
+| Luden | `INVENTORY_MANAGER`, `SALES` | `GRANT products.specifications.manage` |
 
 `PARTNER` y `READ_ONLY` no tienen usuarios. Dylan es el único ADMIN inicial,
 pero ninguna política de autorización depende de su nombre, login o ID.
@@ -78,6 +79,7 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `integrations.manage` | Sí | No | No | No |
 | `inventory.valuation.manage` | Sí | Sí | No | No |
 | `products.manage` | Sí | Sí | Sí | Sí |
+| `products.specifications.manage` | Sí | No | No | Sí |
 | `stock-receipts.create` | Sí | Sí | Sí | Sí |
 | `finances.read` | Sí | Sí | No | No |
 | `finances.manual.create` | Sí | Sí | No | No |
@@ -96,7 +98,7 @@ puede capturar conteos; solo el ADMIN los aprueba.
 | `sales.record_payment` | Sí | Sí | Sí | Sí |
 | `sales.cancel` | Sí | No | No | No |
 | `transfers.create` | Sí | Sí | Sí | Sí |
-| Total | 27 | 18 | 12 | 12 |
+| Total | 28 | 18 | 12 | 13 |
 
 La API de sesión devuelve estos códigos ordenados, no roles. Un DENY directo se
 refleja en la siguiente solicitud y su revocación restaura inmediatamente el
@@ -129,11 +131,19 @@ directorio, no aquí. Reglas que el panel aplica en la API:
 - El rol `ADMIN` no se asigna ni se retira desde el panel. Sigue habiendo
   exactamente un ADMIN.
 - Los permisos reservados al administrador (`sales.cancel`,
-  `inventory.audit.approve` y los siete permisos del rol `ADMIN`) solo se
+  `inventory.audit.approve` y los siete permisos administrativos del rol `ADMIN`) solo se
   conceden como excepción `GRANT` a quien tiene `ADMIN`. Denegarlos a cualquiera
   sí está permitido.
 - A quien tiene `ADMIN` no se le puede denegar `users.read` ni
   `users.roles.manage`.
+
+`products.specifications.manage` no pertenece a esos nueve permisos reservados.
+El administrador puede concederlo o retirarlo desde Editar acceso; editar medidas,
+materiales y fotos exige también `products.manage`. La concesión inicial a Luden
+en una base en uso se hace con una operación administrativa auditada: bootstrap
+no reimpone asignaciones personales. El propietario aprobó expresamente este
+cambio y su aplicación en staging con backup privado verificado; el despliegue
+efectivo se registra en CURRENT_STATE, no se presume de este manifiesto.
 
 Detalle y consecuencias en
 [ADR-020](../decisions/ADR-020-user-access-administration.md).
