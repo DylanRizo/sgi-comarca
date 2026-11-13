@@ -4,6 +4,7 @@ import type {
   IntegrationKeyStatus,
   IntegrationKeySummary,
 } from '@sgi/contracts';
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { FormField } from '@/components/ui/form-field';
@@ -136,6 +137,13 @@ export default function IntegrationsPage() {
             pueden modificar nada.
           </p>
         </div>
+        {allowed ? (
+          <div className="page-heading-actions">
+            <Link className="secondary-link" href="/settings/marketplace-bot">
+              Monitor Bot Marketplace
+            </Link>
+          </div>
+        ) : null}
       </header>
 
       {!allowed ? (

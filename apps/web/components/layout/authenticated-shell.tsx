@@ -2,6 +2,7 @@
 
 import {
   ArrowLeftRight,
+  Bot,
   Boxes,
   CalendarCheck,
   ChartColumn,
@@ -97,13 +98,19 @@ const administrationNavigation = [
     href: '/settings',
     icon: Settings,
     label: 'Configuración',
-    permission: 'users.read',
+    permissions: ['users.read'],
   },
   {
     href: '/settings/integrations',
     icon: KeyRound,
     label: 'Integraciones',
-    permission: 'integrations.manage',
+    permissions: ['integrations.manage'],
+  },
+  {
+    href: '/settings/marketplace-bot',
+    icon: Bot,
+    label: 'Bot Marketplace',
+    permissions: ['integrations.manage', 'sales.read'],
   },
 ] as const;
 
@@ -134,7 +141,10 @@ export function AuthenticatedShell({
     state.session.permissions.includes(permission),
   );
   const visibleAdministrationNavigation = administrationNavigation.filter(
-    ({ permission }) => state.session.permissions.includes(permission),
+    ({ permissions }) =>
+      permissions.some((permission) =>
+        state.session.permissions.includes(permission),
+      ),
   );
   const userInitial =
     Array.from(state.session.displayName.trim())[0]?.toLocaleUpperCase(
@@ -148,7 +158,9 @@ export function AuthenticatedShell({
   }: Readonly<{ href: string; icon: LucideIcon; label: string }>) {
     const current =
       pathname === href ||
-      (href !== '/inventory' && pathname.startsWith(`${href}/`));
+      (href !== '/inventory' &&
+        href !== '/settings' &&
+        pathname.startsWith(`${href}/`));
     return (
       <Link
         aria-current={current ? 'page' : undefined}

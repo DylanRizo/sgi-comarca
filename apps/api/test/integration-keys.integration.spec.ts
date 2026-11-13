@@ -488,4 +488,251 @@ describe.sequential('Read-only integration keys and catalog', () => {
       await client.userPermission.delete({ where: { id: denyId } });
     }
   });
+
+  it('synchronizes the Marketplace bot, allows read-only view for sales.read and restricts remote commands to integrations.manage (ADR-024)', async () => {
+    const secret = String(
+      (await createKey('Bot PC Principal')).body.data.secret,
+    );
+
+    const firstSync = await request(app.getHttpServer())
+      .post('/api/v1/integrations/marketplace-bot/sync')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${secret}`)
+      .send({
+        botVersion: '2026.11',
+        commandResults: [],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal Comarca',
+        snapshot: {
+          accounts: [
+            {
+              dailyLimit: 3,
+              displayName: 'Cuenta 1',
+              key: 'acc-1',
+              lastScanAt: '2026-11-13T14:00:00Z',
+              pausedUntil: null,
+              pauseReason: null,
+              publishedToday: 1,
+              publishedWeek: 5,
+              status: 'healthy',
+              weeklyLimit: 12,
+            },
+          ],
+          alerts: [],
+          leads: {
+            awaitingReply: 2,
+            products: [
+              {
+                activeListings: 2,
+                clicks14d: 100,
+                familyKey: 'camisa-columbia',
+                focus: true,
+                label: 'Camisa Columbia',
+                leads14d: 9,
+                leadsPer100Clicks: 9,
+              },
+            ],
+            total14d: 14,
+            unanswered: [
+              {
+                account: 'acc-1',
+                label: 'Juan · Camisa Columbia',
+                lastActivity: 'Hace 1h',
+                neverAnswered: true,
+                startedOn: '13 nov',
+                title: 'Camisa Columbia M',
+              },
+            ],
+            unansweredRecent: 1,
+          },
+          listings: {
+            actionable: 1,
+            items: [
+              {
+                account: 'acc-1',
+                ageDays: 9,
+                clicks14d: 45,
+                executable: true,
+                key: 'acc-1::12345',
+                leads14d: 4,
+                listedOn: '2026-11-04',
+                pendingAction: null,
+                recommendation: 'renew',
+                recommendationLabel: 'Renovar',
+                recommendationReason: 'Buena conversión y >7 días',
+                status: 'active',
+                title: 'Camisa Columbia M',
+              },
+            ],
+            totalActive: 4,
+          },
+          queue: {
+            summary: { planned: 2, published: 3, queued: 1 },
+            upcoming: [],
+          },
+          worker: {
+            currentItem: null,
+            enabled: true,
+            mode: 'live',
+            processRunning: true,
+            safetyLevel: 'balanced',
+            status: 'running',
+          },
+        },
+      })
+      .expect(200);
+
+    expect(firstSync.body.data.pendingCommands).toEqual([]);
+
+    const adminState = await request(app.getHttpServer())
+      .get('/api/v1/integrations/marketplace-bot')
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(adminState.body.data.canControl).toBe(true);
+    expect(adminState.body.data.instances).toHaveLength(1);
+    const instanceId = String(adminState.body.data.instances[0].id);
+    expect(adminState.body.data.instances[0]).toMatchObject({
+      connection: 'ONLINE',
+      instanceName: 'PC Principal Comarca',
+    });
+    expect(adminState.body.data.instances[0].snapshot.leads.awaitingReply).toBe(
+      2,
+    );
+
+    const queued = await request(app.getHttpServer())
+      .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({
+        command: { enabled: false, type: 'SET_BOT_ENABLED' },
+      })
+      .expect(201);
+    const commandId = String(queued.body.data.id);
+    expect(queued.body.data.status).toBe('PENDING');
+
+    const toCancel = await request(app.getHttpServer())
+      .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({
+        command: { type: 'SYNC_SGI_CATALOG' },
+      })
+      .expect(201);
+    const cancelId = String(toCancel.body.data.id);
+
+    // A seller with sales.read (without integrations.manage) can read the
+    // monitor and leads, with canControl = false, and cannot send or cancel commands.
+    const denyId = await denyOwnerPermission('integrations.manage');
+    try {
+      const sellerState = await request(app.getHttpServer())
+        .get('/api/v1/integrations/marketplace-bot')
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(sellerState.body.data.canControl).toBe(false);
+      expect(sellerState.body.data.instances).toHaveLength(1);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({
+          command: { type: 'RESOLVE_ALL_ALERTS' },
+        })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/integrations/marketplace-bot/commands/${cancelId}/cancel`,
+        )
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({})
+        .expect(403);
+    } finally {
+      await client.userPermission.delete({ where: { id: denyId } });
+    }
+
+    const cancelled = await request(app.getHttpServer())
+      .post(`/api/v1/integrations/marketplace-bot/commands/${cancelId}/cancel`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({})
+      .expect(200);
+    expect(cancelled.body.data.status).toBe('CANCELLED');
+
+    const secondSync = await request(app.getHttpServer())
+      .post('/api/v1/integrations/marketplace-bot/sync')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${secret}`)
+      .send({
+        botVersion: '2026.11',
+        commandResults: [],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal Comarca',
+        snapshot: { worker: { enabled: true } },
+      })
+      .expect(200);
+
+    expect(secondSync.body.data.pendingCommands).toEqual([
+      expect.objectContaining({
+        id: commandId,
+        payload: { enabled: false, type: 'SET_BOT_ENABLED' },
+      }),
+    ]);
+
+    const thirdSync = await request(app.getHttpServer())
+      .post('/api/v1/integrations/marketplace-bot/sync')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${secret}`)
+      .send({
+        botVersion: '2026.11',
+        commandResults: [
+          {
+            detail: 'Bot pausado desde SGI.',
+            id: commandId,
+            status: 'COMPLETED',
+          },
+        ],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal Comarca',
+        snapshot: { worker: { enabled: false } },
+      })
+      .expect(200);
+
+    expect(thirdSync.body.data.pendingCommands).toEqual([]);
+
+    const finalState = await request(app.getHttpServer())
+      .get('/api/v1/integrations/marketplace-bot')
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .expect(200);
+    const commands = finalState.body.data.instances[0].commands as Array<{
+      id: string;
+      resultDetail: string | null;
+      status: string;
+    }>;
+    expect(commands.find((item) => item.id === commandId)).toMatchObject({
+      resultDetail: 'Bot pausado desde SGI.',
+      status: 'COMPLETED',
+    });
+    expect(commands.find((item) => item.id === cancelId)?.status).toBe(
+      'CANCELLED',
+    );
+  });
 });
