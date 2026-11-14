@@ -608,6 +608,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
       .set('Origin', origin)
       .set('Cookie', cookie)
       .set('X-CSRF-Token', csrfToken)
+      .set('Idempotency-Key', randomUUID())
       .send({
         command: { enabled: false, type: 'SET_BOT_ENABLED' },
       })
@@ -621,6 +622,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
       .set('Origin', origin)
       .set('Cookie', cookie)
       .set('X-CSRF-Token', csrfToken)
+      .set('Idempotency-Key', randomUUID())
       .send({
         command: { type: 'SYNC_SGI_CATALOG' },
       })
@@ -734,5 +736,240 @@ describe.sequential('Read-only integration keys and catalog', () => {
     expect(commands.find((item) => item.id === cancelId)?.status).toBe(
       'CANCELLED',
     );
+  });
+
+  describe('Marketplace bot command queue (ADR-024)', () => {
+    const syncBot = (
+      secret: string,
+      instanceKey: string,
+      body: Record<string, unknown> = {},
+    ) =>
+      request(app.getHttpServer())
+        .post('/api/v1/integrations/marketplace-bot/sync')
+        .set('Host', host)
+        .set('Authorization', `Bearer ${secret}`)
+        .send({
+          botVersion: '2026.11',
+          instanceKey,
+          instanceName: 'PC de prueba',
+          snapshot: {},
+          ...body,
+        });
+
+    const enqueue = (
+      instanceId: string,
+      command: Record<string, unknown>,
+      idempotencyKey: string | null = randomUUID(),
+    ) => {
+      const pending = request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken);
+      return (
+        idempotencyKey === null
+          ? pending
+          : pending.set('Idempotency-Key', idempotencyKey)
+      ).send({ command });
+    };
+
+    const cancel = (commandId: string) =>
+      request(app.getHttpServer())
+        .post(
+          `/api/v1/integrations/marketplace-bot/commands/${commandId}/cancel`,
+        )
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({});
+
+    /** A fresh key and instance per test: each key has its own rate window. */
+    const startInstance = async (instanceKey: string) => {
+      const secret = String((await createKey(instanceKey)).body.data.secret);
+      await syncBot(secret, instanceKey).expect(200);
+      const instance = await client.marketplaceBotInstance.findUniqueOrThrow({
+        select: { id: true },
+        where: { instanceKey },
+      });
+      return { instanceId: instance.id, secret };
+    };
+
+    const readCommand = (id: string) =>
+      client.marketplaceBotCommand.findUniqueOrThrow({ where: { id } });
+
+    const age = (
+      commandId: string,
+      column: 'created_at' | 'delivered_at',
+      interval: string,
+    ) =>
+      client.$executeRawUnsafe(
+        `UPDATE marketplace_bot_commands SET ${column} = now() - interval '${interval}' WHERE id = $1::uuid`,
+        commandId,
+      );
+
+    it('hands a command to the bot exactly once and refuses to cancel it afterwards', async () => {
+      const { instanceId, secret } = await startInstance('queue-once-01');
+      const queued = await enqueue(instanceId, {
+        action: 'delete',
+        key: 'acc-1::1',
+        type: 'LISTING_ACTION',
+      }).expect(201);
+      const commandId = String(queued.body.data.id);
+      expect(queued.body.data.deliveredAt).toBeNull();
+
+      const delivered = await syncBot(secret, 'queue-once-01').expect(200);
+      expect(delivered.body.data.pendingCommands).toEqual([
+        expect.objectContaining({ id: commandId }),
+      ]);
+      // The next heartbeat arrives before the bot has finished: the command
+      // must not be sent a second time.
+      const next = await syncBot(secret, 'queue-once-01').expect(200);
+      expect(next.body.data.pendingCommands).toEqual([]);
+
+      // The bot already has it, so the SGI cannot claim it was cancelled.
+      await cancel(commandId).expect(409);
+      const stillWaiting = await readCommand(commandId);
+      expect(stillWaiting.status).toBe('PENDING');
+      expect(stillWaiting.deliveredAt).not.toBeNull();
+
+      await syncBot(secret, 'queue-once-01', {
+        commandResults: [
+          { detail: 'Anuncio eliminado.', id: commandId, status: 'COMPLETED' },
+        ],
+      }).expect(200);
+      const finished = await readCommand(commandId);
+      expect(finished).toMatchObject({
+        resultDetail: 'Anuncio eliminado.',
+        status: 'COMPLETED',
+      });
+
+      // Cancelling a finished command stays idempotent and changes nothing.
+      const late = await cancel(commandId).expect(200);
+      expect(late.body.data.status).toBe('COMPLETED');
+      await expect(
+        client.auditLog.count({
+          where: {
+            action: 'INTEGRATION_BOT_COMMAND_CANCELLED',
+            entityId: commandId,
+          },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it('records the outcome the bot reports even when it arrives after the expiry window', async () => {
+      const { instanceId, secret } = await startInstance('queue-late-01');
+      const queued = await enqueue(instanceId, {
+        type: 'RESOLVE_ALL_ALERTS',
+      }).expect(201);
+      const commandId = String(queued.body.data.id);
+      await syncBot(secret, 'queue-late-01').expect(200);
+
+      // Picked up just before the two hours and reported just after.
+      await age(commandId, 'created_at', '2 hours 5 minutes');
+      await age(commandId, 'delivered_at', '2 hours 1 minute');
+      await syncBot(secret, 'queue-late-01', {
+        commandResults: [{ detail: 'Listo.', id: commandId, status: 'FAILED' }],
+      }).expect(200);
+      expect(await readCommand(commandId)).toMatchObject({
+        resultDetail: 'Listo.',
+        status: 'FAILED',
+      });
+    });
+
+    it('expires a command the bot never received and never hands it over', async () => {
+      const { instanceId, secret } = await startInstance('queue-stale-01');
+      const queued = await enqueue(instanceId, {
+        type: 'SYNC_SGI_CATALOG',
+      }).expect(201);
+      const commandId = String(queued.body.data.id);
+      await age(commandId, 'created_at', '2 hours 1 second');
+
+      const sync = await syncBot(secret, 'queue-stale-01').expect(200);
+      expect(sync.body.data.pendingCommands).toEqual([]);
+      const expired = await readCommand(commandId);
+      expect(expired.status).toBe('EXPIRED');
+      expect(expired.deliveredAt).toBeNull();
+      expect(expired.resultDetail).toContain('sin ser recibido');
+
+      // The bot cannot report an outcome for something it was never given.
+      await syncBot(secret, 'queue-stale-01', {
+        commandResults: [{ id: commandId, status: 'COMPLETED' }],
+      }).expect(200);
+      expect((await readCommand(commandId)).status).toBe('EXPIRED');
+    });
+
+    it('says so when the bot took a command and never reported back, and accepts a late outcome', async () => {
+      const { instanceId, secret } = await startInstance('queue-silent-01');
+      const queued = await enqueue(instanceId, {
+        replace: false,
+        type: 'GENERATE_WEEK',
+      }).expect(201);
+      const commandId = String(queued.body.data.id);
+      await syncBot(secret, 'queue-silent-01').expect(200);
+      await age(commandId, 'delivered_at', '2 hours 1 second');
+
+      const sync = await syncBot(secret, 'queue-silent-01').expect(200);
+      expect(sync.body.data.pendingCommands).toEqual([]);
+      const silent = await readCommand(commandId);
+      expect(silent.status).toBe('EXPIRED');
+      expect(silent.resultDetail).toContain('no reportó su resultado');
+
+      await syncBot(secret, 'queue-silent-01', {
+        commandResults: [
+          { detail: 'Semana generada.', id: commandId, status: 'COMPLETED' },
+        ],
+      }).expect(200);
+      expect(await readCommand(commandId)).toMatchObject({
+        resultDetail: 'Semana generada.',
+        status: 'COMPLETED',
+      });
+    });
+
+    it('queues a repeated request once and rejects a reused key for another command', async () => {
+      const { instanceId } = await startInstance('queue-idem-01');
+      const key = randomUUID();
+      const command = {
+        action: 'relist',
+        key: 'acc-1::9',
+        type: 'LISTING_ACTION',
+      };
+
+      const first = await enqueue(instanceId, command, key).expect(201);
+      // Same intent with the properties in another order.
+      const replay = await enqueue(
+        instanceId,
+        { type: 'LISTING_ACTION', key: 'acc-1::9', action: 'relist' },
+        key,
+      ).expect(201);
+      expect(replay.body.data.id).toBe(first.body.data.id);
+      await expect(
+        client.marketplaceBotCommand.count({ where: { instanceId } }),
+      ).resolves.toBe(1);
+      await expect(
+        client.auditLog.count({
+          where: {
+            action: 'INTEGRATION_BOT_COMMAND_QUEUED',
+            entityId: String(first.body.data.id),
+          },
+        }),
+      ).resolves.toBe(1);
+
+      await enqueue(
+        instanceId,
+        { action: 'delete', key: 'acc-1::9', type: 'LISTING_ACTION' },
+        key,
+      ).expect(409);
+      await enqueue(instanceId, command, null).expect(400);
+      await enqueue(instanceId, command, 'short').expect(400);
+      await expect(
+        client.marketplaceBotCommand.count({ where: { instanceId } }),
+      ).resolves.toBe(1);
+
+      const stored = await readCommand(String(first.body.data.id));
+      expect(stored.idempotencyKeyHash).toBe(sha256(key));
+      expect(JSON.stringify(stored)).not.toContain(key);
+    });
   });
 });

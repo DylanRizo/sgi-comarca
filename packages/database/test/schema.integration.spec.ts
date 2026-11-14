@@ -169,6 +169,53 @@ describe('current PostgreSQL operational structure', () => {
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 
+  it('tracks Marketplace bot command delivery and idempotency in the database', async () => {
+    const columns = await pool.query(
+      `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='marketplace_bot_commands' AND column_name IN ('delivered_at','idempotency_key_hash','request_hash') ORDER BY column_name`,
+    );
+    expect(columns.rows).toEqual([
+      {
+        column_default: null,
+        column_name: 'delivered_at',
+        data_type: 'timestamp with time zone',
+        is_nullable: 'YES',
+      },
+      {
+        column_default: null,
+        column_name: 'idempotency_key_hash',
+        data_type: 'character',
+        is_nullable: 'YES',
+      },
+      {
+        column_default: null,
+        column_name: 'request_hash',
+        data_type: 'character',
+        is_nullable: 'YES',
+      },
+    ]);
+
+    const checks = await pool.query<{ conname: string }>(
+      `SELECT conname FROM pg_constraint WHERE conrelid = 'marketplace_bot_commands'::regclass AND contype = 'c' ORDER BY conname`,
+    );
+    expect(checks.rows.map(({ conname }) => conname)).toEqual([
+      'marketplace_bot_commands_cancelled_undelivered',
+      'marketplace_bot_commands_completion',
+      'marketplace_bot_commands_idempotency_pair',
+      'marketplace_bot_commands_payload_object',
+      'marketplace_bot_commands_status_check',
+    ]);
+
+    const index = await pool.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='marketplace_bot_commands_creator_idempotency_key'`,
+    );
+    expect(index.rows[0]?.indexdef).toContain(
+      'UNIQUE INDEX marketplace_bot_commands_creator_idempotency_key',
+    );
+    expect(index.rows[0]?.indexdef).toContain(
+      '(created_by_user_id, idempotency_key_hash)',
+    );
+  });
+
   it('adds nullable bounded product specification columns without defaults', async () => {
     const columns = await pool.query(
       `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name IN ('materials_description','measurement_chart','photos_url') ORDER BY column_name`,

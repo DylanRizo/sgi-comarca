@@ -6,6 +6,10 @@ import { SERVER_TO_SERVER_ROUTE_METADATA } from '../auth/decorators/server-to-se
 import { IntegrationKeyError } from './integration-key.errors.js';
 import { MarketplaceBotController } from './marketplace-bot.controller.js';
 import {
+  botIdempotencyKeyPattern,
+  canonicalBotCommandRequest,
+} from './marketplace-bot-request.canonical.js';
+import {
   parseMarketplaceBotCommandPayload,
   sanitizeMarketplaceBotSnapshot,
 } from './marketplace-bot-snapshot.js';
@@ -166,6 +170,41 @@ describe('MarketplaceBot snapshot sanitization and command validation', () => {
         type: 'LISTING_ACTION',
       }),
     ).toThrow(IntegrationKeyError);
+  });
+
+  it('treats the same command for the same instance as one intent, whatever the key order', () => {
+    const instanceId = '9AAD52F3-0011-43EF-9FB9-0985006EEEDD';
+    const canonical = canonicalBotCommandRequest(instanceId, {
+      action: 'delete',
+      key: 'acc-1::1',
+      type: 'LISTING_ACTION',
+    });
+    expect(
+      canonicalBotCommandRequest(instanceId.toLowerCase(), {
+        type: 'LISTING_ACTION',
+        key: 'acc-1::1',
+        action: 'delete',
+      }),
+    ).toBe(canonical);
+    expect(
+      canonicalBotCommandRequest(instanceId, {
+        action: 'relist',
+        key: 'acc-1::1',
+        type: 'LISTING_ACTION',
+      }),
+    ).not.toBe(canonical);
+    expect(
+      canonicalBotCommandRequest('00000000-0000-4000-8000-000000000000', {
+        action: 'delete',
+        key: 'acc-1::1',
+        type: 'LISTING_ACTION',
+      }),
+    ).not.toBe(canonical);
+
+    expect(botIdempotencyKeyPattern.test('short')).toBe(false);
+    expect(
+      botIdempotencyKeyPattern.test('2698b235-bc5e-4f94-85f6-3d60408174d9'),
+    ).toBe(true);
   });
 
   it('protects read routes with integrations.manage or sales.read, and command routes with integrations.manage only', () => {

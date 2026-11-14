@@ -319,19 +319,24 @@ model MarketplaceBotInstance {
 /// ADR-024. An order queued by a person for the bot to run on its computer.
 /// The SGI stores it and its reported outcome; it never executes it.
 model MarketplaceBotCommand {
-  id              String    @id @default(uuid()) @db.Uuid
-  instanceId      String    @map("instance_id") @db.Uuid
-  commandType     String    @map("command_type") @db.VarChar(40)
-  payload         Json      @db.JsonB
-  status          String    @default("PENDING") @db.VarChar(16)
-  resultDetail    String?   @map("result_detail") @db.VarChar(500)
-  createdByUserId String    @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  id                 String    @id @default(uuid()) @db.Uuid
+  instanceId         String    @map("instance_id") @db.Uuid
+  commandType        String    @map("command_type") @db.VarChar(40)
+  payload            Json      @db.JsonB
+  status             String    @default("PENDING") @db.VarChar(16)
+  resultDetail       String?   @map("result_detail") @db.VarChar(500)
+  createdByUserId    String    @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+  /// Set once, when the command is handed to the bot. It is never sent again.
+  deliveredAt        DateTime? @map("delivered_at") @db.Timestamptz(6)
+  idempotencyKeyHash String?   @map("idempotency_key_hash") @db.Char(64)
+  requestHash        String?   @map("request_hash") @db.Char(64)
 
   instance  MarketplaceBotInstance @relation(fields: [instanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   createdBy User                   @relation("MarketplaceBotCommandCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([createdByUserId, idempotencyKeyHash], map: "marketplace_bot_commands_creator_idempotency_key")
   @@index([instanceId, status, createdAt], map: "marketplace_bot_commands_instance_status_idx")
   @@map("marketplace_bot_commands")
 }

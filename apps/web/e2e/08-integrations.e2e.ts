@@ -73,6 +73,116 @@ test.describe('Integration keys', () => {
     expect((await readCatalog(request, secret)).status()).toBe(401);
   });
 
+  test('queues a bot command once, asks before deleting a listing and stops offering to cancel once the bot has it', async ({
+    page,
+    request,
+  }) => {
+    const name = `Bot monitor E2E ${String(Date.now())}`;
+    const instanceKey = `e2e-monitor-${String(Date.now())}`;
+    const sync = (secret: string, commandResults: unknown[] = []) =>
+      request.post(`${apiUrl}/api/v1/integrations/marketplace-bot/sync`, {
+        data: {
+          botVersion: '2026.11',
+          commandResults,
+          instanceKey,
+          instanceName: 'PC de prueba E2E',
+          snapshot: {
+            listings: {
+              actionable: 1,
+              items: [
+                {
+                  account: 'acc-1',
+                  executable: true,
+                  key: 'acc-1::1',
+                  listedOn: '2026-11-04',
+                  recommendation: 'renew',
+                  recommendationLabel: 'Renovar',
+                  status: 'active',
+                  title: 'Camisa de prueba E2E',
+                },
+              ],
+              totalActive: 1,
+            },
+            worker: { enabled: true, processRunning: true, status: 'idle' },
+          },
+        },
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+
+    await login(request, page);
+    await page.getByRole('link', { name: 'Integraciones' }).click();
+    await page.getByLabel('Nombre').fill(name);
+    await page.getByRole('button', { name: 'Crear llave' }).click();
+    const secret = await page.getByLabel('Llave de integración').inputValue();
+    expect((await sync(secret)).status()).toBe(200);
+
+    await page
+      .getByRole('link', { name: 'Bot Marketplace', exact: true })
+      .click();
+    await expect(page).toHaveURL('/settings/marketplace-bot');
+    const listing = page
+      .getByRole('row')
+      .filter({ hasText: 'Camisa de prueba E2E' });
+    await expect(listing).toBeVisible();
+    const history = page.getByRole('region', {
+      name: 'Historial de Comandos Remotos',
+    });
+
+    // Declining the question queues nothing.
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('Camisa de prueba E2E');
+      void dialog.dismiss();
+    });
+    await listing.getByRole('button', { name: 'Eliminar' }).click();
+    await expect(
+      history.getByText('Todavía no se han enviado comandos remotos'),
+    ).toBeVisible();
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await listing.getByRole('button', { name: 'Eliminar' }).click();
+    await expect(page.getByText('Se encoló "Eliminar"')).toBeVisible();
+    const command = history
+      .getByRole('row')
+      .filter({ hasText: 'Acción sobre anuncio' });
+    await expect(command).toHaveCount(1);
+    await expect(command).toContainText(
+      'Se entregará en el próximo pulso del bot',
+    );
+    await expect(
+      command.getByRole('button', { name: 'Cancelar' }),
+    ).toBeVisible();
+
+    // The bot picks it up; a second heartbeat must not receive it again.
+    const delivered = (await (await sync(secret)).json()) as {
+      data: { pendingCommands: Array<{ id: string }> };
+    };
+    expect(delivered.data.pendingCommands).toHaveLength(1);
+    const commandId = delivered.data.pendingCommands[0]?.id ?? '';
+    const repeated = (await (await sync(secret)).json()) as {
+      data: { pendingCommands: unknown[] };
+    };
+    expect(repeated.data.pendingCommands).toEqual([]);
+
+    await page.reload();
+    await expect(command).toContainText(
+      'Entregado al bot; esperando su resultado',
+    );
+    await expect(command.getByRole('button', { name: 'Cancelar' })).toHaveCount(
+      0,
+    );
+
+    expect(
+      (
+        await sync(secret, [
+          { detail: 'Anuncio eliminado.', id: commandId, status: 'COMPLETED' },
+        ])
+      ).status(),
+    ).toBe(200);
+    await page.reload();
+    await expect(command).toContainText('Completado');
+    await expect(command).toContainText('Anuncio eliminado.');
+  });
+
   test('hides integrations from an account without the permission', async ({
     page,
     request,

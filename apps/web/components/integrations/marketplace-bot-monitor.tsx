@@ -6,9 +6,11 @@ import type {
   MarketplaceBotStateData,
 } from '@sgi/contracts';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { ApiHttpError } from '@/lib/http/api-client';
 import { integrationsApi } from '@/lib/http/integrations-api';
+import { destructiveCommandConfirmation } from '@/lib/integrations/marketplace-bot-commands';
 import { useAuth } from '@/providers/auth-provider';
 
 import { AlertsSection } from './marketplace-bot/alerts-section';
@@ -33,6 +35,14 @@ export function MarketplaceBotMonitor() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // State alone cannot stop a second click that lands before the re-render.
+  const sending = useRef(false);
+  // A request that never got an answer may or may not have been queued. The
+  // same command sent again reuses its key, so the server answers with the
+  // command already queued instead of a second one.
+  const uncertainIntent = useRef<{ key: string; signature: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!allowed) return;
@@ -72,7 +82,19 @@ export function MarketplaceBotMonitor() {
     command: MarketplaceBotCommandPayload,
     successMessage: string,
   ) {
-    if (busy) return;
+    if (sending.current) return;
+    const confirmation = destructiveCommandConfirmation(
+      command,
+      instance.snapshot,
+    );
+    if (confirmation && !window.confirm(confirmation)) return;
+
+    const signature = JSON.stringify([instance.id, command]);
+    const idempotencyKey =
+      uncertainIntent.current?.signature === signature
+        ? uncertainIntent.current.key
+        : crypto.randomUUID();
+    sending.current = true;
     setBusy(command.type);
     setError('');
     setNotice('');
@@ -81,31 +103,48 @@ export function MarketplaceBotMonitor() {
         instance.id,
         command,
         await getCsrfToken(),
+        idempotencyKey,
       );
+      uncertainIntent.current = null;
       setNotice(successMessage);
       setReload((value) => value + 1);
-    } catch {
+    } catch (caught) {
+      // An HTTP answer settles the attempt. Anything else leaves it unknown.
+      uncertainIntent.current =
+        caught instanceof ApiHttpError
+          ? null
+          : { key: idempotencyKey, signature };
       setError(
-        'No pudimos encolar el comando para el bot. Verifica tus permisos e inténtalo de nuevo.',
+        caught instanceof ApiHttpError
+          ? 'No pudimos encolar el comando para el bot. Verifica tus permisos e inténtalo de nuevo.'
+          : 'No pudimos confirmar si el comando quedó en cola. Revisa el historial; si no aparece, repite la misma acción y no se duplicará.',
       );
+      setReload((value) => value + 1);
     } finally {
+      sending.current = false;
       setBusy('');
     }
   }
 
   async function cancelCommand(commandId: string) {
-    if (busy) return;
+    if (sending.current) return;
+    sending.current = true;
     setBusy(`cancel-${commandId}`);
     setError('');
     setNotice('');
     try {
       await integrationsApi.cancelBotCommand(commandId, await getCsrfToken());
       setNotice('El comando pendiente quedó cancelado.');
-      setReload((value) => value + 1);
-    } catch {
-      setError('No pudimos cancelar el comando.');
+    } catch (caught) {
+      setError(
+        caught instanceof ApiHttpError && caught.status === 409
+          ? 'El bot ya recibió ese comando, así que no se puede cancelar desde el SGI. Su resultado aparecerá en el historial.'
+          : 'No pudimos cancelar el comando.',
+      );
     } finally {
+      sending.current = false;
       setBusy('');
+      setReload((value) => value + 1);
     }
   }
 

@@ -43,10 +43,37 @@ HTTPS saliente usando su llave de integración (ADR-017).
   - El cuerpo incluye la identidad de la instancia (`instanceKey`,
     `instanceName`, `botVersion`), un `snapshot` compacto y los resultados
     (`commandResults`) de los comandos que ejecutó en el pulso anterior.
-  - En la misma respuesta, el SGI devuelve `pendingCommands` (en orden FIFO) y
-    expira automáticamente (`EXPIRED`) cualquier comando que lleve más de 2 horas
-    en estado `PENDING`, evitando que una orden vieja se ejecute horas después
-    al encender la computadora.
+  - En la misma respuesta, el SGI devuelve `pendingCommands` (en orden FIFO,
+    hasta 25 por pulso).
+- **Cada comando se entrega una sola vez**:
+  - Al entregarlo, el SGI registra `delivered_at` y no vuelve a enviarlo en
+    pulsos posteriores. Reenviarlo en cada pulso dejaría solo en manos del bot
+    no eliminar o republicar dos veces el mismo anuncio. El bot debe ejecutar lo
+    que recibe y reportar el resultado en un `commandResults` posterior.
+  - Si la respuesta del pulso se pierde, el comando no se reintenta: termina
+    como `EXPIRED` y una persona decide de nuevo.
+  - Los resultados reportados se aplican antes que cualquier expiración, y se
+    aceptan también para un comando entregado que el SGI ya había dado por
+    expirado: lo que el bot dice que hizo es la verdad sobre lo que hizo. Un
+    resultado para un comando nunca entregado se ignora.
+  - `EXPIRED` distingue dos casos con textos distintos: el comando llevaba más
+    de 2 horas sin ser entregado (nunca se entrega: una orden vieja no debe
+    ejecutarse horas después al encender la computadora), o fue entregado y el
+    bot no reportó resultado en 2 horas.
+  - Cancelar solo es posible mientras el comando no ha sido entregado. Cancelar
+    uno ya entregado responde `409` y lo deja `PENDING`: el SGI no puede
+    retirarlo del bot y no debe afirmar que lo canceló. Cancelar uno ya
+    terminado sigue siendo idempotente.
+- **Idempotencia al encolar**:
+  - `POST .../:instanceId/commands` exige `Idempotency-Key`, con la misma
+    convención del resto de mutaciones: se guarda solo su hash, con alcance por
+    actor. Repetir la clave con el mismo comando devuelve el comando ya
+    encolado, sin segunda fila ni segunda auditoría; repetirla con otro comando
+    responde `409`.
+  - La web pide confirmación antes de encolar lo que el bot no puede deshacer
+    (eliminar un anuncio, cancelar una publicación programada, resolver todas
+    las alertas) y reutiliza la clave si la petición anterior quedó sin
+    respuesta.
 - **Sanitización estricta del snapshot**:
   - `sanitizeMarketplaceBotSnapshot` recorta cadenas y acota cada colección
     (`accounts`, `leads.unanswered`, `leads.products`, `listings.items`,
@@ -78,6 +105,18 @@ La migración `20261113180000_marketplace_bot_monitor` añade:
 - `marketplace_bot_commands`: cola de comandos con restricciones de tipo,
   estado (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`) y
   consistencia de `completed_at`.
+
+La migración `20261114120000_marketplace_bot_command_delivery` añade a
+`marketplace_bot_commands`, sin reescribir filas:
+
+- `delivered_at`: momento en que el comando se entregó al bot;
+- `idempotency_key_hash` y `request_hash`, con índice único por
+  `(created_by_user_id, idempotency_key_hash)`;
+- dos restricciones: un comando `CANCELLED` no puede tener `delivered_at`, y
+  los dos hashes existen juntos o no existen.
+
+Ambas migraciones conservan el checkpoint operacional indicado en el estado de
+esta decisión.
 
 ## Consecuencias
 

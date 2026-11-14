@@ -77,9 +77,14 @@ export type MarketplaceBotCommandPayload =
   | { type: 'RESOLVE_ALL_ALERTS' };
 
 /**
- * `EXPIRED`: the bot did not pick the command up in time. An old order (for
- * example deleting a listing) must not run hours later without a person
- * deciding again.
+ * A command stays `PENDING` until the bot reports its outcome. `deliveredAt`
+ * tells the two halves of that wait apart: before it the command can still be
+ * cancelled; after it the bot already has the command and only the bot can
+ * settle it.
+ *
+ * `EXPIRED`: either the bot did not pick the command up in time, or it took it
+ * and never reported back. An old order (for example deleting a listing) must
+ * not run hours later without a person deciding again.
  */
 export type MarketplaceBotCommandStatus =
   'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
@@ -94,6 +99,8 @@ export interface MarketplaceBotCommandView {
   resultDetail: string | null;
   createdAt: string;
   createdByName: string;
+  /** When the command was handed to the bot; it is never handed over twice. */
+  deliveredAt: string | null;
   completedAt: string | null;
 }
 
@@ -216,7 +223,8 @@ export interface MarketplaceBotStateData {
 export interface MarketplaceBotCommandResult {
   id: string;
   status: 'COMPLETED' | 'FAILED';
-  detail: string;
+  /** Optional; the API keeps at most the first 500 characters. */
+  detail?: string;
 }
 
 /** Body of `POST /api/v1/integrations/marketplace-bot/sync`. */
@@ -235,10 +243,19 @@ export interface MarketplaceBotPendingCommand {
 }
 
 export interface MarketplaceBotSyncData {
+  /**
+   * Commands handed over in this exchange, oldest first. Each one appears in
+   * exactly one response: the bot must run it and report its outcome in a
+   * later `commandResults`, because the SGI will not send it again.
+   */
   pendingCommands: readonly MarketplaceBotPendingCommand[];
 }
 
-/** Body of `POST /api/v1/integrations/marketplace-bot/:instanceId/commands`. */
+/**
+ * Body of `POST /api/v1/integrations/marketplace-bot/:instanceId/commands`.
+ * The request must carry an `Idempotency-Key` header: repeating it with the
+ * same command returns the command already queued instead of a second one.
+ */
 export interface EnqueueMarketplaceBotCommandRequest {
   command: MarketplaceBotCommandPayload;
 }

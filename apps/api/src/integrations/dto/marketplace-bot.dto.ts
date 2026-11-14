@@ -21,9 +21,12 @@ export class MarketplaceBotCommandResultDto {
   @IsIn(['COMPLETED', 'FAILED'])
   status!: 'COMPLETED' | 'FAILED';
 
+  // Deliberately unbounded here: the service keeps the first 500 characters.
+  // Rejecting a long failure message would reject the whole heartbeat, and the
+  // bot would repeat it forever.
+  @IsOptional()
   @IsString()
-  @MaxLength(500)
-  detail!: string;
+  detail?: string;
 }
 
 export class MarketplaceBotSyncDto {
@@ -47,7 +50,7 @@ export class MarketplaceBotSyncDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(25)
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => MarketplaceBotCommandResultDto)
   commandResults?: MarketplaceBotCommandResultDto[];

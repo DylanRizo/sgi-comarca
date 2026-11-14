@@ -1,4 +1,9 @@
 import {
+  canCancelCommand,
+  pendingCommandHint,
+} from '@/lib/integrations/marketplace-bot-commands';
+
+import {
   commandLabels,
   commandStatusLabels,
   commandStatusTones,
@@ -57,14 +62,11 @@ export function CommandsSection({
                   </td>
                   <td data-label="Enviado">{formatDate(cmd.createdAt)}</td>
                   <td data-label="Resultado">
-                    {cmd.resultDetail ??
-                      (cmd.status === 'PENDING'
-                        ? 'Se ejecutará en el próximo pulso del bot'
-                        : '—')}
+                    {cmd.resultDetail ?? pendingCommandHint(cmd) ?? '—'}
                   </td>
                   {canControl ? (
                     <td data-label="Acción">
-                      {cmd.status === 'PENDING' ? (
+                      {canCancelCommand(cmd) ? (
                         <button
                           className="table-action"
                           disabled={busy !== ''}

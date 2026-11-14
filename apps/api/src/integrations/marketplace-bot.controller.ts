@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -39,7 +40,9 @@ function mapBotError(error: unknown): never {
         ? HttpStatus.NOT_FOUND
         : error.code === 'ACCESS_DENIED'
           ? HttpStatus.FORBIDDEN
-          : HttpStatus.BAD_REQUEST;
+          : error.code === 'CONFLICT'
+            ? HttpStatus.CONFLICT
+            : HttpStatus.BAD_REQUEST;
     throw new HttpException('Marketplace bot request failed.', status);
   }
   throw error;
@@ -48,7 +51,9 @@ function mapBotError(error: unknown): never {
 /**
  * Signed-in web routes for Marketplace bot monitoring and remote commands.
  * Sellers (`sales.read`) may read telemetry and unanswered leads; queuing or
- * cancelling remote commands requires `integrations.manage`.
+ * cancelling remote commands requires `integrations.manage`. Queuing also
+ * requires an `Idempotency-Key`; a reused key with another command, or
+ * cancelling a command the bot already has, answers `409`.
  */
 @Controller({ path: 'integrations/marketplace-bot', version: '1' })
 @RequirePermission('integrations.manage', 'sales.read')
@@ -77,6 +82,7 @@ export class MarketplaceBotController {
   async enqueueCommand(
     @Param() params: MarketplaceBotInstanceIdParamDto,
     @Body() body: EnqueueMarketplaceBotCommandDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
     @CurrentUser() current: AuthenticatedRequestContext,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -86,6 +92,7 @@ export class MarketplaceBotController {
         await this.bots.enqueueCommand(
           current.userId,
           params.instanceId,
+          idempotencyKey,
           body.command,
         ),
         request,

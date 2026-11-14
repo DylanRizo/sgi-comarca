@@ -40,12 +40,14 @@ export const integrationsApi = {
     instanceId: string,
     command: MarketplaceBotCommandPayload,
     csrfToken: string,
+    idempotencyKey: string,
   ) =>
     apiRequest<MarketplaceBotCommandView>(
       `/api/v1/integrations/marketplace-bot/${encodeURIComponent(instanceId)}/commands`,
       {
         body: { command },
         csrfToken,
+        idempotencyKey,
         method: 'POST',
       },
     ),
