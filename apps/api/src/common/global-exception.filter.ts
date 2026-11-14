@@ -18,6 +18,20 @@ import { StockOperationHttpException } from '../stock-receipts/stock-operation-h
 import { InventoryCountHttpException } from '../inventory-counts/inventory-count-http.exception.js';
 import { ReportsHttpException } from '../reports/reports-http.exception.js';
 
+/**
+ * The body parser rejects an oversized body with its own error type, before
+ * any controller runs. It is the client's request that is wrong, not the
+ * server, so it must not surface as a 500.
+ */
+function isBodyTooLarge(exception: unknown): boolean {
+  return (
+    typeof exception === 'object' &&
+    exception !== null &&
+    'type' in exception &&
+    exception.type === 'entity.too.large'
+  );
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -29,7 +43,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : isBodyTooLarge(exception)
+          ? HttpStatus.PAYLOAD_TOO_LARGE
+          : HttpStatus.INTERNAL_SERVER_ERROR;
     const requestId = this.readRequestId(request);
     const internalError = status >= HttpStatus.INTERNAL_SERVER_ERROR;
     const authenticationFailure =

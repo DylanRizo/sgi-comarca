@@ -74,6 +74,13 @@ HTTPS saliente usando su llave de integración (ADR-017).
     (eliminar un anuncio, cancelar una publicación programada, resolver todas
     las alertas) y reutiliza la clave si la petición anterior quedó sin
     respuesta.
+- **Tamaño del pulso**:
+  - Solo la ruta de sincronización acepta cuerpos de hasta 1 MB; el resto de la
+    API conserva el límite por defecto de 100 kB. Un cuerpo mayor responde
+    `413` en cualquier ruta.
+  - El `detail` de un resultado es opcional y no tiene tope en la validación:
+    el servicio conserva los primeros 500 caracteres. Rechazar un mensaje largo
+    rechazaría el pulso completo y el bot lo repetiría indefinidamente.
 - **Sanitización estricta del snapshot**:
   - `sanitizeMarketplaceBotSnapshot` recorta cadenas y acota cada colección
     (`accounts`, `leads.unanswered`, `leads.products`, `listings.items`,

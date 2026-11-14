@@ -971,5 +971,56 @@ describe.sequential('Read-only integration keys and catalog', () => {
       expect(stored.idempotencyKeyHash).toBe(sha256(key));
       expect(JSON.stringify(stored)).not.toContain(key);
     });
+
+    it('accepts a heartbeat larger than the default body limit and a long failure detail', async () => {
+      const { instanceId, secret } = await startInstance('queue-large-01');
+      const listing = (index: number) => ({
+        account: 'acc-1',
+        key: `acc-1::${index.toString()}`,
+        listedOn: '2026-11-04',
+        recommendation: 'renew',
+        recommendationLabel: 'L'.repeat(80),
+        recommendationReason: 'R'.repeat(280),
+        status: 'active',
+        title: 'T'.repeat(140),
+      });
+      const snapshot = {
+        listings: {
+          items: Array.from({ length: 300 }, (_, index) => listing(index)),
+        },
+      };
+      expect(JSON.stringify(snapshot).length).toBeGreaterThan(150_000);
+      await syncBot(secret, 'queue-large-01', { snapshot }).expect(200);
+      const stored = await client.marketplaceBotInstance.findUniqueOrThrow({
+        select: { snapshot: true },
+        where: { id: instanceId },
+      });
+      // Parsed in full, stored bounded.
+      expect(
+        (stored.snapshot as { listings: { items: unknown[] } }).listings.items,
+      ).toHaveLength(80);
+
+      // Past the route's own allowance it is the request that is wrong.
+      await syncBot(secret, 'queue-large-01', {
+        snapshot: { filler: 'x'.repeat(1_100_000) },
+      }).expect(413);
+      // Every other route keeps the default limit.
+      const oversized = await createKey('n'.repeat(150_000));
+      expect(oversized.status).toBe(413);
+
+      const queued = await enqueue(instanceId, {
+        type: 'SYNC_SGI_CATALOG',
+      }).expect(201);
+      const commandId = String(queued.body.data.id);
+      await syncBot(secret, 'queue-large-01').expect(200);
+      await syncBot(secret, 'queue-large-01', {
+        commandResults: [
+          { detail: 'e'.repeat(4_000), id: commandId, status: 'FAILED' },
+        ],
+      }).expect(200);
+      const failed = await readCommand(commandId);
+      expect(failed.status).toBe('FAILED');
+      expect(failed.resultDetail).toHaveLength(500);
+    });
   });
 });
