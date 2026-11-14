@@ -2,8 +2,8 @@
 
 El publicador lee del SGI los productos activos con existencias y su precio de
 venta mediante una llave de integración de solo lectura
-([ADR-017](../decisions/ADR-017-integration-keys-read-only.md)). No escribe
-nada en el SGI y nunca recibe costos.
+([ADR-017](../decisions/ADR-017-integration-keys-read-only.md)). El catálogo
+solo proyecta existencias y precios de venta.
 
 ## Habilitar en un ambiente
 
@@ -77,3 +77,31 @@ El publicador no publica un producto con `priceIssue` distinto de `null`.
 
 En **Configuración → Integraciones**, pulsar **Revocar**. Surte efecto en la
 siguiente consulta. Revocar funciona aunque la integración esté deshabilitada.
+
+## Conectar el monitor (ADR-024)
+
+1. Con la migración del monitor aplicada en el ambiente autorizado, crea una
+   llave de **Sincronización del bot** en **Configuración → Integraciones**.
+   Usa el mismo identificador estable de instalación en el formulario y en
+   el bot. Guarda la llave en el almacén de credenciales del bot.
+2. El bot envía `instanceKey`, `instanceName`, `botVersion` y `snapshot`
+   a `POST /api/v1/integrations/marketplace-bot/sync` con el encabezado
+   `Authorization: Bearer <llave de sincronización>`. El último estado
+   aparece en **Bot Marketplace**. Sigue usando la llave de lectura para el
+   catálogo.
+3. Para rotar la llave, emite otra con el mismo propietario e identificador,
+   actualízala en el bot, confirma un nuevo pulso y revoca la anterior.
+
+Envía únicamente la proyección comercial necesaria. Utiliza etiquetas de
+producto para los leads y excluye mensajes, información de contacto de
+compradores y credenciales.
+
+El piloto de consulta usa `MARKETPLACE_BOT_CONTROL_ENABLED=false`. Para
+recibir órdenes en un entorno de prueba, el cliente compatible declara
+`commandProtocolVersion: 1` y lee `data.pendingCommands`. Persiste cada
+ID antes de iniciar la acción, respeta `expiresAt` y reenvía el resultado
+por ID en `commandResults` hasta confirmar la recepción. Cada resultado
+contiene `id`, `status` (`COMPLETED` o `FAILED`) y `detail`. Después
+de una interrupción, verifica el efecto real de una orden en ejecución
+antes de reintentar. Prueba con una acción inocua e incluye una pérdida
+de conexión y un reinicio antes de habilitar control en staging.

@@ -39,12 +39,13 @@ export const integrationsApi = {
   enqueueBotCommand: (
     instanceId: string,
     command: MarketplaceBotCommandPayload,
+    requestId: string,
     csrfToken: string,
   ) =>
     apiRequest<MarketplaceBotCommandView>(
       `/api/v1/integrations/marketplace-bot/${encodeURIComponent(instanceId)}/commands`,
       {
-        body: { command },
+        body: { command, requestId },
         csrfToken,
         method: 'POST',
       },

@@ -1,10 +1,13 @@
 /**
- * Read-only integration keys (ADR-017). A key acts on behalf of the person who
- * created it and carries exactly these scopes; the backend revalidates the
+ * Each integration key is issued for one purpose. The API revalidates the
  * owner's effective permissions on every request.
  */
-export const integrationKeyScopes = ['inventory.read'] as const;
+export const integrationKeyScopes = [
+  'inventory.read',
+  'marketplace-bot.sync',
+] as const;
 export type IntegrationKeyScope = (typeof integrationKeyScopes)[number];
+export const marketplaceBotInstanceKeyPattern = /^[A-Za-z0-9_-]{8,64}$/u;
 
 export type IntegrationKeyStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
 
@@ -14,6 +17,7 @@ export interface IntegrationKeySummary {
   /** First characters of the secret, only to tell keys apart. */
   keyPrefix: string;
   scopes: readonly IntegrationKeyScope[];
+  marketplaceBotInstanceKey: string | null;
   status: IntegrationKeyStatus;
   createdAt: string;
   expiresAt: string;
@@ -24,6 +28,8 @@ export interface IntegrationKeySummary {
 export interface CreateIntegrationKeyRequest {
   name: string;
   expiresInDays: number;
+  /** Omit for a read-only catalog key. */
+  marketplaceBotInstanceKey?: string;
 }
 
 export interface CreatedIntegrationKeyData {

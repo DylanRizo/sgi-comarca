@@ -36,6 +36,8 @@ const applicationTables = [
   'legacy_records',
   'legacy_sources',
   'login_throttles',
+  'marketplace_bot_commands',
+  'marketplace_bot_instances',
   'password_credentials',
   'permissions',
   'product_groups',
@@ -147,7 +149,7 @@ describe('current PostgreSQL operational structure', () => {
     await pool.end();
   });
 
-  it('has exactly 47 application tables and only the Prisma technical table', async () => {
+  it('has exactly 49 application tables and only the Prisma technical table', async () => {
     const result = await pool.query<{ tablename: string }>(
       [
         'SELECT tablename',
@@ -163,7 +165,7 @@ describe('current PostgreSQL operational structure', () => {
     );
 
     expect(actualApplicationTables).toEqual(applicationTables);
-    expect(actualApplicationTables).toHaveLength(47);
+    expect(actualApplicationTables).toHaveLength(49);
     expect(technicalTables).toEqual(['_prisma_migrations']);
   });
 

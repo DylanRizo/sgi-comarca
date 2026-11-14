@@ -10,8 +10,10 @@ import type {
   MarketplaceBotStateData,
   MarketplaceBotSyncData,
 } from '@sgi/contracts';
-import type { DatabaseClient } from '@sgi/database';
-import { randomUUID } from 'node:crypto';
+import { marketplaceBotInstanceKeyPattern } from '@sgi/contracts';
+import type { DatabaseClient, Prisma } from '@sgi/database';
+import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 import type { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 import type { Clock } from '../auth/domain/authentication.ports.js';
@@ -29,7 +31,11 @@ const DELAYED_THRESHOLD_MS = 15 * 60 * 1000;
 const COMMAND_EXPIRY_MS = 2 * 60 * 60 * 1000;
 const MAX_PENDING_PER_SYNC = 25;
 const MAX_RECENT_COMMANDS = 25;
-const instanceKeyPattern = /^[A-Za-z0-9_-]{8,64}$/u;
+const recentCommands = {
+  include: { createdBy: { select: { displayName: true } } },
+  orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  take: MAX_RECENT_COMMANDS,
+} satisfies Prisma.MarketplaceBotCommandFindManyArgs;
 
 function computeConnection(
   lastHeartbeatAt: Date,
@@ -45,6 +51,7 @@ export class MarketplaceBotService {
   constructor(
     private readonly client: DatabaseClient,
     private readonly permissions: EffectivePermissionsService,
+    private readonly controlEnabled: boolean,
     private readonly clock: Clock = new SystemClock(),
     private readonly audit = new IntegrationAuditService(),
   ) {}
@@ -59,6 +66,7 @@ export class MarketplaceBotService {
     input: {
       botVersion: string;
       commandResults?: readonly MarketplaceBotCommandResult[];
+      commandProtocolVersion?: 1;
       instanceKey: string;
       instanceName: string;
       snapshot: unknown;
@@ -68,7 +76,7 @@ export class MarketplaceBotService {
     const instanceName = input.instanceName.trim();
     const botVersion = input.botVersion.trim();
     if (
-      !instanceKeyPattern.test(instanceKey) ||
+      !marketplaceBotInstanceKeyPattern.test(instanceKey) ||
       !instanceName ||
       instanceName.length > 80 ||
       !botVersion ||
@@ -77,49 +85,39 @@ export class MarketplaceBotService {
       throw new IntegrationKeyError('INVALID_REQUEST');
     }
 
+    if (key.marketplaceBotInstanceKey !== instanceKey) {
+      throw new IntegrationKeyError('ACCESS_DENIED');
+    }
+
     const sanitizedSnapshot = sanitizeMarketplaceBotSnapshot(input.snapshot);
     const now = this.clock.now();
     const expireBefore = new Date(now.getTime() - COMMAND_EXPIRY_MS);
     const results = input.commandResults ?? [];
 
     return this.client.$transaction(async (transaction) => {
-      await transaction.integrationKey.update({
+      const activeKey = await transaction.integrationKey.updateMany({
         data: { lastUsedAt: now },
-        where: { id: key.keyId },
+        where: { id: key.keyId, revokedAt: null, expiresAt: { gt: now } },
       });
+      if (activeKey.count !== 1) throw new IntegrationKeyError('INVALID_KEY');
 
-      const existing = await transaction.marketplaceBotInstance.findUnique({
-        include: {
-          integrationKey: { select: { ownerUserId: true } },
-        },
-        where: { instanceKey },
+      const heartbeat = {
+        botVersion,
+        integrationKeyId: key.keyId,
+        instanceName,
+        lastHeartbeatAt: now,
+        snapshot: sanitizedSnapshot as unknown as object,
+      };
+      const identity = { instanceKey, ownerUserId: key.ownerUserId };
+      const instance = await transaction.marketplaceBotInstance.upsert({
+        create: { ...identity, ...heartbeat },
+        update: { ownerUserId: key.ownerUserId },
+        where: { ownerUserId_instanceKey: identity },
       });
-      if (existing && existing.integrationKey.ownerUserId !== key.ownerUserId) {
-        throw new IntegrationKeyError('ACCESS_DENIED');
-      }
-
-      const instance = existing
-        ? await transaction.marketplaceBotInstance.update({
-            data: {
-              botVersion,
-              integrationKeyId: key.keyId,
-              instanceName,
-              lastHeartbeatAt: now,
-              snapshot: sanitizedSnapshot as unknown as object,
-            },
-            where: { id: existing.id },
-          })
-        : await transaction.marketplaceBotInstance.create({
-            data: {
-              botVersion,
-              id: randomUUID(),
-              instanceKey,
-              instanceName,
-              integrationKeyId: key.keyId,
-              lastHeartbeatAt: now,
-              snapshot: sanitizedSnapshot as unknown as object,
-            },
-          });
+      await transaction.marketplaceBotInstance.updateMany({
+        data: heartbeat,
+        where: { id: instance.id, lastHeartbeatAt: { lte: now } },
+      });
 
       await transaction.marketplaceBotCommand.updateMany({
         data: {
@@ -143,7 +141,7 @@ export class MarketplaceBotService {
           String(result.detail ?? '')
             .trim()
             .slice(0, 500) || null;
-        await transaction.marketplaceBotCommand.updateMany({
+        const recorded = await transaction.marketplaceBotCommand.updateMany({
           data: {
             completedAt: now,
             resultDetail: detail,
@@ -152,23 +150,50 @@ export class MarketplaceBotService {
           where: {
             id: result.id,
             instanceId: instance.id,
-            status: 'PENDING',
+            status: 'DISPATCHED',
           },
         });
+        if (recorded.count === 1) {
+          await this.audit.record(transaction, {
+            action: 'INTEGRATION_BOT_COMMAND_RESULT',
+            actorUserId: key.ownerUserId,
+            entityId: result.id,
+            metadata: { instanceId: instance.id, status: result.status },
+            occurredAt: now,
+          });
+        }
       }
 
-      const pendingRows = await transaction.marketplaceBotCommand.findMany({
+      if (!this.controlEnabled || input.commandProtocolVersion !== 1) {
+        return { pendingCommands: [] };
+      }
+
+      const candidates = await transaction.marketplaceBotCommand.findMany({
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: MAX_PENDING_PER_SYNC,
         where: {
+          createdAt: { gt: expireBefore },
           instanceId: instance.id,
-          status: 'PENDING',
+          status: { in: ['PENDING', 'DISPATCHED'] },
         },
+      });
+      const candidateIds = candidates.map(({ id }) => id);
+      // This conditional update arbitrates delivery against a concurrent cancel.
+      await transaction.marketplaceBotCommand.updateMany({
+        data: { dispatchedAt: now, status: 'DISPATCHED' },
+        where: { id: { in: candidateIds }, status: 'PENDING' },
+      });
+      const pendingRows = await transaction.marketplaceBotCommand.findMany({
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        where: { id: { in: candidateIds }, status: 'DISPATCHED' },
       });
 
       const pendingCommands: MarketplaceBotPendingCommand[] = pendingRows.map(
         (row) => ({
           createdAt: row.createdAt.toISOString(),
+          expiresAt: new Date(
+            row.createdAt.getTime() + COMMAND_EXPIRY_MS,
+          ).toISOString(),
           id: row.id,
           payload: row.payload as unknown as MarketplaceBotCommandPayload,
         }),
@@ -184,29 +209,31 @@ export class MarketplaceBotService {
    */
   async getState(actorUserId: string): Promise<MarketplaceBotStateData> {
     const now = this.clock.now();
-    const canControl = await this.permissions.hasPermission(
+    const isManager = await this.permissions.hasPermission(
       actorUserId,
       'integrations.manage',
     );
+    const canControl = isManager && this.controlEnabled;
 
-    const rows = await this.client.marketplaceBotInstance.findMany({
-      include: {
-        commands: {
-          include: {
-            createdBy: { select: { displayName: true } },
-          },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          take: MAX_RECENT_COMMANDS,
-        },
-      },
-      orderBy: [{ lastHeartbeatAt: 'desc' }, { id: 'asc' }],
-    });
+    const orderBy = [
+      { lastHeartbeatAt: 'desc' },
+      { id: 'asc' },
+    ] satisfies Prisma.MarketplaceBotInstanceOrderByWithRelationInput[];
+    const rows = isManager
+      ? await this.client.marketplaceBotInstance.findMany({
+          include: { commands: recentCommands },
+          orderBy,
+        })
+      : (await this.client.marketplaceBotInstance.findMany({ orderBy })).map(
+          (row) => ({ ...row, commands: [] }),
+        );
 
     const instances: MarketplaceBotInstanceView[] = rows.map((row) => {
       const commands: MarketplaceBotCommandView[] = row.commands.map((cmd) => ({
         completedAt: cmd.completedAt?.toISOString() ?? null,
         createdAt: cmd.createdAt.toISOString(),
         createdByName: cmd.createdBy.displayName,
+        dispatchedAt: cmd.dispatchedAt?.toISOString() ?? null,
         id: cmd.id,
         payload: cmd.payload as unknown as MarketplaceBotCommandPayload,
         resultDetail: cmd.resultDetail,
@@ -236,6 +263,7 @@ export class MarketplaceBotService {
     actorUserId: string,
     instanceId: string,
     rawCommand: unknown,
+    requestId: string,
   ): Promise<MarketplaceBotCommandView> {
     if (
       !(await this.permissions.hasPermission(
@@ -246,19 +274,24 @@ export class MarketplaceBotService {
       throw new IntegrationKeyError('ACCESS_DENIED');
     }
 
+    if (!this.controlEnabled)
+      throw new IntegrationKeyError('INTEGRATION_DISABLED');
     const payload = parseMarketplaceBotCommandPayload(rawCommand);
+    const requestKeyHash = createHash('sha256')
+      .update(requestId.toLowerCase())
+      .digest('hex');
     const now = this.clock.now();
 
     return this.client.$transaction(async (transaction) => {
       const instance = await transaction.marketplaceBotInstance.findUnique({
-        select: { id: true, instanceName: true },
+        select: { id: true },
         where: { id: instanceId },
       });
       if (!instance) {
         throw new IntegrationKeyError('NOT_FOUND');
       }
 
-      const created = await transaction.marketplaceBotCommand.create({
+      const { count } = await transaction.marketplaceBotCommand.createMany({
         data: {
           commandType: payload.type,
           createdAt: now,
@@ -266,32 +299,50 @@ export class MarketplaceBotService {
           id: randomUUID(),
           instanceId: instance.id,
           payload: payload as unknown as object,
+          requestKeyHash,
           status: 'PENDING',
         },
-        include: {
-          createdBy: { select: { displayName: true } },
-        },
+        skipDuplicates: true,
       });
-
-      await this.audit.record(transaction, {
-        action: 'INTEGRATION_BOT_COMMAND_QUEUED',
-        actorUserId,
-        entityId: created.id,
-        metadata: {
-          commandType: payload.type,
-          instanceId: instance.id,
+      const created = await transaction.marketplaceBotCommand.findUniqueOrThrow(
+        {
+          include: { createdBy: { select: { displayName: true } } },
+          where: {
+            createdByUserId_requestKeyHash: {
+              createdByUserId: actorUserId,
+              requestKeyHash,
+            },
+          },
         },
-        occurredAt: now,
-      });
+      );
+      if (
+        created.instanceId !== instanceId ||
+        !isDeepStrictEqual(created.payload, payload)
+      ) {
+        throw new IntegrationKeyError('CONFLICT');
+      }
+      if (count === 1) {
+        await this.audit.record(transaction, {
+          action: 'INTEGRATION_BOT_COMMAND_QUEUED',
+          actorUserId,
+          entityId: created.id,
+          metadata: {
+            commandType: payload.type,
+            instanceId: instance.id,
+          },
+          occurredAt: now,
+        });
+      }
 
       return {
-        completedAt: null,
+        completedAt: created.completedAt?.toISOString() ?? null,
         createdAt: created.createdAt.toISOString(),
         createdByName: created.createdBy.displayName,
+        dispatchedAt: created.dispatchedAt?.toISOString() ?? null,
         id: created.id,
         payload,
-        resultDetail: null,
-        status: 'PENDING',
+        resultDetail: created.resultDetail,
+        status: created.status as MarketplaceBotCommandStatus,
         type: payload.type,
       };
     });
@@ -335,6 +386,9 @@ export class MarketplaceBotService {
         throw new IntegrationKeyError('NOT_FOUND');
       }
 
+      if (current.status !== 'CANCELLED') {
+        throw new IntegrationKeyError('CONFLICT');
+      }
       if (updated.count === 1) {
         await this.audit.record(transaction, {
           action: 'INTEGRATION_BOT_COMMAND_CANCELLED',
@@ -352,6 +406,7 @@ export class MarketplaceBotService {
         completedAt: current.completedAt?.toISOString() ?? null,
         createdAt: current.createdAt.toISOString(),
         createdByName: current.createdBy.displayName,
+        dispatchedAt: current.dispatchedAt?.toISOString() ?? null,
         id: current.id,
         payload: current.payload as unknown as MarketplaceBotCommandPayload,
         resultDetail: current.resultDetail,

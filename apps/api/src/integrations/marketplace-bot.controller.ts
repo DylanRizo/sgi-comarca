@@ -39,7 +39,11 @@ function mapBotError(error: unknown): never {
         ? HttpStatus.NOT_FOUND
         : error.code === 'ACCESS_DENIED'
           ? HttpStatus.FORBIDDEN
-          : HttpStatus.BAD_REQUEST;
+          : error.code === 'CONFLICT'
+            ? HttpStatus.CONFLICT
+            : error.code === 'INTEGRATION_DISABLED'
+              ? HttpStatus.SERVICE_UNAVAILABLE
+              : HttpStatus.BAD_REQUEST;
     throw new HttpException('Marketplace bot request failed.', status);
   }
   throw error;
@@ -87,6 +91,7 @@ export class MarketplaceBotController {
           current.userId,
           params.instanceId,
           body.command,
+          body.requestId,
         ),
         request,
         response,

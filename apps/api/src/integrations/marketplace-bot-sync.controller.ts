@@ -21,7 +21,10 @@ import { CurrentIntegrationKey } from './current-integration-key.decorator.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { MarketplaceBotSyncDto } from './dto/marketplace-bot.dto.js';
 import { IntegrationKeyError } from './integration-key.errors.js';
-import { IntegrationKeyGuard } from './integration-key.guard.js';
+import {
+  IntegrationKeyGuard,
+  RequireIntegrationKeyScope,
+} from './integration-key.guard.js';
 import type { ValidIntegrationKey } from './integration-key.service.js';
 import { MarketplaceBotService } from './marketplace-bot.service.js';
 
@@ -30,7 +33,9 @@ function mapBotSyncError(error: unknown): never {
     const status =
       error.code === 'ACCESS_DENIED'
         ? HttpStatus.FORBIDDEN
-        : HttpStatus.BAD_REQUEST;
+        : error.code === 'INVALID_KEY'
+          ? HttpStatus.UNAUTHORIZED
+          : HttpStatus.BAD_REQUEST;
     throw new HttpException('Marketplace bot sync request failed.', status);
   }
   throw error;
@@ -43,6 +48,7 @@ function mapBotSyncError(error: unknown): never {
 @Controller({ path: 'integrations/marketplace-bot', version: '1' })
 @ExternalBearerRoute()
 @ServerToServerRoute()
+@RequireIntegrationKeyScope('marketplace-bot.sync')
 @UseGuards(IntegrationKeyGuard)
 export class MarketplaceBotSyncController {
   constructor(

@@ -38,23 +38,35 @@ HTTPS saliente usando su llave de integración (ADR-017).
 
 - **Arquitectura Pull-on-Heartbeat sobre HTTPS saliente**:
   - En cada ciclo del worker local, el bot envía `POST /api/v1/integrations/marketplace-bot/sync`
-    autenticado con su llave `Authorization: Bearer <llave>` (`ExternalBearerRoute` +
+    autenticado con su propia llave de sincronización `Authorization: Bearer <llave>` (`ExternalBearerRoute` +
     `ServerToServerRoute` + `IntegrationKeyGuard`).
   - El cuerpo incluye la identidad de la instancia (`instanceKey`,
     `instanceName`, `botVersion`), un `snapshot` compacto y los resultados
     (`commandResults`) de los comandos que ejecutó en el pulso anterior.
-  - En la misma respuesta, el SGI devuelve `pendingCommands` (en orden FIFO) y
-    expira automáticamente (`EXPIRED`) cualquier comando que lleve más de 2 horas
-    en estado `PENDING`, evitando que una orden vieja se ejecute horas después
-    al encender la computadora.
+  - La credencial de sincronización lleva `marketplace-bot.sync`. Se vincula
+    al par propietario e identificador de la instalación y revalida
+    `integrations.manage` del propietario. La llave de ADR-017 conserva
+    acceso exclusivo al catálogo. Ambas se revocan por separado.
+  - El SGI marca cada orden `DISPATCHED` antes de devolverla en orden FIFO.
+    Solo `PENDING` se puede cancelar. Las órdenes pendientes vencen a las
+    dos horas. Las entregadas dejan de reenviarse al vencer y conservan su
+    estado hasta que el bot reporte el resultado.
+  - `MARKETPLACE_BOT_CONTROL_ENABLED` está apagado por defecto. El cliente
+    declara `commandProtocolVersion: 1` para recibir órdenes. Debe respetar
+    `expiresAt`, guardar el ID antes de ejecutar y conservar el resultado
+    hasta que el SGI lo reciba. Si se interrumpe la ejecución, debe
+    reconciliar la acción antes de repetirla. Los reenvíos usan el mismo ID.
+  - Encolar una orden es idempotente por actor y `requestId`. La base guarda
+    la huella del ID de solicitud. Reusarlo con otro destino o payload
+    devuelve `409`.
 - **Sanitización estricta del snapshot**:
   - `sanitizeMarketplaceBotSnapshot` recorta cadenas y acota cada colección
     (`accounts`, `leads.unanswered`, `leads.products`, `listings.items`,
     `queue.upcoming`, `alerts`) antes de persistirla en `marketplace_bot_instances`.
 - **RBAC con separación entre lectura comercial y control administrativo**:
   - `GET /api/v1/integrations/marketplace-bot` exige `@RequirePermission('integrations.manage', 'sales.read')`
-    (semántica OR). Devuelve `canControl: true` solo si la sesión incluye
-    `integrations.manage`.
+    (semántica OR). Devuelve `canControl: true` si el control está habilitado y la sesión incluye
+    `integrations.manage`. Solo administración recibe el historial de órdenes.
   - `POST /api/v1/integrations/marketplace-bot/:instanceId/commands` y
     `POST /api/v1/integrations/marketplace-bot/commands/:commandId/cancel`
     exigen `@RequirePermission('integrations.manage')`. Un vendedor con
@@ -62,7 +74,8 @@ HTTPS saliente usando su llave de integración (ADR-017).
 - **Auditoría**:
   - Encolar (`INTEGRATION_BOT_COMMAND_QUEUED`) y cancelar
     (`INTEGRATION_BOT_COMMAND_CANCELLED`) comandos remotos se registran en
-    `audit_logs` con `entityType = INTEGRATION`.
+    `audit_logs` con `entityType = INTEGRATION`. Cada resultado aceptado
+    registra un evento `INTEGRATION_BOT_COMMAND_RESULT`.
 - **Navegación web**:
   - La vista vive en `/settings/marketplace-bot` dentro del grupo
     **Administración** (`Bot Marketplace`), visible para `integrations.manage` y
@@ -73,11 +86,13 @@ HTTPS saliente usando su llave de integración (ADR-017).
 
 La migración `20261113180000_marketplace_bot_monitor` añade:
 
-- `marketplace_bot_instances`: una fila por `(owner_id, instance_key)` con el
+- `integration_keys.marketplace_bot_instance_key` para vincular cada llave de
+  sincronización a su instalación, con una restricción de propósito en la base.
+- `marketplace_bot_instances`: una fila por `(owner_user_id, instance_key)` con el
   último `snapshot` JSONB sanitizado y `last_heartbeat_at`.
-- `marketplace_bot_commands`: cola de comandos con restricciones de tipo,
-  estado (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`) y
-  consistencia de `completed_at`.
+- `marketplace_bot_commands`: cola de comandos con una llave de solicitud única por actor,
+  estado (`PENDING`, `DISPATCHED`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`) y
+  coherencia de `dispatched_at` y `completed_at`.
 
 ## Consecuencias
 

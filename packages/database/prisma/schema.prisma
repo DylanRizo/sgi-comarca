@@ -193,6 +193,7 @@ model User {
   alexaAccountLinks           AlexaAccountLink[]
   integrationKeys             IntegrationKey[]
   marketplaceBotCommands      MarketplaceBotCommand[]      @relation("MarketplaceBotCommandCreator")
+  marketplaceBotInstances     MarketplaceBotInstance[]
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -277,6 +278,8 @@ model IntegrationKey {
   revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
   revocationReason String?   @map("revocation_reason") @db.VarChar(120)
 
+  marketplaceBotInstanceKey String? @map("marketplace_bot_instance_key") @db.VarChar(64)
+
   owner                   User                        @relation(fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   rateLimitWindow         IntegrationRateLimitWindow?
   marketplaceBotInstances MarketplaceBotInstance[]
@@ -300,7 +303,8 @@ model IntegrationRateLimitWindow {
 /// Telemetry only: no inventory, sale or finance row depends on it.
 model MarketplaceBotInstance {
   id               String   @id @default(uuid()) @db.Uuid
-  instanceKey      String   @unique(map: "marketplace_bot_instances_instance_key_key") @map("instance_key") @db.VarChar(64)
+  instanceKey      String   @map("instance_key") @db.VarChar(64)
+  ownerUserId      String   @map("owner_user_id") @db.Uuid
   integrationKeyId String   @map("integration_key_id") @db.Uuid
   instanceName     String   @map("instance_name") @db.VarChar(80)
   botVersion       String   @map("bot_version") @db.VarChar(40)
@@ -311,7 +315,9 @@ model MarketplaceBotInstance {
 
   integrationKey IntegrationKey          @relation(fields: [integrationKeyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   commands       MarketplaceBotCommand[]
+  owner          User                    @relation(fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([ownerUserId, instanceKey], map: "marketplace_bot_instances_owner_instance_key")
   @@index([integrationKeyId], map: "marketplace_bot_instances_key_idx")
   @@map("marketplace_bot_instances")
 }
@@ -322,16 +328,19 @@ model MarketplaceBotCommand {
   id              String    @id @default(uuid()) @db.Uuid
   instanceId      String    @map("instance_id") @db.Uuid
   commandType     String    @map("command_type") @db.VarChar(40)
+  requestKeyHash  String    @map("request_key_hash") @db.Char(64)
   payload         Json      @db.JsonB
   status          String    @default("PENDING") @db.VarChar(16)
   resultDetail    String?   @map("result_detail") @db.VarChar(500)
   createdByUserId String    @map("created_by_user_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  dispatchedAt    DateTime? @map("dispatched_at") @db.Timestamptz(6)
   completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
 
   instance  MarketplaceBotInstance @relation(fields: [instanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   createdBy User                   @relation("MarketplaceBotCommandCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([createdByUserId, requestKeyHash], map: "marketplace_bot_commands_actor_request_key")
   @@index([instanceId, status, createdAt], map: "marketplace_bot_commands_instance_status_idx")
   @@map("marketplace_bot_commands")
 }

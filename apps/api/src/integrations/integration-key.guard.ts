@@ -4,10 +4,13 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  SetMetadata,
   UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import type { IntegrationKeyScope } from '@sgi/contracts';
 
 import { EffectivePermissionsService } from '../auth/application/effective-permissions.service.js';
 import {
@@ -15,14 +18,23 @@ import {
   type IntegrationAuthenticatedRequest,
 } from './integration-auth-context.js';
 import { IntegrationKeyError } from './integration-key.errors.js';
-import { IntegrationKeyService } from './integration-key.service.js';
+import {
+  IntegrationKeyService,
+  ownerPermissionForScope,
+} from './integration-key.service.js';
 
 const bearerPattern = /^Bearer ([A-Za-z0-9_-]{43})$/u;
-const REQUIRED_SCOPE = 'inventory.read';
+const INTEGRATION_SCOPE = Symbol('integration-scope');
+
+export function RequireIntegrationKeyScope(scope: IntegrationKeyScope) {
+  return SetMetadata(INTEGRATION_SCOPE, scope);
+}
 
 @Injectable()
 export class IntegrationKeyGuard implements CanActivate {
   constructor(
+    @Inject(Reflector)
+    private readonly reflector: Reflector,
     @Inject(IntegrationKeyService)
     private readonly keys: IntegrationKeyService,
     @Inject(EffectivePermissionsService)
@@ -38,13 +50,19 @@ export class IntegrationKeyGuard implements CanActivate {
 
     try {
       const key = await this.keys.authenticate(match[1]);
-      if (!key.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenException();
-      // The key carries no authority of its own: every request revalidates
-      // what its owner may do right now.
-      for (const scope of key.scopes) {
-        if (!(await this.permissions.hasPermission(key.ownerUserId, scope))) {
-          throw new ForbiddenException();
-        }
+      const scope =
+        this.reflector.getAllAndOverride<IntegrationKeyScope>(
+          INTEGRATION_SCOPE,
+          [context.getHandler(), context.getClass()],
+        ) ?? 'inventory.read';
+      if (
+        !key.scopes.includes(scope) ||
+        !(await this.permissions.hasPermission(
+          key.ownerUserId,
+          ownerPermissionForScope(scope),
+        ))
+      ) {
+        throw new ForbiddenException();
       }
       await this.keys.consumeQueryAllowance(key.keyId);
       attachIntegrationContext(request, key);

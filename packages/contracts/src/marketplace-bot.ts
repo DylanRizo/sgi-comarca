@@ -82,7 +82,7 @@ export type MarketplaceBotCommandPayload =
  * deciding again.
  */
 export type MarketplaceBotCommandStatus =
-  'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  'PENDING' | 'DISPATCHED' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
 
 export type MarketplaceBotConnection = 'ONLINE' | 'DELAYED' | 'OFFLINE';
 
@@ -94,6 +94,7 @@ export interface MarketplaceBotCommandView {
   resultDetail: string | null;
   createdAt: string;
   createdByName: string;
+  dispatchedAt: string | null;
   completedAt: string | null;
 }
 
@@ -226,12 +227,15 @@ export interface MarketplaceBotSyncRequest {
   botVersion: string;
   snapshot: unknown;
   commandResults: readonly MarketplaceBotCommandResult[];
+  /** Opt in only when the client persists command IDs and honors expiresAt. */
+  commandProtocolVersion?: 1;
 }
 
 export interface MarketplaceBotPendingCommand {
   id: string;
   payload: MarketplaceBotCommandPayload;
   createdAt: string;
+  expiresAt: string;
 }
 
 export interface MarketplaceBotSyncData {
@@ -241,4 +245,5 @@ export interface MarketplaceBotSyncData {
 /** Body of `POST /api/v1/integrations/marketplace-bot/:instanceId/commands`. */
 export interface EnqueueMarketplaceBotCommandRequest {
   command: MarketplaceBotCommandPayload;
+  requestId: string;
 }

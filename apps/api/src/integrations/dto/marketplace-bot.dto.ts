@@ -1,3 +1,4 @@
+import { marketplaceBotInstanceKeyPattern } from '@sgi/contracts';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -28,7 +29,7 @@ export class MarketplaceBotCommandResultDto {
 
 export class MarketplaceBotSyncDto {
   @IsString()
-  @Matches(/^[A-Za-z0-9_-]{8,64}$/u)
+  @Matches(marketplaceBotInstanceKeyPattern)
   instanceKey!: string;
 
   @IsString()
@@ -51,6 +52,10 @@ export class MarketplaceBotSyncDto {
   @ValidateNested({ each: true })
   @Type(() => MarketplaceBotCommandResultDto)
   commandResults?: MarketplaceBotCommandResultDto[];
+
+  @IsOptional()
+  @IsIn([1])
+  commandProtocolVersion?: 1;
 }
 
 export class MarketplaceBotInstanceIdParamDto {
@@ -66,4 +71,7 @@ export class MarketplaceBotCommandIdParamDto {
 export class EnqueueMarketplaceBotCommandDto {
   @IsObject()
   command!: Record<string, unknown>;
+
+  @IsUUID('4')
+  requestId!: string;
 }

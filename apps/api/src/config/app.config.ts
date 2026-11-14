@@ -256,7 +256,7 @@ function parseReopeningWindowDays(value: string | undefined): number {
 }
 
 /**
- * Read-only integration keys (ADR-017). Disabled unless explicitly enabled per
+ * Integration keys (ADR-017 and ADR-024). Disabled unless explicitly enabled per
  * environment; revoking and listing keep working while disabled.
  */
 function parseIntegrationKeys() {
@@ -264,7 +264,9 @@ function parseIntegrationKeys() {
     enabled: parseBoolean(process.env.INTEGRATION_KEYS_ENABLED),
     maxLifetimeDays: 90,
     queryLimitPerMinute: 60,
-    scopes: Object.freeze(['inventory.read'] as const),
+    marketplaceBotControlEnabled: parseBoolean(
+      process.env.MARKETPLACE_BOT_CONTROL_ENABLED,
+    ),
   });
 }
 

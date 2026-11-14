@@ -40,13 +40,20 @@ import { MarketplaceBotSyncController } from './marketplace-bot-sync.controller.
     },
     {
       provide: MarketplaceBotService,
-      inject: [DatabaseService, EffectivePermissionsService],
+      inject: [DatabaseService, EffectivePermissionsService, appConfig.KEY],
       useFactory: (
         database: DatabaseService,
         permissions: EffectivePermissionsService,
+        configuration: ConfigType<typeof appConfig>,
       ) =>
         database.instantiateProvider(
-          (client) => new MarketplaceBotService(client, permissions),
+          (client) =>
+            new MarketplaceBotService(
+              client,
+              permissions,
+              configuration.integrationKeys.enabled &&
+                configuration.integrationKeys.marketplaceBotControlEnabled,
+            ),
         ),
     },
     {

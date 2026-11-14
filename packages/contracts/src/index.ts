@@ -23,6 +23,7 @@ export {
 } from './alexa.js';
 export {
   integrationKeyScopes,
+  marketplaceBotInstanceKeyPattern,
   type CreateIntegrationKeyRequest,
   type CreatedIntegrationKeyData,
   type IntegrationCatalogItem,

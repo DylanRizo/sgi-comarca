@@ -69,14 +69,18 @@ describe.sequential('Read-only integration keys and catalog', () => {
   let userId = '';
   const originalEnvironment = { ...process.env };
 
-  const createKey = (name = 'Bot de prueba', expiresInDays = 30) =>
+  const createKey = (
+    name = 'Bot de prueba',
+    expiresInDays = 30,
+    marketplaceBotInstanceKey?: string,
+  ) =>
     request(app.getHttpServer())
       .post('/api/v1/integrations/keys')
       .set('Host', host)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .set('X-CSRF-Token', csrfToken)
-      .send({ expiresInDays, name });
+      .send({ expiresInDays, name, marketplaceBotInstanceKey });
 
   const readCatalog = (secret: string, query = '?pageSize=100') =>
     request(app.getHttpServer())
@@ -122,6 +126,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
       'base64',
     );
     process.env.INTEGRATION_KEYS_ENABLED = 'true';
+    process.env.MARKETPLACE_BOT_CONTROL_ENABLED = 'true';
 
     client = createDatabaseClient(isolatedUrl.toString());
     await runBootstrap(client);
@@ -490,9 +495,56 @@ describe.sequential('Read-only integration keys and catalog', () => {
   });
 
   it('synchronizes the Marketplace bot, allows read-only view for sales.read and restricts remote commands to integrations.manage (ADR-024)', async () => {
-    const secret = String(
-      (await createKey('Bot PC Principal')).body.data.secret,
+    const instanceKey = 'pc-principal';
+    const catalogKey = (await createKey('Llave de catálogo')).body.data
+      .secret as string;
+    const botKey = await createKey('Bot PC Principal', 30, instanceKey).expect(
+      201,
     );
+    const secret = botKey.body.data.secret as string;
+    expect(botKey.body.data.key).toMatchObject({
+      scopes: ['marketplace-bot.sync'],
+      marketplaceBotInstanceKey: instanceKey,
+    });
+    await readCatalog(secret).expect(403);
+
+    const sync = (bearer: string) =>
+      request(app.getHttpServer())
+        .post('/api/v1/integrations/marketplace-bot/sync')
+        .set('Host', host)
+        .set('Authorization', `Bearer ${bearer}`);
+    const heartbeat = {
+      botVersion: '2026.11',
+      commandResults: [],
+      instanceKey,
+      instanceName: 'PC Principal',
+      snapshot: { worker: { enabled: true } },
+    };
+    await sync(catalogKey).send(heartbeat).expect(403);
+    await sync(secret)
+      .send({ ...heartbeat, instanceKey: 'otra-instancia' })
+      .expect(403);
+
+    const enqueue = (
+      instanceId: string,
+      command: object,
+      requestId = randomUUID(),
+    ) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ command, requestId });
+    const cancel = (id: string) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/commands/${id}/cancel`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({});
 
     const firstSync = await request(app.getHttpServer())
       .post('/api/v1/integrations/marketplace-bot/sync')
@@ -602,16 +654,16 @@ describe.sequential('Read-only integration keys and catalog', () => {
       2,
     );
 
-    const queued = await request(app.getHttpServer())
-      .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
-      .set('Host', host)
-      .set('Origin', origin)
-      .set('Cookie', cookie)
-      .set('X-CSRF-Token', csrfToken)
-      .send({
-        command: { enabled: false, type: 'SET_BOT_ENABLED' },
-      })
-      .expect(201);
+    const pause = { enabled: false, type: 'SET_BOT_ENABLED' };
+    const requestId = randomUUID();
+    const [queued, duplicate] = await Promise.all([
+      enqueue(instanceId, pause, requestId).expect(201),
+      enqueue(instanceId, pause, requestId).expect(201),
+    ]);
+    expect(duplicate.body.data.id).toBe(queued.body.data.id);
+    await enqueue(instanceId, { ...pause, enabled: true }, requestId).expect(
+      409,
+    );
     const commandId = String(queued.body.data.id);
     expect(queued.body.data.status).toBe('PENDING');
 
@@ -623,6 +675,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
       .set('X-CSRF-Token', csrfToken)
       .send({
         command: { type: 'SYNC_SGI_CATALOG' },
+        requestId: randomUUID(),
       })
       .expect(201);
     const cancelId = String(toCancel.body.data.id);
@@ -639,6 +692,8 @@ describe.sequential('Read-only integration keys and catalog', () => {
         .expect(200);
       expect(sellerState.body.data.canControl).toBe(false);
       expect(sellerState.body.data.instances).toHaveLength(1);
+      expect(sellerState.body.data.instances[0].commands).toEqual([]);
+      await sync(secret).send(heartbeat).expect(403);
 
       await request(app.getHttpServer())
         .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
@@ -648,6 +703,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
         .set('X-CSRF-Token', csrfToken)
         .send({
           command: { type: 'RESOLVE_ALL_ALERTS' },
+          requestId: randomUUID(),
         })
         .expect(403);
 
@@ -675,18 +731,23 @@ describe.sequential('Read-only integration keys and catalog', () => {
       .expect(200);
     expect(cancelled.body.data.status).toBe('CANCELLED');
 
-    const secondSync = await request(app.getHttpServer())
-      .post('/api/v1/integrations/marketplace-bot/sync')
-      .set('Host', host)
-      .set('Authorization', `Bearer ${secret}`)
-      .send({
-        botVersion: '2026.11',
-        commandResults: [],
-        instanceKey: 'pc-principal',
-        instanceName: 'PC Principal Comarca',
-        snapshot: { worker: { enabled: true } },
-      })
+    const claimedResult = {
+      detail: 'Reporte anticipado',
+      id: commandId,
+      status: 'COMPLETED',
+    };
+    const oldClient = await sync(secret)
+      .send({ ...heartbeat, commandResults: [claimedResult] })
       .expect(200);
+    expect(oldClient.body.data.pendingCommands).toEqual([]);
+    expect(
+      await client.marketplaceBotCommand.findUnique({
+        where: { id: commandId },
+      }),
+    ).toMatchObject({ status: 'PENDING', dispatchedAt: null });
+
+    const commandHeartbeat = { ...heartbeat, commandProtocolVersion: 1 };
+    const secondSync = await sync(secret).send(commandHeartbeat).expect(200);
 
     expect(secondSync.body.data.pendingCommands).toEqual([
       expect.objectContaining({
@@ -694,6 +755,17 @@ describe.sequential('Read-only integration keys and catalog', () => {
         payload: { enabled: false, type: 'SET_BOT_ENABLED' },
       }),
     ]);
+
+    await cancel(commandId).expect(409);
+    const retrySync = await sync(secret).send(commandHeartbeat).expect(200);
+    expect(retrySync.body.data.pendingCommands).toEqual(
+      secondSync.body.data.pendingCommands,
+    );
+    expect(
+      await client.marketplaceBotCommand.findUnique({
+        where: { id: commandId },
+      }),
+    ).toMatchObject({ status: 'DISPATCHED', dispatchedAt: expect.any(Date) });
 
     const thirdSync = await request(app.getHttpServer())
       .post('/api/v1/integrations/marketplace-bot/sync')
@@ -715,6 +787,17 @@ describe.sequential('Read-only integration keys and catalog', () => {
       .expect(200);
 
     expect(thirdSync.body.data.pendingCommands).toEqual([]);
+    await sync(secret)
+      .send({ ...commandHeartbeat, commandResults: [claimedResult] })
+      .expect(200);
+    const auditRows = await client.auditLog.findMany({
+      orderBy: { occurredAt: 'asc' },
+      where: { entityId: commandId },
+    });
+    expect(auditRows.map(({ action }) => action)).toEqual([
+      'INTEGRATION_BOT_COMMAND_QUEUED',
+      'INTEGRATION_BOT_COMMAND_RESULT',
+    ]);
 
     const finalState = await request(app.getHttpServer())
       .get('/api/v1/integrations/marketplace-bot')
@@ -734,5 +817,24 @@ describe.sequential('Read-only integration keys and catalog', () => {
     expect(commands.find((item) => item.id === cancelId)?.status).toBe(
       'CANCELLED',
     );
+    const keyId = String(botKey.body.data.key.id);
+    await request(app.getHttpServer())
+      .post(`/api/v1/integrations/keys/${keyId}/revoke`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({})
+      .expect(200);
+    await sync(secret).send(heartbeat).expect(401);
+    const replacement = await createKey(
+      'Rotación del bot',
+      30,
+      instanceKey,
+    ).expect(201);
+    await sync(String(replacement.body.data.secret))
+      .send(heartbeat)
+      .expect(200);
+    expect(await client.marketplaceBotInstance.count()).toBe(1);
   });
 });

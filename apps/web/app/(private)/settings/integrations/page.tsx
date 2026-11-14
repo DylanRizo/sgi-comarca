@@ -33,11 +33,6 @@ function formatDate(value: string | null): string {
   return value ? dateFormatter.format(new Date(value)) : 'Nunca';
 }
 
-/**
- * Llaves de solo lectura para programas externos (ADR-017). La página se
- * filtra por `integrations.manage`, el mismo permiso que exige la API. La
- * llave se muestra una sola vez y no se guarda en el navegador.
- */
 export default function IntegrationsPage() {
   const { getCsrfToken, state } = useAuth();
   const allowed =
@@ -51,6 +46,8 @@ export default function IntegrationsPage() {
   const [reload, setReload] = useState(0);
   const [name, setName] = useState('Bot de Marketplace');
   const [expiresInDays, setExpiresInDays] = useState(90);
+  const [purpose, setPurpose] = useState<'catalog' | 'bot'>('catalog');
+  const [instanceKey, setInstanceKey] = useState('');
   const [busy, setBusy] = useState('');
   const [secret, setSecret] = useState('');
   const [copied, setCopied] = useState(false);
@@ -83,14 +80,20 @@ export default function IntegrationsPage() {
     setCopied(false);
     try {
       const created = await integrationsApi.create(
-        { expiresInDays, name: name.trim() },
+        {
+          expiresInDays,
+          name: name.trim(),
+          ...(purpose === 'bot'
+            ? { marketplaceBotInstanceKey: instanceKey.trim() }
+            : {}),
+        },
         await getCsrfToken(),
       );
       setSecret(created.secret);
       setReload((value) => value + 1);
     } catch {
       setError(
-        'No pudimos crear la llave. Revisa que la integración esté habilitada y que tu cuenta pueda consultar el inventario.',
+        'No pudimos crear la llave. Verifica que la integración esté habilitada y que tu cuenta tenga el permiso requerido para esta llave.',
       );
     } finally {
       setBusy('');
@@ -100,7 +103,7 @@ export default function IntegrationsPage() {
   async function revokeKey(key: IntegrationKeySummary) {
     if (busy) return;
     const confirmed = window.confirm(
-      `¿Revocar la llave “${key.name}”? El programa que la usa dejará de leer el inventario de inmediato.`,
+      `¿Revocar la llave “${key.name}”? El programa que la usa perderá acceso de inmediato.`,
     );
     if (!confirmed) return;
     setBusy(key.id);
@@ -132,9 +135,8 @@ export default function IntegrationsPage() {
         <div>
           <h1>Integraciones</h1>
           <p>
-            Llaves de solo lectura para que un programa externo consulte el
-            inventario con stock y su precio de venta. Nunca ven costos ni
-            pueden modificar nada.
+            Gestiona las llaves de lectura del catálogo y de sincronización del
+            bot.
           </p>
         </div>
         {allowed ? (
@@ -203,6 +205,32 @@ export default function IntegrationsPage() {
           <section className="work-panel">
             <h2>Nueva llave</h2>
             <form onSubmit={(event) => void createKey(event)}>
+              <FormField label="Uso de la llave">
+                <select
+                  value={purpose}
+                  onChange={(event) =>
+                    setPurpose(event.target.value === 'bot' ? 'bot' : 'catalog')
+                  }
+                >
+                  <option value="catalog">Lectura de catálogo</option>
+                  <option value="bot">Sincronización del bot</option>
+                </select>
+              </FormField>
+              {purpose === 'bot' ? (
+                <FormField
+                  label="Identificador de la instalación"
+                  hint="Usa el mismo identificador configurado en el bot. Admite letras, números, guiones y guiones bajos."
+                >
+                  <input
+                    value={instanceKey}
+                    onChange={(event) => setInstanceKey(event.target.value)}
+                    minLength={8}
+                    maxLength={64}
+                    pattern="[A-Za-z0-9_\\-]{8,64}"
+                    required
+                  />
+                </FormField>
+              ) : null}
               <FormField
                 label="Nombre"
                 hint="Para reconocer qué programa la usa."
@@ -259,6 +287,12 @@ export default function IntegrationsPage() {
                     <tr key={key.id}>
                       <td data-label="Nombre">
                         <strong>{key.name}</strong>
+                        <br />
+                        <small>
+                          {key.marketplaceBotInstanceKey
+                            ? `Bot · ${key.marketplaceBotInstanceKey}`
+                            : 'Lectura de catálogo'}
+                        </small>
                         <br />
                         <small>Empieza por {key.keyPrefix}…</small>
                       </td>

@@ -11,7 +11,9 @@ import type {
   MarketplaceBotStateData,
 } from '@sgi/contracts';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { ApiHttpError } from '@/lib/http/api-client';
 
 import { integrationsApi } from '@/lib/http/integrations-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -53,6 +55,7 @@ const commandLabels: Record<MarketplaceBotCommandType, string> = {
 const commandStatusLabels: Record<MarketplaceBotCommandStatus, string> = {
   CANCELLED: 'Cancelado',
   COMPLETED: 'Completado',
+  DISPATCHED: 'Enviado · sin confirmar',
   EXPIRED: 'Expirado',
   FAILED: 'Falló',
   PENDING: 'Pendiente',
@@ -61,6 +64,7 @@ const commandStatusLabels: Record<MarketplaceBotCommandStatus, string> = {
 const commandStatusTones: Record<MarketplaceBotCommandStatus, string> = {
   CANCELLED: 'warning',
   COMPLETED: 'completed',
+  DISPATCHED: 'transit',
   EXPIRED: 'warning',
   FAILED: 'cancelled',
   PENDING: 'transit',
@@ -106,6 +110,17 @@ export function MarketplaceBotMonitor() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [uncertain, setUncertain] = useState(false);
+  const sending = useRef(false);
+  const pendingSend = useRef<{
+    instanceId: string;
+    command: MarketplaceBotCommandPayload;
+    requestId: string;
+    message: string;
+  } | null>(null);
+  const isManager =
+    state.kind === 'authenticated' &&
+    state.session.permissions.includes('integrations.manage');
 
   useEffect(() => {
     if (!allowed) return;
@@ -145,23 +160,56 @@ export function MarketplaceBotMonitor() {
     command: MarketplaceBotCommandPayload,
     successMessage: string,
   ) {
-    if (busy) return;
-    setBusy(command.type);
+    if (busy || sending.current || pendingSend.current) return;
+    if (
+      ((command.type === 'LISTING_ACTION' && command.action === 'delete') ||
+        (command.type === 'GENERATE_WEEK' && command.replace) ||
+        (command.type === 'QUEUE_ITEM_ACTION' &&
+          command.action === 'cancel')) &&
+      !window.confirm('¿Confirmas esta acción en el Bot de Marketplace?')
+    )
+      return;
+    pendingSend.current = {
+      instanceId: instance.id,
+      command,
+      requestId: crypto.randomUUID(),
+      message: successMessage,
+    };
+    await sendPendingCommand();
+  }
+
+  async function sendPendingCommand() {
+    const pending = pendingSend.current;
+    if (!pending || sending.current) return;
+    sending.current = true;
+    setBusy(pending.command.type);
     setError('');
     setNotice('');
     try {
       await integrationsApi.enqueueBotCommand(
-        instance.id,
-        command,
-        await getCsrfToken(),
+        pending.instanceId,
+        pending.command,
+        pending.requestId,
+        await getCsrfToken(uncertain),
       );
-      setNotice(successMessage);
+      pendingSend.current = null;
+      setUncertain(false);
+      setNotice(pending.message);
       setReload((value) => value + 1);
-    } catch {
-      setError(
-        'No pudimos encolar el comando para el bot. Verifica tus permisos e inténtalo de nuevo.',
-      );
+    } catch (failure) {
+      const ambiguous =
+        uncertain ||
+        !(failure instanceof ApiHttpError) ||
+        failure.status >= 500;
+      setUncertain(ambiguous);
+      if (!ambiguous) {
+        pendingSend.current = null;
+        setError(
+          'No pudimos encolar el comando. Revisa los permisos y el estado del bot.',
+        );
+      }
     } finally {
+      sending.current = false;
       setBusy('');
     }
   }
@@ -175,8 +223,15 @@ export function MarketplaceBotMonitor() {
       await integrationsApi.cancelBotCommand(commandId, await getCsrfToken());
       setNotice('El comando pendiente quedó cancelado.');
       setReload((value) => value + 1);
-    } catch {
-      setError('No pudimos cancelar el comando.');
+    } catch (failure) {
+      if (failure instanceof ApiHttpError && failure.status === 409) {
+        setError(
+          'El comando ya salió de la cola y no se puede cancelar desde el SGI.',
+        );
+        setReload((value) => value + 1);
+      } else {
+        setError('No pudimos cancelar el comando.');
+      }
     } finally {
       setBusy('');
     }
@@ -217,7 +272,7 @@ export function MarketplaceBotMonitor() {
           >
             Actualizar ahora
           </button>
-          {canControl ? (
+          {isManager ? (
             <Link className="secondary-link" href="/settings/integrations">
               Llaves de acceso
             </Link>
@@ -227,11 +282,14 @@ export function MarketplaceBotMonitor() {
 
       {!canControl ? (
         <section className="work-panel" role="status">
-          <h2>Vista de consulta para vendedores</h2>
+          <h2>
+            {isManager
+              ? 'Control remoto deshabilitado'
+              : 'Vista de consulta para vendedores'}
+          </h2>
           <p>
             Puedes revisar los chats sin responder, el rendimiento por producto
-            y el calendario de anuncios. La ejecución de comandos remotos sobre
-            el bot está reservada a administración.
+            y el calendario de anuncios.
           </p>
         </section>
       ) : null}
@@ -253,6 +311,20 @@ export function MarketplaceBotMonitor() {
             Reintentar
           </button>
         </p>
+      ) : null}
+
+      {uncertain ? (
+        <div role="alert">
+          No pudimos confirmar si la orden quedó encolada. Puedes recuperar el
+          resultado sin crear otra orden.{' '}
+          <button
+            type="button"
+            disabled={busy !== ''}
+            onClick={() => void sendPendingCommand()}
+          >
+            Reintentar orden
+          </button>
+        </div>
       ) : null}
 
       {!data ? (
@@ -289,7 +361,7 @@ export function MarketplaceBotMonitor() {
           ) : null}
 
           <InstanceMonitorBody
-            busy={busy}
+            busy={uncertain ? 'uncertain' : busy}
             canControl={canControl}
             instance={activeInstance}
             onCancelCommand={cancelCommand}
