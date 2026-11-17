@@ -135,6 +135,8 @@ export interface MarketplaceBotListing {
   account: string;
   title: string;
   status: string;
+  /** Null until the bot has checked the full local listing set for twins. */
+  isExactTwin: boolean | null;
   listedOn: string;
   ageDays: number | null;
   clicks14d: number | null;

@@ -606,6 +606,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
                 clicks14d: 45,
                 executable: true,
                 key: 'acc-1::12345',
+                isExactTwin: true,
                 leads14d: 4,
                 listedOn: '2026-11-04',
                 pendingAction: null,
@@ -615,6 +616,8 @@ describe.sequential('Read-only integration keys and catalog', () => {
                 status: 'active',
                 title: 'Camisa Columbia M',
               },
+              { key: 'unknown-state', title: 'Sin estado', isExactTwin: false },
+              { key: 'legacy', title: 'Cliente anterior', status: 'active' },
             ],
             totalActive: 4,
           },
@@ -646,6 +649,13 @@ describe.sequential('Read-only integration keys and catalog', () => {
     expect(adminState.body.data.canControl).toBe(true);
     expect(adminState.body.data.instances).toHaveLength(1);
     const instanceId = String(adminState.body.data.instances[0].id);
+    expect(
+      adminState.body.data.instances[0].snapshot.listings.items,
+    ).toMatchObject([
+      { key: 'acc-1::12345', isExactTwin: true, status: 'active' },
+      { key: 'unknown-state', isExactTwin: false, status: 'unknown' },
+      { key: 'legacy', isExactTwin: null, status: 'active' },
+    ]);
     expect(adminState.body.data.instances[0]).toMatchObject({
       connection: 'ONLINE',
       instanceName: 'PC Principal Comarca',

@@ -91,6 +91,10 @@ HTTPS saliente usando su llave de integración (ADR-017).
     sin `relist` ni `renew` antes de los 7 días; `out_of_stock` con
     `mark_available`, `relist` y `delete`; sin botones cuando hay una acción en
     cola, revisión en curso, duplicado gemelo o estado `sold`/`pending`/`unknown`).
+    El bot calcula `isExactTwin` sobre todos sus anuncios presentes antes de
+    limitar el pulso a 50 filas. Un cliente anterior que omite la marca puede
+    seguir sincronizando. El panel espera una marca explícita de anuncio único
+    para ofrecer acciones y trata un estado ausente como `unknown`.
 
 ## Datos persistentes
 

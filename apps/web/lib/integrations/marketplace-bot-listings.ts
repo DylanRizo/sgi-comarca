@@ -14,10 +14,6 @@ function isListingUnderReview(listing: MarketplaceBotListing): boolean {
   return underReviewPattern.test(listing.title.trim());
 }
 
-function isExactTwinListing(listing: MarketplaceBotListing): boolean {
-  return exactTwinPattern.test(listing.recommendationReason.trim());
-}
-
 function isExecutableAction(
   value: string,
 ): value is MarketplaceBotListingAction {
@@ -43,7 +39,7 @@ export function getAvailableListingActions(
   if (
     listing.pendingAction ||
     isListingUnderReview(listing) ||
-    isExactTwinListing(listing)
+    listing.isExactTwin !== false
   ) {
     return [];
   }
@@ -85,6 +81,11 @@ export function getListingActionsEmptyLabel(
 ): string {
   if (listing.pendingAction) return 'En cola';
   if (isListingUnderReview(listing)) return 'En revisión';
-  if (isExactTwinListing(listing)) return 'Solo en Facebook';
+  if (listing.isExactTwin === true) return 'Solo en Facebook';
+  if (listing.isExactTwin !== false) {
+    return exactTwinPattern.test(listing.recommendationReason.trim())
+      ? 'Solo en Facebook'
+      : 'Pendiente de verificar';
+  }
   return '—';
 }

@@ -119,6 +119,7 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
     ageDays: cleanNullableNonNegativeInt(raw.ageDays),
     clicks14d: cleanNullableNonNegativeInt(raw.clicks14d),
     executable: Boolean(raw.executable),
+    isExactTwin: typeof raw.isExactTwin === 'boolean' ? raw.isExactTwin : null,
     key,
     leads14d: cleanNullableNonNegativeInt(raw.leads14d),
     listedOn: cleanText(raw.listedOn, 40),
@@ -126,7 +127,7 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
     recommendation: cleanText(raw.recommendation, 40, 'none'),
     recommendationLabel: cleanText(raw.recommendationLabel, 80, 'Sin acción'),
     recommendationReason: cleanText(raw.recommendationReason, 280),
-    status: cleanText(raw.status, 32, 'in_stock'),
+    status: cleanText(raw.status, 32, 'unknown'),
     title,
   };
 }

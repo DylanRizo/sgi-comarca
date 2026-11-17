@@ -1141,7 +1141,10 @@ function InstanceMonitorBody({
                       <td data-label="Anuncio">
                         <strong>{listing.title}</strong>
                         <span>
-                          Estado: {listing.status}
+                          Estado:{' '}
+                          {listing.status === 'unknown'
+                            ? 'desconocido'
+                            : listing.status}
                           {listing.listedOn ? ` · ${listing.listedOn}` : ''}
                         </span>
                       </td>

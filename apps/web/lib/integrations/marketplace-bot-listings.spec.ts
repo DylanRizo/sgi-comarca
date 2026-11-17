@@ -14,6 +14,7 @@ function makeListing(
     ageDays: 10,
     clicks14d: 25,
     executable: false,
+    isExactTwin: false,
     key: 'listing-1',
     leads14d: 2,
     listedOn: '2026-11-07',
@@ -103,12 +104,26 @@ describe('marketplace bot available listing actions', () => {
     expect(getListingActionsEmptyLabel(underReview)).toBe('En revisión');
 
     const twin = makeListing({
+      isExactTwin: true,
+      recommendationReason: '',
+    });
+    expect(getAvailableListingActions(twin)).toEqual([]);
+    expect(getListingActionsEmptyLabel(twin)).toBe('Solo en Facebook');
+
+    const legacyTwin = makeListing({
+      isExactTwin: null,
       recommendation: 'review',
       recommendationReason:
         'Duplicado exacto: hay otro anuncio con el mismo titulo y la misma fecha.',
     });
-    expect(getAvailableListingActions(twin)).toEqual([]);
-    expect(getListingActionsEmptyLabel(twin)).toBe('Solo en Facebook');
+    expect(getAvailableListingActions(legacyTwin)).toEqual([]);
+    expect(getListingActionsEmptyLabel(legacyTwin)).toBe('Solo en Facebook');
+
+    const unverified = makeListing({ isExactTwin: null });
+    expect(getAvailableListingActions(unverified)).toEqual([]);
+    expect(getListingActionsEmptyLabel(unverified)).toBe(
+      'Pendiente de verificar',
+    );
 
     for (const status of ['sold', 'pending', 'unknown']) {
       const terminal = makeListing({ status });
