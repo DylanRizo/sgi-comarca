@@ -23,6 +23,7 @@ export {
 } from './alexa.js';
 export {
   integrationKeyScopes,
+  marketplaceBotInstanceKeyPattern,
   type CreateIntegrationKeyRequest,
   type CreatedIntegrationKeyData,
   type IntegrationCatalogItem,
@@ -31,6 +32,34 @@ export {
   type IntegrationKeySummary,
   type IntegrationPriceIssue,
 } from './integrations.js';
+export {
+  marketplaceBotCommandTypes,
+  marketplaceBotListingActions,
+  marketplaceBotQueueActions,
+  marketplaceBotSafetyLevels,
+  type EnqueueMarketplaceBotCommandRequest,
+  type MarketplaceBotAccountSnapshot,
+  type MarketplaceBotAlert,
+  type MarketplaceBotCommandPayload,
+  type MarketplaceBotCommandResult,
+  type MarketplaceBotCommandStatus,
+  type MarketplaceBotCommandType,
+  type MarketplaceBotCommandView,
+  type MarketplaceBotConnection,
+  type MarketplaceBotInstanceView,
+  type MarketplaceBotLeadProduct,
+  type MarketplaceBotListing,
+  type MarketplaceBotListingAction,
+  type MarketplaceBotPendingCommand,
+  type MarketplaceBotQueueAction,
+  type MarketplaceBotQueueItem,
+  type MarketplaceBotSafetyLevel,
+  type MarketplaceBotSnapshot,
+  type MarketplaceBotStateData,
+  type MarketplaceBotSyncData,
+  type MarketplaceBotSyncRequest,
+  type MarketplaceBotUnansweredLead,
+} from './marketplace-bot.js';
 export type { ApiErrorBody, ApiMeta, ApiSuccess } from './api-response.js';
 export type {
   ActivateAccountRequest,

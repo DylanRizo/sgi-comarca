@@ -1,5 +1,7 @@
 import type { ConfigType } from '@nestjs/config';
+import { marketplaceBotInstanceKeyPattern } from '@sgi/contracts';
 import type {
+  CreateIntegrationKeyRequest,
   CreatedIntegrationKeyData,
   IntegrationKeyScope,
   IntegrationKeySummary,
@@ -21,6 +23,7 @@ const KEY_PREFIX_LENGTH = 8;
 export type ValidIntegrationKey = {
   keyId: string;
   ownerUserId: string;
+  marketplaceBotInstanceKey: string | null;
   scopes: readonly IntegrationKeyScope[];
 };
 
@@ -30,6 +33,7 @@ const summarySelect = {
   id: true,
   keyPrefix: true,
   lastUsedAt: true,
+  marketplaceBotInstanceKey: true,
   name: true,
   revokedAt: true,
   scopes: true,
@@ -41,6 +45,7 @@ type KeySummaryRecord = {
   id: string;
   keyPrefix: string;
   lastUsedAt: Date | null;
+  marketplaceBotInstanceKey: string | null;
   name: string;
   revokedAt: Date | null;
   scopes: string[];
@@ -53,6 +58,7 @@ function toSummary(key: KeySummaryRecord, now: Date): IntegrationKeySummary {
     id: key.id,
     keyPrefix: key.keyPrefix,
     lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+    marketplaceBotInstanceKey: key.marketplaceBotInstanceKey,
     name: key.name,
     revokedAt: key.revokedAt?.toISOString() ?? null,
     scopes: key.scopes as IntegrationKeyScope[],
@@ -76,27 +82,34 @@ export class IntegrationKeyService {
 
   async create(
     ownerUserId: string,
-    input: { expiresInDays: number; name: string },
+    input: CreateIntegrationKeyRequest,
   ): Promise<CreatedIntegrationKeyData> {
     this.requireEnabled();
     const settings = this.configuration.integrationKeys;
     const name = input.name.trim();
+    const instanceKey = input.marketplaceBotInstanceKey;
     if (
       !name ||
       name.length > 80 ||
       !Number.isInteger(input.expiresInDays) ||
       input.expiresInDays < 1 ||
-      input.expiresInDays > settings.maxLifetimeDays
+      input.expiresInDays > settings.maxLifetimeDays ||
+      (instanceKey !== undefined &&
+        !marketplaceBotInstanceKeyPattern.test(instanceKey))
     ) {
       throw new IntegrationKeyError('INVALID_REQUEST');
     }
 
-    // A key acts on behalf of its owner, so it can never carry a capability the
-    // owner does not already hold.
-    for (const scope of settings.scopes) {
-      if (!(await this.permissions.hasPermission(ownerUserId, scope))) {
-        throw new IntegrationKeyError('ACCESS_DENIED');
-      }
+    const scope: IntegrationKeyScope = instanceKey
+      ? 'marketplace-bot.sync'
+      : 'inventory.read';
+    if (
+      !(await this.permissions.hasPermission(
+        ownerUserId,
+        ownerPermissionForScope(scope),
+      ))
+    ) {
+      throw new IntegrationKeyError('ACCESS_DENIED');
     }
 
     const generated = this.tokens.generate();
@@ -111,8 +124,9 @@ export class IntegrationKeyService {
           keyHash: generated.tokenHash,
           keyPrefix: secret.slice(0, KEY_PREFIX_LENGTH),
           name,
+          marketplaceBotInstanceKey: instanceKey ?? null,
           ownerUserId,
-          scopes: [...settings.scopes],
+          scopes: [scope],
         },
         select: summarySelect,
       });
@@ -122,7 +136,7 @@ export class IntegrationKeyService {
         entityId: created.id,
         metadata: {
           expiresInDays: input.expiresInDays,
-          scopeCount: settings.scopes.length,
+          scopeCount: 1,
         },
         occurredAt: now,
       });
@@ -211,6 +225,7 @@ export class IntegrationKeyService {
 
     return {
       keyId: key.id,
+      marketplaceBotInstanceKey: key.marketplaceBotInstanceKey,
       ownerUserId: key.ownerUserId,
       scopes: key.scopes as IntegrationKeyScope[],
     };
@@ -275,4 +290,10 @@ export class IntegrationKeyService {
       throw new IntegrationKeyError('INTEGRATION_DISABLED');
     }
   }
+}
+
+export function ownerPermissionForScope(scope: IntegrationKeyScope): string {
+  return scope === 'marketplace-bot.sync'
+    ? 'integrations.manage'
+    : 'inventory.read';
 }

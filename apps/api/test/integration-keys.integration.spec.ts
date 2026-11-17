@@ -69,14 +69,18 @@ describe.sequential('Read-only integration keys and catalog', () => {
   let userId = '';
   const originalEnvironment = { ...process.env };
 
-  const createKey = (name = 'Bot de prueba', expiresInDays = 30) =>
+  const createKey = (
+    name = 'Bot de prueba',
+    expiresInDays = 30,
+    marketplaceBotInstanceKey?: string,
+  ) =>
     request(app.getHttpServer())
       .post('/api/v1/integrations/keys')
       .set('Host', host)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .set('X-CSRF-Token', csrfToken)
-      .send({ expiresInDays, name });
+      .send({ expiresInDays, name, marketplaceBotInstanceKey });
 
   const readCatalog = (secret: string, query = '?pageSize=100') =>
     request(app.getHttpServer())
@@ -122,6 +126,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
       'base64',
     );
     process.env.INTEGRATION_KEYS_ENABLED = 'true';
+    process.env.MARKETPLACE_BOT_CONTROL_ENABLED = 'true';
 
     client = createDatabaseClient(isolatedUrl.toString());
     await runBootstrap(client);
@@ -487,5 +492,349 @@ describe.sequential('Read-only integration keys and catalog', () => {
     } finally {
       await client.userPermission.delete({ where: { id: denyId } });
     }
+  });
+
+  it('synchronizes the Marketplace bot, allows read-only view for sales.read and restricts remote commands to integrations.manage (ADR-024)', async () => {
+    const instanceKey = 'pc-principal';
+    const catalogKey = (await createKey('Llave de catálogo')).body.data
+      .secret as string;
+    const botKey = await createKey('Bot PC Principal', 30, instanceKey).expect(
+      201,
+    );
+    const secret = botKey.body.data.secret as string;
+    expect(botKey.body.data.key).toMatchObject({
+      scopes: ['marketplace-bot.sync'],
+      marketplaceBotInstanceKey: instanceKey,
+    });
+    await readCatalog(secret).expect(403);
+
+    const sync = (bearer: string) =>
+      request(app.getHttpServer())
+        .post('/api/v1/integrations/marketplace-bot/sync')
+        .set('Host', host)
+        .set('Authorization', `Bearer ${bearer}`);
+    const heartbeat = {
+      botVersion: '2026.11',
+      commandResults: [],
+      instanceKey,
+      instanceName: 'PC Principal',
+      snapshot: { worker: { enabled: true } },
+    };
+    await sync(catalogKey).send(heartbeat).expect(403);
+    await sync(secret)
+      .send({ ...heartbeat, instanceKey: 'otra-instancia' })
+      .expect(403);
+
+    const enqueue = (
+      instanceId: string,
+      command: object,
+      requestId = randomUUID(),
+    ) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ command, requestId });
+    const cancel = (id: string) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/commands/${id}/cancel`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({});
+
+    const firstSync = await request(app.getHttpServer())
+      .post('/api/v1/integrations/marketplace-bot/sync')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${secret}`)
+      .send({
+        botVersion: '2026.11',
+        commandResults: [],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal Comarca',
+        snapshot: {
+          accounts: [
+            {
+              dailyLimit: 3,
+              displayName: 'Cuenta 1',
+              key: 'acc-1',
+              lastScanAt: '2026-11-13T14:00:00Z',
+              pausedUntil: null,
+              pauseReason: null,
+              publishedToday: 1,
+              publishedWeek: 5,
+              status: 'healthy',
+              weeklyLimit: 12,
+            },
+          ],
+          alerts: [],
+          leads: {
+            awaitingReply: 2,
+            products: [
+              {
+                activeListings: 2,
+                clicks14d: 100,
+                familyKey: 'camisa-columbia',
+                focus: true,
+                label: 'Camisa Columbia',
+                leads14d: 9,
+                leadsPer100Clicks: 9,
+              },
+            ],
+            total14d: 14,
+            unanswered: [
+              {
+                account: 'acc-1',
+                label: 'Juan · Camisa Columbia',
+                lastActivity: 'Hace 1h',
+                neverAnswered: true,
+                startedOn: '13 nov',
+                title: 'Camisa Columbia M',
+              },
+            ],
+            unansweredRecent: 1,
+          },
+          listings: {
+            actionable: 1,
+            items: [
+              {
+                account: 'acc-1',
+                ageDays: 9,
+                clicks14d: 45,
+                executable: true,
+                key: 'acc-1::12345',
+                leads14d: 4,
+                listedOn: '2026-11-04',
+                pendingAction: null,
+                recommendation: 'renew',
+                recommendationLabel: 'Renovar',
+                recommendationReason: 'Buena conversión y >7 días',
+                status: 'active',
+                title: 'Camisa Columbia M',
+              },
+            ],
+            totalActive: 4,
+          },
+          queue: {
+            summary: { planned: 2, published: 3, queued: 1 },
+            upcoming: [],
+          },
+          worker: {
+            currentItem: null,
+            enabled: true,
+            mode: 'live',
+            processRunning: true,
+            safetyLevel: 'balanced',
+            status: 'running',
+          },
+        },
+      })
+      .expect(200);
+
+    expect(firstSync.body.data.pendingCommands).toEqual([]);
+
+    const adminState = await request(app.getHttpServer())
+      .get('/api/v1/integrations/marketplace-bot')
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(adminState.body.data.canControl).toBe(true);
+    expect(adminState.body.data.instances).toHaveLength(1);
+    const instanceId = String(adminState.body.data.instances[0].id);
+    expect(adminState.body.data.instances[0]).toMatchObject({
+      connection: 'ONLINE',
+      instanceName: 'PC Principal Comarca',
+    });
+    expect(adminState.body.data.instances[0].snapshot.leads.awaitingReply).toBe(
+      2,
+    );
+
+    const pause = { enabled: false, type: 'SET_BOT_ENABLED' };
+    const requestId = randomUUID();
+    const [queued, duplicate] = await Promise.all([
+      enqueue(instanceId, pause, requestId).expect(201),
+      enqueue(instanceId, pause, requestId).expect(201),
+    ]);
+    expect(duplicate.body.data.id).toBe(queued.body.data.id);
+    await enqueue(instanceId, { ...pause, enabled: true }, requestId).expect(
+      409,
+    );
+    const commandId = String(queued.body.data.id);
+    expect(queued.body.data.status).toBe('PENDING');
+
+    const toCancel = await request(app.getHttpServer())
+      .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({
+        command: { type: 'SYNC_SGI_CATALOG' },
+        requestId: randomUUID(),
+      })
+      .expect(201);
+    const cancelId = String(toCancel.body.data.id);
+
+    // A seller with sales.read (without integrations.manage) can read the
+    // monitor and leads, with canControl = false, and cannot send or cancel commands.
+    const denyId = await denyOwnerPermission('integrations.manage');
+    try {
+      const sellerState = await request(app.getHttpServer())
+        .get('/api/v1/integrations/marketplace-bot')
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(sellerState.body.data.canControl).toBe(false);
+      expect(sellerState.body.data.instances).toHaveLength(1);
+      expect(sellerState.body.data.instances[0].commands).toEqual([]);
+      await sync(secret).send(heartbeat).expect(403);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/integrations/marketplace-bot/${instanceId}/commands`)
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({
+          command: { type: 'RESOLVE_ALL_ALERTS' },
+          requestId: randomUUID(),
+        })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/integrations/marketplace-bot/commands/${cancelId}/cancel`,
+        )
+        .set('Host', host)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({})
+        .expect(403);
+    } finally {
+      await client.userPermission.delete({ where: { id: denyId } });
+    }
+
+    const cancelled = await request(app.getHttpServer())
+      .post(`/api/v1/integrations/marketplace-bot/commands/${cancelId}/cancel`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({})
+      .expect(200);
+    expect(cancelled.body.data.status).toBe('CANCELLED');
+
+    const claimedResult = {
+      detail: 'Reporte anticipado',
+      id: commandId,
+      status: 'COMPLETED',
+    };
+    const oldClient = await sync(secret)
+      .send({ ...heartbeat, commandResults: [claimedResult] })
+      .expect(200);
+    expect(oldClient.body.data.pendingCommands).toEqual([]);
+    expect(
+      await client.marketplaceBotCommand.findUnique({
+        where: { id: commandId },
+      }),
+    ).toMatchObject({ status: 'PENDING', dispatchedAt: null });
+
+    const commandHeartbeat = { ...heartbeat, commandProtocolVersion: 1 };
+    const secondSync = await sync(secret).send(commandHeartbeat).expect(200);
+
+    expect(secondSync.body.data.pendingCommands).toEqual([
+      expect.objectContaining({
+        id: commandId,
+        payload: { enabled: false, type: 'SET_BOT_ENABLED' },
+      }),
+    ]);
+
+    await cancel(commandId).expect(409);
+    const retrySync = await sync(secret).send(commandHeartbeat).expect(200);
+    expect(retrySync.body.data.pendingCommands).toEqual(
+      secondSync.body.data.pendingCommands,
+    );
+    expect(
+      await client.marketplaceBotCommand.findUnique({
+        where: { id: commandId },
+      }),
+    ).toMatchObject({ status: 'DISPATCHED', dispatchedAt: expect.any(Date) });
+
+    const thirdSync = await request(app.getHttpServer())
+      .post('/api/v1/integrations/marketplace-bot/sync')
+      .set('Host', host)
+      .set('Authorization', `Bearer ${secret}`)
+      .send({
+        botVersion: '2026.11',
+        commandResults: [
+          {
+            detail: 'Bot pausado desde SGI.',
+            id: commandId,
+            status: 'COMPLETED',
+          },
+        ],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal Comarca',
+        snapshot: { worker: { enabled: false } },
+      })
+      .expect(200);
+
+    expect(thirdSync.body.data.pendingCommands).toEqual([]);
+    await sync(secret)
+      .send({ ...commandHeartbeat, commandResults: [claimedResult] })
+      .expect(200);
+    const auditRows = await client.auditLog.findMany({
+      orderBy: { occurredAt: 'asc' },
+      where: { entityId: commandId },
+    });
+    expect(auditRows.map(({ action }) => action)).toEqual([
+      'INTEGRATION_BOT_COMMAND_QUEUED',
+      'INTEGRATION_BOT_COMMAND_RESULT',
+    ]);
+
+    const finalState = await request(app.getHttpServer())
+      .get('/api/v1/integrations/marketplace-bot')
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .expect(200);
+    const commands = finalState.body.data.instances[0].commands as Array<{
+      id: string;
+      resultDetail: string | null;
+      status: string;
+    }>;
+    expect(commands.find((item) => item.id === commandId)).toMatchObject({
+      resultDetail: 'Bot pausado desde SGI.',
+      status: 'COMPLETED',
+    });
+    expect(commands.find((item) => item.id === cancelId)?.status).toBe(
+      'CANCELLED',
+    );
+    const keyId = String(botKey.body.data.key.id);
+    await request(app.getHttpServer())
+      .post(`/api/v1/integrations/keys/${keyId}/revoke`)
+      .set('Host', host)
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send({})
+      .expect(200);
+    await sync(secret).send(heartbeat).expect(401);
+    const replacement = await createKey(
+      'Rotación del bot',
+      30,
+      instanceKey,
+    ).expect(201);
+    await sync(String(replacement.body.data.secret))
+      .send(heartbeat)
+      .expect(200);
+    expect(await client.marketplaceBotInstance.count()).toBe(1);
   });
 });

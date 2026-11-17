@@ -73,6 +73,51 @@ test.describe('Integration keys', () => {
     expect((await readCatalog(request, secret)).status()).toBe(401);
   });
 
+  test('connects a bot installation and shows telemetry with remote control disabled', async ({
+    page,
+    request,
+  }) => {
+    await login(request, page);
+    await page.goto('/settings/integrations');
+    await page.getByLabel('Uso de la llave').selectOption('bot');
+    await page
+      .getByLabel('Identificador de la instalación')
+      .fill('e2e-monitor');
+    await page.getByRole('button', { name: 'Crear llave' }).click();
+    const secretField = page.getByLabel('Llave de integración');
+    await expect(secretField).toBeVisible();
+    const secret = await secretField.inputValue();
+    expect((await readCatalog(request, secret)).status()).toBe(403);
+    const sync = await request.post(
+      `${apiUrl}/api/v1/integrations/marketplace-bot/sync`,
+      {
+        data: {
+          botVersion: 'e2e',
+          commandProtocolVersion: 1,
+          instanceKey: 'e2e-monitor',
+          instanceName: 'Instalación de prueba',
+          snapshot: { leads: { awaitingReply: 3 }, worker: { enabled: true } },
+        },
+        headers: { Authorization: `Bearer ${secret}` },
+      },
+    );
+    expect(sync.status()).toBe(200);
+    expect((await sync.json()).data.pendingCommands).toEqual([]);
+
+    await page.getByRole('link', { name: 'Monitor Bot Marketplace' }).click();
+    await expect(page).toHaveURL('/settings/marketplace-bot');
+    await expect(
+      page.getByRole('heading', { name: 'Control remoto deshabilitado' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Instalación de prueba', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('En línea', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /pausar bot/i })).toHaveCount(
+      0,
+    );
+  });
+
   test('hides integrations from an account without the permission', async ({
     page,
     request,

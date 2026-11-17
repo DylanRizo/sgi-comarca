@@ -1,5 +1,6 @@
 export type IntegrationKeyErrorCode =
   | 'ACCESS_DENIED'
+  | 'CONFLICT'
   | 'INTEGRATION_DISABLED'
   | 'INVALID_KEY'
   | 'INVALID_REQUEST'

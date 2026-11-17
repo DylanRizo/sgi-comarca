@@ -1,6 +1,9 @@
 import type { TransactionClient } from '../auth/application/last-admin-policy.js';
 
 export type IntegrationAuditAction =
+  | 'INTEGRATION_BOT_COMMAND_CANCELLED'
+  | 'INTEGRATION_BOT_COMMAND_RESULT'
+  | 'INTEGRATION_BOT_COMMAND_QUEUED'
   | 'INTEGRATION_CATALOG_READ'
   | 'INTEGRATION_KEY_CREATED'
   | 'INTEGRATION_KEY_REVOKED';

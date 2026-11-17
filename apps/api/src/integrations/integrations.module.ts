@@ -12,10 +12,18 @@ import { IntegrationCatalogService } from './integration-catalog.service.js';
 import { IntegrationKeyGuard } from './integration-key.guard.js';
 import { IntegrationKeyService } from './integration-key.service.js';
 import { IntegrationKeysController } from './integration-keys.controller.js';
+import { MarketplaceBotController } from './marketplace-bot.controller.js';
+import { MarketplaceBotService } from './marketplace-bot.service.js';
+import { MarketplaceBotSyncController } from './marketplace-bot-sync.controller.js';
 
 @Module({
   imports: [AuthModule, InventoryModule],
-  controllers: [IntegrationCatalogController, IntegrationKeysController],
+  controllers: [
+    IntegrationCatalogController,
+    IntegrationKeysController,
+    MarketplaceBotSyncController,
+    MarketplaceBotController,
+  ],
   providers: [
     {
       provide: IntegrationKeyService,
@@ -28,6 +36,24 @@ import { IntegrationKeysController } from './integration-keys.controller.js';
         database.instantiateProvider(
           (client) =>
             new IntegrationKeyService(client, configuration, permissions),
+        ),
+    },
+    {
+      provide: MarketplaceBotService,
+      inject: [DatabaseService, EffectivePermissionsService, appConfig.KEY],
+      useFactory: (
+        database: DatabaseService,
+        permissions: EffectivePermissionsService,
+        configuration: ConfigType<typeof appConfig>,
+      ) =>
+        database.instantiateProvider(
+          (client) =>
+            new MarketplaceBotService(
+              client,
+              permissions,
+              configuration.integrationKeys.enabled &&
+                configuration.integrationKeys.marketplaceBotControlEnabled,
+            ),
         ),
     },
     {

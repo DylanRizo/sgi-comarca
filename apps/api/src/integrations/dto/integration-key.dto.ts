@@ -1,4 +1,5 @@
 import { ValidationPipe } from '@nestjs/common';
+import { marketplaceBotInstanceKeyPattern } from '@sgi/contracts';
 import {
   IsInt,
   IsString,
@@ -8,6 +9,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 import { PaginationQueryDto } from '../../common/dto/read-query.dto.js';
@@ -23,6 +25,11 @@ export class CreateIntegrationKeyDto {
   @Min(1)
   @Max(90)
   expiresInDays!: number;
+
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @Matches(marketplaceBotInstanceKeyPattern)
+  marketplaceBotInstanceKey?: string;
 }
 
 export class IntegrationKeyIdParamDto {
