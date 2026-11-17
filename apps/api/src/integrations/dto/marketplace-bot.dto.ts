@@ -22,9 +22,9 @@ export class MarketplaceBotCommandResultDto {
   @IsIn(['COMPLETED', 'FAILED'])
   status!: 'COMPLETED' | 'FAILED';
 
+  @IsOptional()
   @IsString()
-  @MaxLength(500)
-  detail!: string;
+  detail?: string;
 }
 
 export class MarketplaceBotSyncDto {

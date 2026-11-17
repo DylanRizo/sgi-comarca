@@ -217,7 +217,8 @@ export interface MarketplaceBotStateData {
 export interface MarketplaceBotCommandResult {
   id: string;
   status: 'COMPLETED' | 'FAILED';
-  detail: string;
+  /** Optional; the API keeps at most the first 500 characters. */
+  detail?: string;
 }
 
 /** Body of `POST /api/v1/integrations/marketplace-bot/sync`. */
