@@ -73,7 +73,7 @@ test.describe('Integration keys', () => {
     expect((await readCatalog(request, secret)).status()).toBe(401);
   });
 
-  test('connects a bot installation and shows telemetry with remote control disabled', async ({
+  test('connects a bot installation and respects listing action eligibility', async ({
     page,
     request,
   }) => {
@@ -96,7 +96,36 @@ test.describe('Integration keys', () => {
           commandProtocolVersion: 1,
           instanceKey: 'e2e-monitor',
           instanceName: 'Instalación de prueba',
-          snapshot: { leads: { awaitingReply: 3 }, worker: { enabled: true } },
+          snapshot: {
+            leads: { awaitingReply: 3 },
+            listings: {
+              items: [
+                {
+                  key: 'twin',
+                  title: 'Producto gemelo',
+                  status: 'in_stock',
+                  isExactTwin: true,
+                },
+                {
+                  key: 'missing',
+                  title: 'Producto sin estado',
+                  isExactTwin: false,
+                },
+                {
+                  key: 'legacy',
+                  title: 'Producto sin verificar',
+                  status: 'active',
+                },
+                {
+                  key: 'unique',
+                  title: 'Producto disponible',
+                  status: 'in_stock',
+                  isExactTwin: false,
+                },
+              ],
+            },
+            worker: { enabled: true },
+          },
         },
         headers: { Authorization: `Bearer ${secret}` },
       },
@@ -107,15 +136,39 @@ test.describe('Integration keys', () => {
     await page.getByRole('link', { name: 'Monitor Bot Marketplace' }).click();
     await expect(page).toHaveURL('/settings/marketplace-bot');
     await expect(
-      page.getByRole('heading', { name: 'Control remoto deshabilitado' }),
-    ).toBeVisible();
-    await expect(
       page.getByText('Instalación de prueba', { exact: true }),
     ).toBeVisible();
     await expect(page.getByText('En línea', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /pausar bot/i })).toHaveCount(
-      0,
-    );
+    const twin = page.getByRole('row').filter({ hasText: 'Producto gemelo' });
+    const unknown = page
+      .getByRole('row')
+      .filter({ hasText: 'Producto sin estado' });
+    const legacy = page
+      .getByRole('row')
+      .filter({ hasText: 'Producto sin verificar' });
+    const available = page
+      .getByRole('row')
+      .filter({ hasText: 'Producto disponible' });
+    for (const row of [twin, unknown, legacy]) {
+      await expect(row).toBeVisible();
+      await expect(row.getByRole('button')).toHaveCount(0);
+    }
+    await expect(unknown).toContainText('Estado: desconocido');
+    if (process.env.MARKETPLACE_BOT_CONTROL_ENABLED === 'true') {
+      await expect(twin).toContainText('Solo en Facebook');
+      await expect(legacy).toContainText('Pendiente de verificar');
+      await expect(
+        available.getByRole('button', { name: 'Marcar agotado' }),
+      ).toBeVisible();
+    } else {
+      await expect(
+        page.getByRole('heading', { name: 'Control remoto deshabilitado' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /pausar bot/i }),
+      ).toHaveCount(0);
+      await expect(available.getByRole('button')).toHaveCount(0);
+    }
   });
 
   test('hides integrations from an account without the permission', async ({

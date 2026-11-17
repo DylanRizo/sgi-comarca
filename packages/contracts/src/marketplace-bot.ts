@@ -135,6 +135,8 @@ export interface MarketplaceBotListing {
   account: string;
   title: string;
   status: string;
+  /** Null until the bot has checked the full local listing set for twins. */
+  isExactTwin: boolean | null;
   listedOn: string;
   ageDays: number | null;
   clicks14d: number | null;
@@ -217,7 +219,8 @@ export interface MarketplaceBotStateData {
 export interface MarketplaceBotCommandResult {
   id: string;
   status: 'COMPLETED' | 'FAILED';
-  detail: string;
+  /** Optional; the API keeps at most the first 500 characters. */
+  detail?: string;
 }
 
 /** Body of `POST /api/v1/integrations/marketplace-bot/sync`. */

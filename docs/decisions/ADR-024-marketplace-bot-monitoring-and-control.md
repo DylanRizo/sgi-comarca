@@ -42,7 +42,12 @@ HTTPS saliente usando su llave de integración (ADR-017).
     `ServerToServerRoute` + `IntegrationKeyGuard`).
   - El cuerpo incluye la identidad de la instancia (`instanceKey`,
     `instanceName`, `botVersion`), un `snapshot` compacto y los resultados
-    (`commandResults`) de los comandos que ejecutó en el pulso anterior.
+    (`commandResults`, con `detail` opcional y recortado a 500 caracteres)
+    de los comandos que ejecutó en el pulso anterior.
+  - La ruta `POST /api/v1/integrations/marketplace-bot/sync` admite cuerpos
+    JSON de hasta `1 MB` para aceptar snapshots completos antes de acotarlos;
+    el resto de rutas mantiene el límite por defecto de `100 kB`, y cualquier
+    cuerpo mayor responde `413` en lugar de `500`.
   - La credencial de sincronización lleva `marketplace-bot.sync`. Se vincula
     al par propietario e identificador de la instalación y revalida
     `integrations.manage` del propietario. La llave de ADR-017 conserva
@@ -81,6 +86,15 @@ HTTPS saliente usando su llave de integración (ADR-017).
     **Administración** (`Bot Marketplace`), visible para `integrations.manage` y
     `sales.read`, manteniendo `/settings/integrations` exclusivo para
     `integrations.manage`.
+  - En la tabla de anuncios publicados, la columna de acciones solo ofrece
+    botones válidos para el estado real de la publicación en Facebook (`in_stock`
+    sin `relist` ni `renew` antes de los 7 días; `out_of_stock` con
+    `mark_available`, `relist` y `delete`; sin botones cuando hay una acción en
+    cola, revisión en curso, duplicado gemelo o estado `sold`/`pending`/`unknown`).
+    El bot calcula `isExactTwin` sobre todos sus anuncios presentes antes de
+    limitar el pulso a 50 filas. Un cliente anterior que omite la marca puede
+    seguir sincronizando. El panel espera una marca explícita de anuncio único
+    para ofrecer acciones y trata un estado ausente como `unknown`.
 
 ## Datos persistentes
 

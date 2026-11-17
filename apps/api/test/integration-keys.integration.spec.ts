@@ -606,6 +606,7 @@ describe.sequential('Read-only integration keys and catalog', () => {
                 clicks14d: 45,
                 executable: true,
                 key: 'acc-1::12345',
+                isExactTwin: true,
                 leads14d: 4,
                 listedOn: '2026-11-04',
                 pendingAction: null,
@@ -615,6 +616,8 @@ describe.sequential('Read-only integration keys and catalog', () => {
                 status: 'active',
                 title: 'Camisa Columbia M',
               },
+              { key: 'unknown-state', title: 'Sin estado', isExactTwin: false },
+              { key: 'legacy', title: 'Cliente anterior', status: 'active' },
             ],
             totalActive: 4,
           },
@@ -646,6 +649,13 @@ describe.sequential('Read-only integration keys and catalog', () => {
     expect(adminState.body.data.canControl).toBe(true);
     expect(adminState.body.data.instances).toHaveLength(1);
     const instanceId = String(adminState.body.data.instances[0].id);
+    expect(
+      adminState.body.data.instances[0].snapshot.listings.items,
+    ).toMatchObject([
+      { key: 'acc-1::12345', isExactTwin: true, status: 'active' },
+      { key: 'unknown-state', isExactTwin: false, status: 'unknown' },
+      { key: 'legacy', isExactTwin: null, status: 'active' },
+    ]);
     expect(adminState.body.data.instances[0]).toMatchObject({
       connection: 'ONLINE',
       instanceName: 'PC Principal Comarca',
@@ -832,9 +842,61 @@ describe.sequential('Read-only integration keys and catalog', () => {
       30,
       instanceKey,
     ).expect(201);
-    await sync(String(replacement.body.data.secret))
-      .send(heartbeat)
-      .expect(200);
+    const replacementSecret = String(replacement.body.data.secret);
+    await sync(replacementSecret).send(heartbeat).expect(200);
     expect(await client.marketplaceBotInstance.count()).toBe(1);
+
+    const largeListing = (index: number) => ({
+      account: 'acc-1',
+      key: `acc-1::${index.toString()}`,
+      listedOn: '2026-11-04',
+      recommendation: 'renew',
+      recommendationLabel: 'L'.repeat(80),
+      recommendationReason: 'R'.repeat(280),
+      status: 'in_stock',
+      title: 'T'.repeat(140),
+    });
+    const largeSnapshot = {
+      listings: {
+        items: Array.from({ length: 300 }, (_, index) => largeListing(index)),
+      },
+    };
+    expect(JSON.stringify(largeSnapshot).length).toBeGreaterThan(150_000);
+    await sync(replacementSecret)
+      .send({ ...heartbeat, snapshot: largeSnapshot })
+      .expect(200);
+    const storedLarge = await client.marketplaceBotInstance.findUniqueOrThrow({
+      select: { snapshot: true },
+      where: { id: instanceId },
+    });
+    expect(
+      (storedLarge.snapshot as { listings: { items: unknown[] } }).listings
+        .items,
+    ).toHaveLength(80);
+
+    await sync(replacementSecret)
+      .send({ ...heartbeat, snapshot: { filler: 'x'.repeat(1_100_000) } })
+      .expect(413);
+    const oversizedCreate = await createKey('n'.repeat(150_000));
+    expect(oversizedCreate.status).toBe(413);
+
+    const queuedLong = await enqueue(instanceId, {
+      type: 'SYNC_SGI_CATALOG',
+    }).expect(201);
+    const longCommandId = String(queuedLong.body.data.id);
+    await sync(replacementSecret).send(commandHeartbeat).expect(200);
+    await sync(replacementSecret)
+      .send({
+        ...commandHeartbeat,
+        commandResults: [
+          { detail: 'e'.repeat(4_000), id: longCommandId, status: 'FAILED' },
+        ],
+      })
+      .expect(200);
+    const failedLong = await client.marketplaceBotCommand.findUniqueOrThrow({
+      where: { id: longCommandId },
+    });
+    expect(failedLong.status).toBe('FAILED');
+    expect(failedLong.resultDetail).toHaveLength(500);
   });
 });

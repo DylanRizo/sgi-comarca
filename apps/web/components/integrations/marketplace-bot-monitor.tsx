@@ -14,8 +14,11 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { ApiHttpError } from '@/lib/http/api-client';
-
 import { integrationsApi } from '@/lib/http/integrations-api';
+import {
+  getAvailableListingActions,
+  getListingActionsEmptyLabel,
+} from '@/lib/integrations/marketplace-bot-listings';
 import { useAuth } from '@/providers/auth-provider';
 
 const connectionLabels: Record<MarketplaceBotConnection, string> = {
@@ -162,10 +165,11 @@ export function MarketplaceBotMonitor() {
   ) {
     if (busy || sending.current || pendingSend.current) return;
     if (
-      ((command.type === 'LISTING_ACTION' && command.action === 'delete') ||
+      ((command.type === 'LISTING_ACTION' &&
+        (command.action === 'delete' || command.action === 'relist')) ||
         (command.type === 'GENERATE_WEEK' && command.replace) ||
-        (command.type === 'QUEUE_ITEM_ACTION' &&
-          command.action === 'cancel')) &&
+        (command.type === 'QUEUE_ITEM_ACTION' && command.action === 'cancel') ||
+        command.type === 'RESOLVE_ALL_ALERTS') &&
       !window.confirm('¿Confirmas esta acción en el Bot de Marketplace?')
     )
       return;
@@ -1130,82 +1134,86 @@ function InstanceMonitorBody({
                 </tr>
               </thead>
               <tbody>
-                {listings.items.map((listing) => (
-                  <tr key={listing.key}>
-                    <td data-label="Anuncio">
-                      <strong>{listing.title}</strong>
-                      <span>
-                        Estado: {listing.status}
-                        {listing.listedOn ? ` · ${listing.listedOn}` : ''}
-                      </span>
-                    </td>
-                    <td data-label="Cuenta">{listing.account}</td>
-                    <td data-label="Días" data-numeric="true">
-                      {listing.ageDays ?? '—'}
-                    </td>
-                    <td data-label="Clics (14d)" data-numeric="true">
-                      {listing.clicks14d ?? 0}
-                    </td>
-                    <td data-label="Leads (14d)" data-numeric="true">
-                      {listing.leads14d ?? 0}
-                    </td>
-                    <td data-label="Recomendación">
-                      <span
-                        className="status-badge"
-                        data-tone={
-                          listing.recommendation === 'keep'
-                            ? 'completed'
-                            : 'warning'
-                        }
-                      >
-                        {listing.recommendationLabel || listing.recommendation}
-                      </span>
-                      {listing.recommendationReason ? (
-                        <span>{listing.recommendationReason}</span>
-                      ) : null}
-                      {listing.pendingAction ? (
+                {listings.items.map((listing) => {
+                  const availableActions = getAvailableListingActions(listing);
+                  return (
+                    <tr key={listing.key}>
+                      <td data-label="Anuncio">
+                        <strong>{listing.title}</strong>
                         <span>
-                          Acción en cola:{' '}
-                          <strong>{listing.pendingAction}</strong>
+                          Estado:{' '}
+                          {listing.status === 'unknown'
+                            ? 'desconocido'
+                            : listing.status}
+                          {listing.listedOn ? ` · ${listing.listedOn}` : ''}
                         </span>
-                      ) : null}
-                    </td>
-                    {canControl ? (
-                      <td data-label="Acciones">
-                        <div className="user-actions-buttons">
-                          {(
-                            [
-                              'renew',
-                              'relist',
-                              'mark_out_of_stock',
-                              'delete',
-                            ] as const
-                          ).map((action) => (
-                            <button
-                              className="table-action"
-                              disabled={busy !== ''}
-                              key={action}
-                              onClick={() =>
-                                void onSendCommand(
-                                  instance,
-                                  {
-                                    action,
-                                    key: listing.key,
-                                    type: 'LISTING_ACTION',
-                                  },
-                                  `Se encoló "${listingActionLabels[action]}" para ${listing.title}.`,
-                                )
-                              }
-                              type="button"
-                            >
-                              {listingActionLabels[action]}
-                            </button>
-                          ))}
-                        </div>
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
+                      <td data-label="Cuenta">{listing.account}</td>
+                      <td data-label="Días" data-numeric="true">
+                        {listing.ageDays ?? '—'}
+                      </td>
+                      <td data-label="Clics (14d)" data-numeric="true">
+                        {listing.clicks14d ?? 0}
+                      </td>
+                      <td data-label="Leads (14d)" data-numeric="true">
+                        {listing.leads14d ?? 0}
+                      </td>
+                      <td data-label="Recomendación">
+                        <span
+                          className="status-badge"
+                          data-tone={
+                            listing.recommendation === 'keep'
+                              ? 'completed'
+                              : 'warning'
+                          }
+                        >
+                          {listing.recommendationLabel ||
+                            listing.recommendation}
+                        </span>
+                        {listing.recommendationReason ? (
+                          <span>{listing.recommendationReason}</span>
+                        ) : null}
+                        {listing.pendingAction ? (
+                          <span>
+                            Acción en cola:{' '}
+                            <strong>{listing.pendingAction}</strong>
+                          </span>
+                        ) : null}
+                      </td>
+                      {canControl ? (
+                        <td data-label="Acciones">
+                          {availableActions.length === 0 ? (
+                            getListingActionsEmptyLabel(listing)
+                          ) : (
+                            <div className="user-actions-buttons">
+                              {availableActions.map((action) => (
+                                <button
+                                  className="table-action"
+                                  disabled={busy !== ''}
+                                  key={action}
+                                  onClick={() =>
+                                    void onSendCommand(
+                                      instance,
+                                      {
+                                        action,
+                                        key: listing.key,
+                                        type: 'LISTING_ACTION',
+                                      },
+                                      `Se encoló "${listingActionLabels[action]}" para ${listing.title}.`,
+                                    )
+                                  }
+                                  type="button"
+                                >
+                                  {listingActionLabels[action]}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1259,7 +1267,9 @@ function InstanceMonitorBody({
                       {cmd.resultDetail ??
                         (cmd.status === 'PENDING'
                           ? 'Se ejecutará en el próximo pulso del bot'
-                          : '—')}
+                          : cmd.status === 'DISPATCHED'
+                            ? 'Entregado al bot · esperando confirmación'
+                            : '—')}
                     </td>
                     {canControl ? (
                       <td data-label="Acción">

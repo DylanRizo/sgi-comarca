@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { HttpStatus, ValidationPipe, type ArgumentsHost } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 
 import { EXTERNAL_BEARER_ROUTE_METADATA } from '../auth/decorators/external-bearer-route.decorator.js';
 import { REQUIRED_PERMISSION_METADATA } from '../auth/decorators/require-permission.decorator.js';
 import { SERVER_TO_SERVER_ROUTE_METADATA } from '../auth/decorators/server-to-server-route.decorator.js';
+import { GlobalExceptionFilter } from '../common/global-exception.filter.js';
+import { MarketplaceBotSyncDto } from './dto/marketplace-bot.dto.js';
 import { IntegrationKeyError } from './integration-key.errors.js';
 import { MarketplaceBotController } from './marketplace-bot.controller.js';
 import {
@@ -202,5 +205,72 @@ describe('MarketplaceBot snapshot sanitization and command validation', () => {
         MarketplaceBotSyncController,
       ),
     ).toBe(true);
+  });
+
+  it('accepts omitted and long command result details in sync DTO validation', async () => {
+    const pipe = new ValidationPipe({
+      forbidNonWhitelisted: true,
+      transform: true,
+      whitelist: true,
+    });
+
+    const parsed = (await pipe.transform(
+      {
+        botVersion: '2026.11',
+        commandProtocolVersion: 1,
+        commandResults: [
+          {
+            id: '10000000-0000-4000-8000-000000000001',
+            status: 'COMPLETED',
+          },
+          {
+            detail: 'e'.repeat(1200),
+            id: '10000000-0000-4000-8000-000000000002',
+            status: 'FAILED',
+          },
+        ],
+        instanceKey: 'pc-principal',
+        instanceName: 'PC Principal',
+        snapshot: {},
+      },
+      { metatype: MarketplaceBotSyncDto, type: 'body' },
+    )) as MarketplaceBotSyncDto;
+
+    expect(parsed.commandResults).toHaveLength(2);
+    expect(parsed.commandResults?.[0]?.detail).toBeUndefined();
+    expect(parsed.commandResults?.[1]?.detail).toHaveLength(1200);
+  });
+
+  it('maps oversized body-parser errors to HTTP 413 instead of 500', () => {
+    const setHeader = vi.fn();
+    const json = vi.fn();
+    const status = vi.fn();
+    const response = { json, setHeader, status };
+    setHeader.mockReturnValue(response);
+    status.mockReturnValue(response);
+
+    const request = {
+      header: () => undefined,
+      method: 'POST',
+      path: '/api/v1/integrations/marketplace-bot/sync',
+    };
+
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => request,
+        getResponse: () => response,
+      }),
+    } as unknown as ArgumentsHost;
+
+    new GlobalExceptionFilter().catch({ type: 'entity.too.large' }, host);
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'REQUEST_FAILED',
+        }),
+      }),
+    );
   });
 });
