@@ -105,3 +105,22 @@ contiene `id`, `status` (`COMPLETED` o `FAILED`) y `detail`. Después
 de una interrupción, verifica el efecto real de una orden en ejecución
 antes de reintentar. Prueba con una acción inocua e incluye una pérdida
 de conexión y un reinicio antes de habilitar control en staging.
+
+## Cliente de control local
+
+El cliente local incluye los adaptadores de las 13 acciones de ADR-024 y un
+registro duradero de recepción y resultados en los ajustes de su SQLite.
+`sgi.monitor.control_enabled=true` permite declarar el protocolo de órdenes.
+La API también requiere `MARKETPLACE_BOT_CONTROL_ENABLED=true`, después del
+gate operacional con respaldo verificado y las pruebas de entrega y recuperación.
+
+La recepción de un ID repetido devuelve el resultado guardado. Las órdenes
+vencidas se rechazan y los resultados se reenvían hasta una respuesta válida
+del SGI. Una ejecución interrumpida queda señalada para verificar su efecto
+local antes de pedir otra orden. Los resultados excluyen mensajes de error de
+bibliotecas que puedan contener información privada.
+
+Las órdenes de anuncio registran la acción en la cola local. Solicitar un
+escaneo registra la revisión para el siguiente ciclo activo del trabajador.
+El historial del SGI confirma la solicitud y el snapshot permite seguir el
+trabajo posterior. El permiso administrativo se valida en el backend.

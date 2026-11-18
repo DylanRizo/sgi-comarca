@@ -1,6 +1,112 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-10-21.
+Updated: 2026-11-17.
+
+## Marketplace listing safeguards — PR #15 deployed to staging, 2026-11-17
+
+PR #15 carries the original #14 commit and the follow-up that hides actions
+for exact twins, unknown listing states and snapshots awaiting a duplicate
+check. The merge commit `4e2487b6de90357702398e7569230b3a1ad9a9b0` matches the
+tested PR tree, passed its own CI and is live on both Render staging services.
+The API accepted a real heartbeat from the restarted local worker and stored
+the duplicate marker on all 50 rows. Read-only verification found 16 applied
+migrations, none pending, and 28 permissions. See the
+[deployment evidence](../deployment/marketplace-monitor-pilot.md#listing-safeguards--2026-11-17).
+
+## Marketplace remote actions — enabled and verified, 2026-11-17
+
+After viewing the consultation panel, the owner requested executable actions.
+The local client now implements all 13 ADR-024 command adapters through the
+existing bot services. A receipt and payload fingerprint are committed to local
+SQLite settings before an effect begins. Terminal results survive lost responses
+and are acknowledged after a valid SGI response. Repeated IDs reuse the result;
+expired commands are rejected. Interrupted effects are reported for local-state
+verification before another request. The worker's existing process lock keeps
+command execution in its normal single-worker entry point.
+
+All 470 bot tests pass, including 37 new command cases. The SGI's focused
+three command-validation units and 16 real local PostgreSQL integration cases
+pass. All 408 SGI unit tests, local lint, types and production build also pass.
+Activation uses the deployed API/web implementation at `d59b328`, with the same
+16-migration schema and 28-permission catalog. The bot modules, tests,
+distribution manifest and configuration example are local uncommitted changes.
+
+A fresh full Neon backup restored successfully with all 50 source table
+fingerprints matching. Restoring first into PostgreSQL 18.4 exposed the newer
+server's `pg_attver` metadata. The successful isolated restore used PostgreSQL
+18.7, matching Neon, with the complete unmodified archive. The local SQLite
+backup passed its integrity check and the preceding bot configuration was saved
+privately.
+
+The owner explicitly approved activating administrative control and testing a
+request to review listings. The local `sgi.monitor.control_enabled` option and
+Render's `MARKETPLACE_BOT_CONTROL_ENABLED` are true. The worker was restarted
+while idle and advertises `monitor-control-1`. The API was redeployed at the
+same exact commit and verified live and ready. Its other environment values
+matched the pre-change configuration.
+
+One `REQUEST_SCAN` was queued through the versioned application service with a
+persisted private request ID for safe retries. The bot recorded one durable
+receipt, completed the request and acknowledged the SGI response. The local
+listing scan subsequently reported success. The SGI command is COMPLETED with
+exactly one queued audit and one result audit. Read-only permission projection
+checks verified control for the administrative account and consultation for
+the other three active accounts. Unauthenticated monitor reads return 401.
+Authenticated visual inspection of the enabled buttons remains pending; the
+owner confirmed the earlier consultation panel was visible. See the
+[control release evidence](../deployment/marketplace-monitor-pilot.md#remote-control-activation--2026-11-17).
+
+## Marketplace monitor — PR #13 deployed to staging, 2026-11-17
+
+PR #13 passed CI on its third attempt after GitHub's account restriction was
+resolved. The candidate `a27e5d6` was merged as
+`d59b328798e58d3792860f3d5cd4b3487e4c5908`; the merged tree equals the tested
+candidate and its own CI passed. Both runs passed lint, types, unit tests,
+PostgreSQL integration tests and production build. The earlier candidate also
+passed its three focused Chromium integration cases.
+
+Fresh read-only verification identified the intended Neon main branch,
+PostgreSQL 18, 15 finished migrations, no unfinished migration and 28 permissions.
+A new private full custom-format backup was restored into an isolated local
+PostgreSQL container. Source and restore SHA-256 fingerprints matched for all
+48 tables, including authentication and the migration ledger. The unchanged
+checkpoint was verified again immediately before the write.
+
+Only `20261113180000_marketplace_bot_monitor` was applied. The target now has
+16 finished migrations and none pending or unfinished. All 47 pre-existing
+application tables retained their data, projecting out the new nullable
+integration-key binding when comparing fingerprints. The two new monitor
+tables and instance-key bindings initially contained no rows. No bootstrap or
+permission grant was needed.
+
+Render API was deployed first, verified live and ready, then web was deployed
+at the same exact merged commit. The owner explicitly approved advancing
+`codex/staging-pilot`; its normal fast-forward to `d59b328` is complete. Health,
+readiness, login and the monitor page respond successfully. The private monitor
+API returns 401 without a session. The remote-control environment flag is
+absent, so the deployed configuration keeps its approved false default.
+
+The monitor client was adapted to the current local bot, including its
+Windows/Mac secret-store abstraction, current lead-report shape and distribution
+manifest. All 433 bot tests passed after including the new module in that
+manifest. Google API dependencies emit an existing Python 3.10 support warning.
+The changes in the local bot repository remain uncommitted.
+
+One installation-bound `marketplace-bot.sync` key was created through the
+versioned application service, with its audit event, and stored encrypted for
+the Windows account running the worker. The selected lifetime is 90 days,
+expiring on 2027-02-15. The existing catalog credential retains its own scope.
+The worker was restarted after confirming no running queue/listing action or
+unresolved publishing intent. The SGI received a real commercial snapshot from
+the restarted worker, subsequent heartbeats continued, and the command table
+remains empty. Read-only application projections were verified for all four
+authorized active users with an ONLINE instance and control disabled. This pilot uses the
+consultation protocol without requesting commands.
+
+The live authenticated browser view has not been visually inspected. The
+verified route, live heartbeat and passing browser tests are separate evidence.
+Private backup manifests, deployment IDs, fingerprints and credentials remain
+outside version control. See [the release procedure](../deployment/marketplace-monitor-pilot.md).
 
 ## Product specifications — PR #11 deployed to staging, 2026-10-21
 
