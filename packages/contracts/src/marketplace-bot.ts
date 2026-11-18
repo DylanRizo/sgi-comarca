@@ -22,6 +22,7 @@ export const marketplaceBotCommandTypes = [
   'SET_SAFETY_LEVEL',
   'RESOLVE_ALERT',
   'RESOLVE_ALL_ALERTS',
+  'SET_SCHEDULE',
 ] as const;
 export type MarketplaceBotCommandType =
   (typeof marketplaceBotCommandTypes)[number];
@@ -30,6 +31,8 @@ export const marketplaceBotQueueActions = [
   'approve',
   'cancel',
   'retry',
+  'move',
+  'publish_now',
 ] as const;
 export type MarketplaceBotQueueAction =
   (typeof marketplaceBotQueueActions)[number];
@@ -61,6 +64,8 @@ export type MarketplaceBotCommandPayload =
       type: 'QUEUE_ITEM_ACTION';
       id: string;
       action: MarketplaceBotQueueAction;
+      /** Required by `move`: the bot's local wall time, `YYYY-MM-DDTHH:mm`. */
+      scheduledAt?: string;
     }
   | {
       type: 'LISTING_ACTION';
@@ -74,7 +79,30 @@ export type MarketplaceBotCommandPayload =
   | { type: 'RESUME_ACCOUNT'; account: string }
   | { type: 'SET_SAFETY_LEVEL'; level: MarketplaceBotSafetyLevel }
   | { type: 'RESOLVE_ALERT'; id: string }
-  | { type: 'RESOLVE_ALL_ALERTS' };
+  | { type: 'RESOLVE_ALL_ALERTS' }
+  | ({
+      type: 'SET_SCHEDULE';
+      regenerate: boolean;
+    } & MarketplaceBotScheduleRules);
+
+/** Days use the bot's convention: 0 = Monday … 6 = Sunday. */
+export interface MarketplaceBotScheduleRules {
+  activeDays: readonly number[];
+  /** `HH:mm`, the bot's local time. */
+  startTime: string;
+  endTime: string;
+  maxPerDay: number;
+  intervalMinutes: number;
+}
+
+export const marketplaceBotScheduleLimits = {
+  maxPerDay: { max: 20, min: 1 },
+  intervalMinutes: { max: 1440, min: 30 },
+} as const;
+
+export const marketplaceBotClockPattern = /^([01]\d|2[0-3]):[0-5]\d$/u;
+export const marketplaceBotLocalDateTimePattern =
+  /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d$/u;
 
 /**
  * `EXPIRED`: the bot did not pick the command up in time. An old order (for
@@ -198,6 +226,13 @@ export interface MarketplaceBotSnapshot {
     upcoming: readonly MarketplaceBotQueueItem[];
   };
   alerts: readonly MarketplaceBotAlert[];
+  /** Null for bots that predate remote scheduling. */
+  schedule: MarketplaceBotSchedule | null;
+}
+
+export interface MarketplaceBotSchedule extends MarketplaceBotScheduleRules {
+  /** The bot computer's clock when the pulse left, `YYYY-MM-DDTHH:mm`. */
+  botTime: string | null;
 }
 
 export interface MarketplaceBotInstanceView {

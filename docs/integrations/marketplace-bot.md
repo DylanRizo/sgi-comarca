@@ -124,3 +124,16 @@ Las órdenes de anuncio registran la acción en la cola local. Solicitar un
 escaneo registra la revisión para el siguiente ciclo activo del trabajador.
 El historial del SGI confirma la solicitud y el snapshot permite seguir el
 trabajo posterior. El permiso administrativo se valida en el backend.
+
+## Horario remoto y órdenes con el bot ocupado (2026-11-18)
+
+Desde el SGI, administración puede cambiar el horario de publicación (días,
+horas, máximo diario y separación), mover una publicación pendiente o
+publicarla ya. Las horas son las del equipo del bot (Nicaragua) y se muestran
+tal cual, sin convertir zonas horarias.
+
+El cliente `monitor-control-2` envía el pulso cada 30 segundos desde un hilo
+aparte, también mientras publica. En ese caso informa qué publica y deja las
+órdenes pendientes hasta terminar. Un cliente anterior sigue funcionando: el
+panel indica que su versión no informa el horario y las órdenes nuevas
+terminan como fallidas sin efecto.

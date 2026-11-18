@@ -33,10 +33,13 @@ export {
   type IntegrationPriceIssue,
 } from './integrations.js';
 export {
+  marketplaceBotClockPattern,
   marketplaceBotCommandTypes,
   marketplaceBotListingActions,
+  marketplaceBotLocalDateTimePattern,
   marketplaceBotQueueActions,
   marketplaceBotSafetyLevels,
+  marketplaceBotScheduleLimits,
   type EnqueueMarketplaceBotCommandRequest,
   type MarketplaceBotAccountSnapshot,
   type MarketplaceBotAlert,
@@ -54,6 +57,8 @@ export {
   type MarketplaceBotQueueAction,
   type MarketplaceBotQueueItem,
   type MarketplaceBotSafetyLevel,
+  type MarketplaceBotSchedule,
+  type MarketplaceBotScheduleRules,
   type MarketplaceBotSnapshot,
   type MarketplaceBotStateData,
   type MarketplaceBotSyncData,

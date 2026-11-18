@@ -116,3 +116,29 @@ La migración `20261113180000_marketplace_bot_monitor` añade:
   sin tener acceso al control del bot ni a las llaves de integración.
 - Si una llave se revoca o caduca (ADR-017), el endpoint de sincronización
   rechaza el pulso de inmediato con `401`.
+
+## Enmienda 2026-11-18 — horario remoto y pulso independiente
+
+Aprobada por el propietario el 2026-11-18 para controlar el bot desde el SGI
+sin depender del panel local. No añade tablas ni columnas: `command_type` ya
+admite texto de hasta 40 caracteres.
+
+- `SET_SCHEDULE` cambia los días activos (0 = lunes … 6 = domingo), la hora
+  inicial y final (`HH:mm`, hora local del equipo del bot), el máximo diario
+  (1–20) y la separación mínima (30–1440 minutos). `regenerate: true` cancela
+  las publicaciones futuras y genera la semana con el nuevo horario; las nuevas
+  quedan por aprobar en modo semiautomático.
+- `QUEUE_ITEM_ACTION` admite `move` (con `scheduledAt` en hora local del bot,
+  `YYYY-MM-DDTHH:mm`, solo en el futuro) y `publish_now` (aprueba y adelanta la
+  publicación; el trabajador sigue aplicando horario y límites de seguridad).
+  Solo se mueven publicaciones `planned`, `queued` o `retry`.
+- Los nombres de cuenta de `PAUSE_ACCOUNT`, `RESUME_ACCOUNT` y `REQUEST_SCAN`
+  aceptan letras con tilde y espacios internos ("Dylan Steven"), como el bot.
+- El snapshot añade `schedule` (o `null` para clientes anteriores) y el bot
+  informa `worker.currentItem` mientras publica.
+- El bot envía el pulso desde un hilo propio. Mientras el trabajador está
+  ocupado, el pulso omite `commandProtocolVersion`: informa su estado y entrega
+  resultados, pero no recibe órdenes nuevas. Con el trabajador libre recibe las
+  órdenes, las ejecuta y entrega el resultado en un pulso inmediato.
+- Un rechazo de validación propio del bot (por ejemplo, una hora en el pasado)
+  se devuelve como `detail`; los errores de bibliotecas siguen ocultos.

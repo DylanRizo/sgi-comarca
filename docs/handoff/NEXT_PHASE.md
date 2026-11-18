@@ -1,6 +1,16 @@
 # Next gates — consolidación, baseline verde y primer conteo controlado
 
-Updated: 2026-11-17.
+Updated: 2026-11-18.
+
+## Marketplace remote schedule — pending release
+
+1. Push the bot client and restart the worker while idle (it is compatible
+   with the current staging API, which drops the new fields).
+2. Merge `codex/adr-024-remote-schedule` after green CI, then advance
+   `codex/staging-pilot` with the owner's explicit approval. No migration or
+   environment change is required.
+3. Verify in the owner's signed-in session: schedule visible, one schedule
+   change, one move and the busy notice during a publication.
 
 ## Marketplace listing safeguards — deployed
 

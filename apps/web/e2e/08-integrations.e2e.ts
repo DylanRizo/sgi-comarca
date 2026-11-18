@@ -124,6 +124,26 @@ test.describe('Integration keys', () => {
                 },
               ],
             },
+            queue: {
+              upcoming: [
+                {
+                  account: 'Dylan Steven',
+                  approved: false,
+                  id: 'queue-e2e',
+                  name: 'Calcetas de compresión',
+                  scheduledAt: '2099-11-20T15:30:00',
+                  status: 'planned',
+                },
+              ],
+            },
+            schedule: {
+              activeDays: [0, 1, 2, 3, 4],
+              botTime: '2026-11-18T09:15',
+              endTime: '18:00',
+              intervalMinutes: 180,
+              maxPerDay: 3,
+              startTime: '09:00',
+            },
             worker: { enabled: true },
           },
         },
@@ -154,13 +174,38 @@ test.describe('Integration keys', () => {
       await expect(row.getByRole('button')).toHaveCount(0);
     }
     await expect(unknown).toContainText('Estado: desconocido');
+    await expect(
+      page.getByRole('heading', { name: 'Horario de publicación' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Lun, Mar, Mié, Jue, Vie · 09:00 a 18:00'),
+    ).toBeVisible();
+    const queued = page
+      .getByRole('row')
+      .filter({ hasText: 'Calcetas de compresión' });
+    await expect(queued).toContainText('Por aprobar');
     if (process.env.MARKETPLACE_BOT_CONTROL_ENABLED === 'true') {
+      await page.getByRole('button', { name: 'Cambiar horario' }).click();
+      await page.getByLabel('Hasta').fill('08:00');
+      await page.getByRole('button', { name: 'Guardar horario' }).click();
+      await expect(
+        page.getByText('La hora final debe ser posterior a la hora inicial.'),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Cancelar' }).first().click();
+      await queued.getByRole('button', { name: 'Mover' }).click();
+      await expect(
+        queued.getByRole('button', { name: 'Guardar' }),
+      ).toBeDisabled();
       await expect(twin).toContainText('Solo en Facebook');
       await expect(legacy).toContainText('Pendiente de verificar');
       await expect(
         available.getByRole('button', { name: 'Marcar agotado' }),
       ).toBeVisible();
     } else {
+      await expect(
+        page.getByRole('button', { name: 'Cambiar horario' }),
+      ).toHaveCount(0);
+      await expect(queued.getByRole('button')).toHaveCount(0);
       await expect(
         page.getByRole('heading', { name: 'Control remoto deshabilitado' }),
       ).toBeVisible();

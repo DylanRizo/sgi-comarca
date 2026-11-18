@@ -1,6 +1,17 @@
 # SGI La Comarca — Current State
 
-Updated: 2026-11-17.
+Updated: 2026-11-18.
+
+## Marketplace remote schedule — implemented locally, 2026-11-18
+
+Branch `codex/adr-024-remote-schedule` adds `SET_SCHEDULE`, the queue actions
+`move` and `publish_now`, account names with spaces for account commands and
+the optional `schedule` snapshot block (ADR-024 amendment of 2026-11-18). No
+migration is required. Local evidence: API, web and contracts typecheck, lint
+and Prettier on the changed files, all 422 unit tests, and the Chromium case
+`08-integrations` with remote control enabled and disabled. The compatible bot
+client passes its 498 tests. Nothing has been deployed; staging still serves
+`4e2487b`.
 
 ## Marketplace listing safeguards — PR #15 deployed to staging, 2026-11-17
 

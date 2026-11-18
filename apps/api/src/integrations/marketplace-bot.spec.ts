@@ -171,6 +171,125 @@ describe('MarketplaceBot snapshot sanitization and command validation', () => {
     ).toThrow(IntegrationKeyError);
   });
 
+  it('accepts configured account names with spaces and accents', () => {
+    expect(
+      parseMarketplaceBotCommandPayload({
+        account: 'Dylan Steven',
+        hours: 2,
+        type: 'PAUSE_ACCOUNT',
+      }),
+    ).toEqual({ account: 'Dylan Steven', hours: 2, type: 'PAUSE_ACCOUNT' });
+    expect(
+      parseMarketplaceBotCommandPayload({
+        account: 'Sebastián',
+        type: 'REQUEST_SCAN',
+      }),
+    ).toEqual({ account: 'Sebastián', type: 'REQUEST_SCAN' });
+    for (const account of [' ', 'a\nb', '<script>', 'x'.repeat(65)]) {
+      expect(() =>
+        parseMarketplaceBotCommandPayload({ account, type: 'RESUME_ACCOUNT' }),
+      ).toThrow(IntegrationKeyError);
+    }
+  });
+
+  it('validates the remote schedule and the move and publish-now actions', () => {
+    const schedule = {
+      activeDays: [4, 0, 2, 2],
+      endTime: '16:30',
+      intervalMinutes: 120,
+      maxPerDay: 2,
+      regenerate: true,
+      startTime: '10:00',
+      type: 'SET_SCHEDULE',
+    };
+    expect(parseMarketplaceBotCommandPayload(schedule)).toEqual({
+      ...schedule,
+      activeDays: [0, 2, 4],
+    });
+    for (const invalid of [
+      { endTime: '09:00', startTime: '18:00' },
+      { activeDays: [] },
+      { activeDays: [7] },
+      { maxPerDay: 0 },
+      { maxPerDay: 2.5 },
+      { intervalMinutes: 10 },
+      { startTime: '9:00' },
+      { regenerate: 'yes' },
+    ]) {
+      expect(() =>
+        parseMarketplaceBotCommandPayload({ ...schedule, ...invalid }),
+      ).toThrow(IntegrationKeyError);
+    }
+
+    expect(
+      parseMarketplaceBotCommandPayload({
+        action: 'move',
+        id: 'queue-1',
+        scheduledAt: '2026-11-20T15:30',
+        type: 'QUEUE_ITEM_ACTION',
+      }),
+    ).toEqual({
+      action: 'move',
+      id: 'queue-1',
+      scheduledAt: '2026-11-20T15:30',
+      type: 'QUEUE_ITEM_ACTION',
+    });
+    for (const scheduledAt of [
+      undefined,
+      '2026-11-20',
+      '2026-13-01T10:00',
+      '2026-11-20T15:30Z',
+    ]) {
+      expect(() =>
+        parseMarketplaceBotCommandPayload({
+          action: 'move',
+          id: 'queue-1',
+          scheduledAt,
+          type: 'QUEUE_ITEM_ACTION',
+        }),
+      ).toThrow(IntegrationKeyError);
+    }
+    expect(
+      parseMarketplaceBotCommandPayload({
+        action: 'publish_now',
+        id: 'queue-1',
+        scheduledAt: 'ignored',
+        type: 'QUEUE_ITEM_ACTION',
+      }),
+    ).toEqual({
+      action: 'publish_now',
+      id: 'queue-1',
+      type: 'QUEUE_ITEM_ACTION',
+    });
+  });
+
+  it('keeps a valid schedule from the bot and drops a malformed one', () => {
+    const valid = sanitizeMarketplaceBotSnapshot({
+      schedule: {
+        activeDays: [0, 1, 2],
+        botTime: '2026-11-18T09:15',
+        endTime: '18:00',
+        intervalMinutes: 180,
+        maxPerDay: 3,
+        startTime: '09:00',
+      },
+    });
+    expect(valid.schedule).toEqual({
+      activeDays: [0, 1, 2],
+      botTime: '2026-11-18T09:15',
+      endTime: '18:00',
+      intervalMinutes: 180,
+      maxPerDay: 3,
+      startTime: '09:00',
+    });
+    expect(sanitizeMarketplaceBotSnapshot({}).schedule).toBeNull();
+    expect(
+      sanitizeMarketplaceBotSnapshot({
+        schedule: { activeDays: [0], endTime: '25:00', startTime: '09:00' },
+      }).schedule,
+    ).toBeNull();
+  });
+
   it('protects read routes with integrations.manage or sales.read, and command routes with integrations.manage only', () => {
     expect(
       Reflect.getMetadata(

@@ -1558,6 +1558,63 @@ a {
   background: var(--warning-soft);
 }
 
+.form-feedback[data-tone='info'] {
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+}
+
+/* Bot Marketplace: horario y mover publicaciones */
+.schedule-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.75rem 0 0;
+}
+
+.schedule-summary dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.schedule-summary dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.schedule-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.schedule-days legend {
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.schedule-hint {
+  margin: 0.75rem 0;
+  color: var(--text-soft);
+}
+
+.queue-move {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.queue-move input {
+  min-height: var(--control-touch-size);
+  max-width: 100%;
+}
+
 .dialog-actions {
   justify-content: flex-end;
 }

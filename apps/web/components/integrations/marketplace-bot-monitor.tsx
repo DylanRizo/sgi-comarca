@@ -19,7 +19,17 @@ import {
   getAvailableListingActions,
   getListingActionsEmptyLabel,
 } from '@/lib/integrations/marketplace-bot-listings';
+import {
+  canMoveQueueItem,
+  formatBotLocalTime,
+  queueStatusLabels,
+} from '@/lib/integrations/marketplace-bot-schedule';
 import { useAuth } from '@/providers/auth-provider';
+
+import {
+  BotSchedulePanel,
+  QueueItemTimeControls,
+} from './marketplace-bot-schedule';
 
 const connectionLabels: Record<MarketplaceBotConnection, string> = {
   DELAYED: 'Con retraso',
@@ -52,6 +62,7 @@ const commandLabels: Record<MarketplaceBotCommandType, string> = {
   RESUME_ACCOUNT: 'Reanudar cuenta',
   SET_BOT_ENABLED: 'Cambiar encendido del bot',
   SET_SAFETY_LEVEL: 'Cambiar nivel de seguridad',
+  SET_SCHEDULE: 'Cambiar horario de publicación',
   SYNC_SGI_CATALOG: 'Sincronizar catálogo SGI',
 };
 
@@ -396,6 +407,9 @@ function InstanceMonitorBody({
 }) {
   const { snapshot } = instance;
   const { worker, accounts, leads, listings, queue, alerts } = snapshot;
+  const schedule = snapshot.schedule ?? null;
+  const send = (command: MarketplaceBotCommandPayload, message: string) =>
+    onSendCommand(instance, command, message);
 
   const plannedCount = queue.summary.planned ?? 0;
   const approvedCount =
@@ -466,6 +480,13 @@ function InstanceMonitorBody({
             </span>
           </article>
         </div>
+
+        {worker.currentItem ? (
+          <p className="form-feedback" data-tone="info" role="status">
+            El bot está publicando «{worker.currentItem}». Las órdenes que
+            envíes se ejecutan apenas termine.
+          </p>
+        ) : null}
 
         {canControl ? (
           <div className="work-panel">
@@ -558,6 +579,13 @@ function InstanceMonitorBody({
             </div>
           </div>
         ) : null}
+
+        <BotSchedulePanel
+          busy={busy !== ''}
+          canControl={canControl}
+          onSend={send}
+          schedule={schedule}
+        />
 
         {accounts.length > 0 ? (
           <div className="balance-grid">
@@ -992,7 +1020,7 @@ function InstanceMonitorBody({
                 {queue.upcoming.map((item) => (
                   <tr key={item.id}>
                     <td data-label="Programado">
-                      {formatDate(item.scheduledAt)}
+                      {formatBotLocalTime(item.scheduledAt)}
                     </td>
                     <td data-label="Producto / Título">
                       <strong>{item.name}</strong>
@@ -1002,9 +1030,15 @@ function InstanceMonitorBody({
                     <td data-label="Estado">
                       <span
                         className="status-badge"
-                        data-tone={item.approved ? 'completed' : 'warning'}
+                        data-tone={
+                          item.status === 'running'
+                            ? 'transit'
+                            : item.approved
+                              ? 'completed'
+                              : 'warning'
+                        }
                       >
-                        {item.status}
+                        {queueStatusLabels[item.status] ?? item.status}
                       </span>
                     </td>
                     {canControl ? (
@@ -1051,8 +1085,16 @@ function InstanceMonitorBody({
                               Reintentar
                             </button>
                           ) : null}
+                          {canMoveQueueItem(item) ? (
+                            <QueueItemTimeControls
+                              busy={busy !== ''}
+                              item={item}
+                              onSend={send}
+                            />
+                          ) : null}
                           {item.status !== 'published' &&
-                          item.status !== 'cancelled' ? (
+                          item.status !== 'cancelled' &&
+                          item.status !== 'running' ? (
                             <button
                               className="table-action"
                               disabled={busy !== ''}
