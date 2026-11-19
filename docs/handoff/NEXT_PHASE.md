@@ -1,6 +1,57 @@
 # Next gates — consolidación, baseline verde y primer conteo controlado
 
-Updated: 2026-10-03.
+Updated: 2026-11-18.
+
+## Marketplace remote schedule — pending release
+
+1. Push the bot client and restart the worker while idle (it is compatible
+   with the current staging API, which drops the new fields).
+2. Merge `codex/adr-024-remote-schedule` after green CI, then advance
+   `codex/staging-pilot` with the owner's explicit approval. No migration or
+   environment change is required.
+3. Verify in the owner's signed-in session: schedule visible, one schedule
+   change, one move and the busy notice during a publication.
+
+## Marketplace listing safeguards — deployed
+
+PR #15 is merged and Render serves the verified commit `4e2487b` for both API
+and web. The worker loaded the new listing marker after an idle restart and
+verified SQLite checkpoint. Its live snapshot shows the marker on all 50
+delivered rows. Chromium with local test data verified the listing buttons with
+remote control enabled and disabled. Direct inspection in the owner's signed-in
+staging session remains pending.
+
+## Marketplace remote control — operational gate complete
+
+The owner approved activating administrative actions and a listing-review test.
+The compatible local client passed all 470 tests, including delivery duplication,
+lost acknowledgment, expiry and interrupted-execution recovery. Local SGI lint,
+types, all 408 unit tests, focused 16-case PostgreSQL integration and production
+build pass. A fresh full checkpoint restored all 50 tables in PostgreSQL 18.7;
+the local SQLite backup passed integrity verification.
+
+The local control option and Render control flag are enabled. The existing API
+commit `d59b328` was redeployed and verified. One real REQUEST_SCAN completed,
+its local scan succeeded, and exactly one queued audit plus one result audit
+were observed. Control/read projections match the existing administrative and
+commercial permissions. Authenticated visual inspection of the enabled buttons
+is the remaining UI check. Implementation and release-document changes remain
+local and uncommitted.
+
+## Marketplace monitor — consultation pilot complete
+
+PR #13 is merged and both Render services are live at `d59b328`. The additive
+migration passed the fresh full-backup/restore checkpoint, the local bot's
+433 tests passed, and its real heartbeat reached the SGI. The staging branch
+was advanced with the owner's explicit approval. Local release documentation
+and bot-client changes remain uncommitted. Consult the latest
+[current state](CURRENT_STATE.md) and
+[release evidence](../deployment/marketplace-monitor-pilot.md) before continuing.
+
+The remote-control gate was completed afterward, as recorded above. The owner
+confirmed that the consultation panel was visible.
+
+## Earlier migration gates
 
 Este documento ordena los siguientes gates; no autoriza saltarse ninguno. PR #1
 consolidó en `main` la línea desplegada hasta `b61e711`. Después la línea

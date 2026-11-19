@@ -6,6 +6,21 @@ ADR, architecture document, migration, and tests.
 
 ## Business
 
+- ADR-024 adds the owner-approved Marketplace bot monitor. The bot sends
+  installation-bound commercial snapshots over outbound HTTPS with its own
+  `marketplace-bot.sync` credential. Catalog credentials keep `inventory.read`.
+  Staff with `sales.read` or `integrations.manage` can consult the monitor.
+  Remote commands require `integrations.manage` and the separate control flag,
+  whose default is false. The staging consultation pilot was deployed on
+  2026-11-17 after green CI, verified full backup/restore and the additive schema
+  migration. The owner then explicitly approved administrative control and one
+  listing-review request after the client tests and a fresh verified checkpoint.
+  Both control options are enabled in staging and the request completed with
+  one queue audit and one result audit. The existing permission catalog governs
+  access. See
+  [ADR-024](../decisions/ADR-024-marketplace-bot-monitoring-and-control.md) and
+  [the verified release](../deployment/marketplace-monitor-pilot.md).
+
 - ADR-023 (2026-10-20) introduces product technical specifications, measurement
   chart per SKU, material composition description, and multimedia/photo links.
   Fields are accessible for read to all operational staff with catalog read
