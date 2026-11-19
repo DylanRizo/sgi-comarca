@@ -19,6 +19,7 @@ function makeListing(
     leads14d: 2,
     listedOn: '2026-11-07',
     pendingAction: null,
+    pendingActionId: null,
     recommendation: 'keep',
     recommendationLabel: 'Va bien',
     recommendationReason: 'Buen ritmo',

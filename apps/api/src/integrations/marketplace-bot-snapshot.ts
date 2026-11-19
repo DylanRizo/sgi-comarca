@@ -1,7 +1,10 @@
 import {
+  isValidMarketplaceBotLocalDateTime,
+  marketplaceBotClockPattern,
   marketplaceBotListingActions,
   marketplaceBotQueueActions,
   marketplaceBotSafetyLevels,
+  marketplaceBotScheduleLimits,
   type MarketplaceBotAccountSnapshot,
   type MarketplaceBotAlert,
   type MarketplaceBotCommandPayload,
@@ -11,6 +14,8 @@ import {
   type MarketplaceBotQueueAction,
   type MarketplaceBotQueueItem,
   type MarketplaceBotSafetyLevel,
+  type MarketplaceBotSchedule,
+  type MarketplaceBotScheduleRules,
   type MarketplaceBotSnapshot,
   type MarketplaceBotUnansweredLead,
 } from '@sgi/contracts';
@@ -25,6 +30,10 @@ const MAX_QUEUE_ITEMS = 80;
 const MAX_UNANSWERED = 50;
 const MAX_APPROVE_IDS = 100;
 const safeCodePattern = /^[A-Za-z0-9._:-]{1,80}$/u;
+// Account names are the ones configured on the bot computer ("Dylan Steven"):
+// letters with accents and inner spaces are valid; the bot checks they exist.
+const accountNamePattern =
+  /^(?=.{1,64}$)[\p{L}\p{N}_.:-](?:[\p{L}\p{N}_ .:-]*[\p{L}\p{N}_.:-])?$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -51,6 +60,15 @@ function cleanNullableNonNegativeInt(value: unknown): number | null {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.min(1_000_000, Math.floor(parsed));
+}
+
+function cleanNullablePositiveInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 1_000_000_000) {
+    return null;
+  }
+  return parsed;
 }
 
 function cleanNullableRate(value: unknown): number | null {
@@ -114,6 +132,7 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
   const key = cleanText(raw.key, 120);
   const title = cleanText(raw.title, 140);
   if (!key || !title) return null;
+  const pendingAction = cleanNullableText(raw.pendingAction, 40);
   return {
     account: cleanText(raw.account, 64, 'cuenta'),
     ageDays: cleanNullableNonNegativeInt(raw.ageDays),
@@ -123,7 +142,10 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
     key,
     leads14d: cleanNullableNonNegativeInt(raw.leads14d),
     listedOn: cleanText(raw.listedOn, 40),
-    pendingAction: cleanNullableText(raw.pendingAction, 40),
+    pendingAction,
+    pendingActionId: pendingAction
+      ? cleanNullablePositiveInt(raw.pendingActionId)
+      : null,
     recommendation: cleanText(raw.recommendation, 40, 'none'),
     recommendationLabel: cleanText(raw.recommendationLabel, 80, 'Sin acción'),
     recommendationReason: cleanText(raw.recommendationReason, 280),
@@ -161,6 +183,82 @@ function sanitizeAlert(raw: unknown): MarketplaceBotAlert | null {
     message: cleanText(raw.message, 500),
     severity: cleanText(raw.severity, 24, 'warning'),
   };
+}
+
+function cleanClock(value: unknown): string | null {
+  return typeof value === 'string' && marketplaceBotClockPattern.test(value)
+    ? value
+    : null;
+}
+
+function cleanBoundedInt(
+  value: unknown,
+  limits: { readonly min: number; readonly max: number },
+): number | null {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= limits.min &&
+    value <= limits.max
+    ? value
+    : null;
+}
+
+function cleanDays(value: unknown): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 7) {
+    return null;
+  }
+  const days = new Set<number>();
+  for (const day of value) {
+    if (
+      typeof day !== 'number' ||
+      !Number.isInteger(day) ||
+      day < 0 ||
+      day > 6
+    ) {
+      return null;
+    }
+    days.add(day);
+  }
+  return [...days].sort((left, right) => left - right);
+}
+
+function parseScheduleRules(
+  raw: Record<string, unknown>,
+): MarketplaceBotScheduleRules | null {
+  const activeDays = cleanDays(raw.activeDays);
+  const startTime = cleanClock(raw.startTime);
+  const endTime = cleanClock(raw.endTime);
+  const maxPerDay = cleanBoundedInt(
+    raw.maxPerDay,
+    marketplaceBotScheduleLimits.maxPerDay,
+  );
+  const intervalMinutes = cleanBoundedInt(
+    raw.intervalMinutes,
+    marketplaceBotScheduleLimits.intervalMinutes,
+  );
+  if (
+    !activeDays ||
+    !startTime ||
+    !endTime ||
+    endTime <= startTime ||
+    maxPerDay === null ||
+    intervalMinutes === null
+  ) {
+    return null;
+  }
+  return { activeDays, endTime, intervalMinutes, maxPerDay, startTime };
+}
+
+function sanitizeSchedule(raw: unknown): MarketplaceBotSchedule | null {
+  if (!isRecord(raw)) return null;
+  const rules = parseScheduleRules(raw);
+  if (!rules) return null;
+  const botTime =
+    typeof raw.botTime === 'string' &&
+    isValidMarketplaceBotLocalDateTime(raw.botTime)
+      ? raw.botTime
+      : null;
+  return { ...rules, botTime };
 }
 
 function sanitizeList<T>(
@@ -235,6 +333,7 @@ export function sanitizeMarketplaceBotSnapshot(
         sanitizeQueueItem,
       ),
     },
+    schedule: sanitizeSchedule(root.schedule),
     worker: {
       currentItem: cleanNullableText(workerRaw.currentItem, 140),
       enabled: Boolean(workerRaw.enabled),
@@ -244,6 +343,17 @@ export function sanitizeMarketplaceBotSnapshot(
       status: cleanText(workerRaw.status, 32, 'idle'),
     },
   };
+}
+
+function requireAccountName(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new IntegrationKeyError('INVALID_REQUEST');
+  }
+  const trimmed = value.trim();
+  if (!accountNamePattern.test(trimmed)) {
+    throw new IntegrationKeyError('INVALID_REQUEST');
+  }
+  return trimmed;
 }
 
 function requireSafeCode(value: unknown): string {
@@ -294,6 +404,20 @@ export function parseMarketplaceBotCommandPayload(
       if (!marketplaceBotQueueActions.includes(action)) {
         throw new IntegrationKeyError('INVALID_REQUEST');
       }
+      if (action === 'move') {
+        if (
+          typeof raw.scheduledAt !== 'string' ||
+          !isValidMarketplaceBotLocalDateTime(raw.scheduledAt)
+        ) {
+          throw new IntegrationKeyError('INVALID_REQUEST');
+        }
+        return {
+          action,
+          id,
+          scheduledAt: raw.scheduledAt,
+          type: 'QUEUE_ITEM_ACTION',
+        };
+      }
       return { action, id, type: 'QUEUE_ITEM_ACTION' };
     }
     case 'LISTING_ACTION': {
@@ -315,13 +439,13 @@ export function parseMarketplaceBotCommandPayload(
       const account =
         raw.account === null || raw.account === undefined || raw.account === ''
           ? null
-          : requireSafeCode(raw.account);
+          : requireAccountName(raw.account);
       return { account, type: 'REQUEST_SCAN' };
     }
     case 'SYNC_SGI_CATALOG':
       return { type: 'SYNC_SGI_CATALOG' };
     case 'PAUSE_ACCOUNT': {
-      const account = requireSafeCode(raw.account);
+      const account = requireAccountName(raw.account);
       const hours = Number(raw.hours);
       if (!Number.isInteger(hours) || hours < 1 || hours > 24 * 30) {
         throw new IntegrationKeyError('INVALID_REQUEST');
@@ -329,7 +453,7 @@ export function parseMarketplaceBotCommandPayload(
       return { account, hours, type: 'PAUSE_ACCOUNT' };
     }
     case 'RESUME_ACCOUNT': {
-      const account = requireSafeCode(raw.account);
+      const account = requireAccountName(raw.account);
       return { account, type: 'RESUME_ACCOUNT' };
     }
     case 'SET_SAFETY_LEVEL': {
@@ -345,6 +469,13 @@ export function parseMarketplaceBotCommandPayload(
     }
     case 'RESOLVE_ALL_ALERTS':
       return { type: 'RESOLVE_ALL_ALERTS' };
+    case 'SET_SCHEDULE': {
+      const rules = parseScheduleRules(raw);
+      if (!rules || typeof raw.regenerate !== 'boolean') {
+        throw new IntegrationKeyError('INVALID_REQUEST');
+      }
+      return { ...rules, regenerate: raw.regenerate, type: 'SET_SCHEDULE' };
+    }
     default:
       throw new IntegrationKeyError('INVALID_REQUEST');
   }
