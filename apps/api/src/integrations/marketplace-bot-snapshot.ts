@@ -1,7 +1,7 @@
 import {
+  isValidMarketplaceBotLocalDateTime,
   marketplaceBotClockPattern,
   marketplaceBotListingActions,
-  marketplaceBotLocalDateTimePattern,
   marketplaceBotQueueActions,
   marketplaceBotSafetyLevels,
   marketplaceBotScheduleLimits,
@@ -60,6 +60,15 @@ function cleanNullableNonNegativeInt(value: unknown): number | null {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.min(1_000_000, Math.floor(parsed));
+}
+
+function cleanNullablePositiveInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 1_000_000_000) {
+    return null;
+  }
+  return parsed;
 }
 
 function cleanNullableRate(value: unknown): number | null {
@@ -123,6 +132,7 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
   const key = cleanText(raw.key, 120);
   const title = cleanText(raw.title, 140);
   if (!key || !title) return null;
+  const pendingAction = cleanNullableText(raw.pendingAction, 40);
   return {
     account: cleanText(raw.account, 64, 'cuenta'),
     ageDays: cleanNullableNonNegativeInt(raw.ageDays),
@@ -132,7 +142,10 @@ function sanitizeListing(raw: unknown): MarketplaceBotListing | null {
     key,
     leads14d: cleanNullableNonNegativeInt(raw.leads14d),
     listedOn: cleanText(raw.listedOn, 40),
-    pendingAction: cleanNullableText(raw.pendingAction, 40),
+    pendingAction,
+    pendingActionId: pendingAction
+      ? cleanNullablePositiveInt(raw.pendingActionId)
+      : null,
     recommendation: cleanText(raw.recommendation, 40, 'none'),
     recommendationLabel: cleanText(raw.recommendationLabel, 80, 'Sin acción'),
     recommendationReason: cleanText(raw.recommendationReason, 280),
@@ -242,7 +255,7 @@ function sanitizeSchedule(raw: unknown): MarketplaceBotSchedule | null {
   if (!rules) return null;
   const botTime =
     typeof raw.botTime === 'string' &&
-    marketplaceBotLocalDateTimePattern.test(raw.botTime)
+    isValidMarketplaceBotLocalDateTime(raw.botTime)
       ? raw.botTime
       : null;
   return { ...rules, botTime };
@@ -394,7 +407,7 @@ export function parseMarketplaceBotCommandPayload(
       if (action === 'move') {
         if (
           typeof raw.scheduledAt !== 'string' ||
-          !marketplaceBotLocalDateTimePattern.test(raw.scheduledAt)
+          !isValidMarketplaceBotLocalDateTime(raw.scheduledAt)
         ) {
           throw new IntegrationKeyError('INVALID_REQUEST');
         }

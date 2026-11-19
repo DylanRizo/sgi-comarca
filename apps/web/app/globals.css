@@ -1615,6 +1615,21 @@ a {
   max-width: 100%;
 }
 
+.bot-filters {
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+  margin-bottom: 1rem;
+}
+
+.bot-filters-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .dialog-actions {
   justify-content: flex-end;
 }

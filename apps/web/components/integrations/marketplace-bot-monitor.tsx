@@ -16,6 +16,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiHttpError } from '@/lib/http/api-client';
 import { integrationsApi } from '@/lib/http/integrations-api';
 import {
+  collectAccountOptions,
+  collectInFlightBotTargets,
+  filterListings,
+  filterQueueItems,
+  type ListingViewFilter,
+} from '@/lib/integrations/marketplace-bot-filters';
+import {
   getAvailableListingActions,
   getListingActionsEmptyLabel,
 } from '@/lib/integrations/marketplace-bot-listings';
@@ -173,8 +180,8 @@ export function MarketplaceBotMonitor() {
     instance: MarketplaceBotInstanceView,
     command: MarketplaceBotCommandPayload,
     successMessage: string,
-  ) {
-    if (busy || sending.current || pendingSend.current) return;
+  ): Promise<boolean> {
+    if (busy || sending.current || pendingSend.current) return false;
     if (
       ((command.type === 'LISTING_ACTION' &&
         (command.action === 'delete' || command.action === 'relist')) ||
@@ -183,19 +190,19 @@ export function MarketplaceBotMonitor() {
         command.type === 'RESOLVE_ALL_ALERTS') &&
       !window.confirm('¿Confirmas esta acción en el Bot de Marketplace?')
     )
-      return;
+      return false;
     pendingSend.current = {
       instanceId: instance.id,
       command,
       requestId: crypto.randomUUID(),
       message: successMessage,
     };
-    await sendPendingCommand();
+    return sendPendingCommand();
   }
 
-  async function sendPendingCommand() {
+  async function sendPendingCommand(): Promise<boolean> {
     const pending = pendingSend.current;
-    if (!pending || sending.current) return;
+    if (!pending || sending.current) return false;
     sending.current = true;
     setBusy(pending.command.type);
     setError('');
@@ -211,6 +218,7 @@ export function MarketplaceBotMonitor() {
       setUncertain(false);
       setNotice(pending.message);
       setReload((value) => value + 1);
+      return true;
     } catch (failure) {
       const ambiguous =
         uncertain ||
@@ -223,6 +231,7 @@ export function MarketplaceBotMonitor() {
           'No pudimos encolar el comando. Revisa los permisos y el estado del bot.',
         );
       }
+      return false;
     } finally {
       sending.current = false;
       setBusy('');
@@ -379,6 +388,7 @@ export function MarketplaceBotMonitor() {
             busy={uncertain ? 'uncertain' : busy}
             canControl={canControl}
             instance={activeInstance}
+            key={activeInstance.id}
             onCancelCommand={cancelCommand}
             onSendCommand={sendCommand}
           />
@@ -403,13 +413,37 @@ function InstanceMonitorBody({
     instance: MarketplaceBotInstanceView,
     command: MarketplaceBotCommandPayload,
     successMessage: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }) {
+  const [queueAccount, setQueueAccount] = useState('');
+  const [queueStatus, setQueueStatus] = useState('all');
+  const [listingAccount, setListingAccount] = useState('');
+  const [listingView, setListingView] = useState<ListingViewFilter>('all');
+  const [listingQuery, setListingQuery] = useState('');
+
   const { snapshot } = instance;
   const { worker, accounts, leads, listings, queue, alerts } = snapshot;
   const schedule = snapshot.schedule ?? null;
   const send = (command: MarketplaceBotCommandPayload, message: string) =>
     onSendCommand(instance, command, message);
+  const inFlight = collectInFlightBotTargets(instance.commands);
+
+  const queueAccounts = collectAccountOptions(queue.upcoming);
+  const listingAccounts = collectAccountOptions(listings.items);
+  const filteredQueue = filterQueueItems(queue.upcoming, {
+    account: queueAccount,
+    status: queueStatus,
+  });
+  const filteredListings = filterListings(listings.items, {
+    account: listingAccount,
+    query: listingQuery,
+    view: listingView,
+  });
+  const queueFilterActive = queueAccount !== '' || queueStatus !== 'all';
+  const listingFilterActive =
+    listingAccount !== '' ||
+    listingView !== 'all' ||
+    listingQuery.trim() !== '';
 
   const plannedCount = queue.summary.planned ?? 0;
   const approvedCount =
@@ -584,6 +618,7 @@ function InstanceMonitorBody({
           busy={busy !== ''}
           canControl={canControl}
           onSend={send}
+          pendingSchedule={inFlight.hasPendingSchedule}
           schedule={schedule}
         />
 
@@ -1005,123 +1040,189 @@ function InstanceMonitorBody({
             <p>No hay publicaciones próximas en la cola del calendario.</p>
           </section>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Programado</th>
-                  <th scope="col">Producto / Título</th>
-                  <th scope="col">Cuenta</th>
-                  <th scope="col">Estado</th>
-                  {canControl ? <th scope="col">Acciones</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {queue.upcoming.map((item) => (
-                  <tr key={item.id}>
-                    <td data-label="Programado">
-                      {formatBotLocalTime(item.scheduledAt)}
-                    </td>
-                    <td data-label="Producto / Título">
-                      <strong>{item.name}</strong>
-                      {item.detail ? <span>{item.detail}</span> : null}
-                    </td>
-                    <td data-label="Cuenta">{item.account}</td>
-                    <td data-label="Estado">
-                      <span
-                        className="status-badge"
-                        data-tone={
-                          item.status === 'running'
-                            ? 'transit'
-                            : item.approved
-                              ? 'completed'
-                              : 'warning'
-                        }
-                      >
-                        {queueStatusLabels[item.status] ?? item.status}
-                      </span>
-                    </td>
-                    {canControl ? (
-                      <td data-label="Acciones">
-                        <div className="user-actions-buttons">
-                          {!item.approved && item.status === 'planned' ? (
-                            <button
-                              className="table-action"
-                              disabled={busy !== ''}
-                              onClick={() =>
-                                void onSendCommand(
-                                  instance,
-                                  {
-                                    action: 'approve',
-                                    id: item.id,
-                                    type: 'QUEUE_ITEM_ACTION',
-                                  },
-                                  'Se solicitó aprobar el ítem de la cola.',
-                                )
+          <>
+            <div className="filter-bar bot-filters">
+              {queueAccounts.length > 1 ? (
+                <label className="filter-field">
+                  <span>Cuenta en cola</span>
+                  <select
+                    onChange={(event) => setQueueAccount(event.target.value)}
+                    value={queueAccount}
+                  >
+                    <option value="">Todas las cuentas</option>
+                    {queueAccounts.map((account) => (
+                      <option key={account} value={account}>
+                        {account}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="filter-field">
+                <span>Estado en cola</span>
+                <select
+                  onChange={(event) => setQueueStatus(event.target.value)}
+                  value={queueStatus}
+                >
+                  <option value="all">Todos los estados</option>
+                  {Object.entries(queueStatusLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="bot-filters-meta">
+                <span>
+                  Mostrando {filteredQueue.length} de {queue.upcoming.length}
+                </span>
+                {queueFilterActive ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      setQueueAccount('');
+                      setQueueStatus('all');
+                    }}
+                    type="button"
+                  >
+                    Limpiar filtros
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {filteredQueue.length === 0 ? (
+              <section className="work-panel">
+                <p>Ninguna publicación coincide con los filtros de la cola.</p>
+              </section>
+            ) : (
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Programado</th>
+                      <th scope="col">Producto / Título</th>
+                      <th scope="col">Cuenta</th>
+                      <th scope="col">Estado</th>
+                      {canControl ? <th scope="col">Acciones</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredQueue.map((item) => {
+                      const rowPending = inFlight.queueItemIds.has(item.id);
+                      return (
+                        <tr key={item.id}>
+                          <td data-label="Programado">
+                            {formatBotLocalTime(item.scheduledAt)}
+                          </td>
+                          <td data-label="Producto / Título">
+                            <strong>{item.name}</strong>
+                            {item.detail ? <span>{item.detail}</span> : null}
+                          </td>
+                          <td data-label="Cuenta">{item.account}</td>
+                          <td data-label="Estado">
+                            <span
+                              className="status-badge"
+                              data-tone={
+                                item.status === 'running'
+                                  ? 'transit'
+                                  : item.approved
+                                    ? 'completed'
+                                    : 'warning'
                               }
-                              type="button"
                             >
-                              Aprobar
-                            </button>
+                              {queueStatusLabels[item.status] ?? item.status}
+                            </span>
+                          </td>
+                          {canControl ? (
+                            <td data-label="Acciones">
+                              {rowPending ? (
+                                'Orden en cola'
+                              ) : (
+                                <div className="user-actions-buttons">
+                                  {!item.approved &&
+                                  item.status === 'planned' ? (
+                                    <button
+                                      className="table-action"
+                                      disabled={busy !== ''}
+                                      onClick={() =>
+                                        void onSendCommand(
+                                          instance,
+                                          {
+                                            action: 'approve',
+                                            id: item.id,
+                                            type: 'QUEUE_ITEM_ACTION',
+                                          },
+                                          'Se solicitó aprobar el ítem de la cola.',
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      Aprobar
+                                    </button>
+                                  ) : null}
+                                  {item.status === 'failed' ||
+                                  item.status === 'blocked' ? (
+                                    <button
+                                      className="table-action"
+                                      disabled={busy !== ''}
+                                      onClick={() =>
+                                        void onSendCommand(
+                                          instance,
+                                          {
+                                            action: 'retry',
+                                            id: item.id,
+                                            type: 'QUEUE_ITEM_ACTION',
+                                          },
+                                          'Se solicitó reintentar el ítem de la cola.',
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      Reintentar
+                                    </button>
+                                  ) : null}
+                                  {canMoveQueueItem(item) ? (
+                                    <QueueItemTimeControls
+                                      busy={busy !== ''}
+                                      item={item}
+                                      onSend={send}
+                                    />
+                                  ) : null}
+                                  {item.status !== 'published' &&
+                                  item.status !== 'cancelled' &&
+                                  item.status !== 'running' ? (
+                                    <button
+                                      className="table-action"
+                                      disabled={busy !== ''}
+                                      onClick={() =>
+                                        void onSendCommand(
+                                          instance,
+                                          {
+                                            action: 'cancel',
+                                            id: item.id,
+                                            type: 'QUEUE_ITEM_ACTION',
+                                          },
+                                          'Se solicitó cancelar el ítem de la cola.',
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  ) : null}
+                                </div>
+                              )}
+                            </td>
                           ) : null}
-                          {item.status === 'failed' ||
-                          item.status === 'blocked' ? (
-                            <button
-                              className="table-action"
-                              disabled={busy !== ''}
-                              onClick={() =>
-                                void onSendCommand(
-                                  instance,
-                                  {
-                                    action: 'retry',
-                                    id: item.id,
-                                    type: 'QUEUE_ITEM_ACTION',
-                                  },
-                                  'Se solicitó reintentar el ítem de la cola.',
-                                )
-                              }
-                              type="button"
-                            >
-                              Reintentar
-                            </button>
-                          ) : null}
-                          {canMoveQueueItem(item) ? (
-                            <QueueItemTimeControls
-                              busy={busy !== ''}
-                              item={item}
-                              onSend={send}
-                            />
-                          ) : null}
-                          {item.status !== 'published' &&
-                          item.status !== 'cancelled' &&
-                          item.status !== 'running' ? (
-                            <button
-                              className="table-action"
-                              disabled={busy !== ''}
-                              onClick={() =>
-                                void onSendCommand(
-                                  instance,
-                                  {
-                                    action: 'cancel',
-                                    id: item.id,
-                                    type: 'QUEUE_ITEM_ACTION',
-                                  },
-                                  'Se solicitó cancelar el ítem de la cola.',
-                                )
-                              }
-                              type="button"
-                            >
-                              Cancelar
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -1162,103 +1263,202 @@ function InstanceMonitorBody({
             <p>Todavía no hay anuncios rastreados en esta instancia.</p>
           </section>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Anuncio</th>
-                  <th scope="col">Cuenta</th>
-                  <th scope="col">Días</th>
-                  <th scope="col">Clics (14d)</th>
-                  <th scope="col">Leads (14d)</th>
-                  <th scope="col">Recomendación</th>
-                  {canControl ? <th scope="col">Acciones</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {listings.items.map((listing) => {
-                  const availableActions = getAvailableListingActions(listing);
-                  return (
-                    <tr key={listing.key}>
-                      <td data-label="Anuncio">
-                        <strong>{listing.title}</strong>
-                        <span>
-                          Estado:{' '}
-                          {listing.status === 'unknown'
-                            ? 'desconocido'
-                            : listing.status}
-                          {listing.listedOn ? ` · ${listing.listedOn}` : ''}
-                        </span>
-                      </td>
-                      <td data-label="Cuenta">{listing.account}</td>
-                      <td data-label="Días" data-numeric="true">
-                        {listing.ageDays ?? '—'}
-                      </td>
-                      <td data-label="Clics (14d)" data-numeric="true">
-                        {listing.clicks14d ?? 0}
-                      </td>
-                      <td data-label="Leads (14d)" data-numeric="true">
-                        {listing.leads14d ?? 0}
-                      </td>
-                      <td data-label="Recomendación">
-                        <span
-                          className="status-badge"
-                          data-tone={
-                            listing.recommendation === 'keep'
-                              ? 'completed'
-                              : 'warning'
-                          }
-                        >
-                          {listing.recommendationLabel ||
-                            listing.recommendation}
-                        </span>
-                        {listing.recommendationReason ? (
-                          <span>{listing.recommendationReason}</span>
-                        ) : null}
-                        {listing.pendingAction ? (
-                          <span>
-                            Acción en cola:{' '}
-                            <strong>{listing.pendingAction}</strong>
-                          </span>
-                        ) : null}
-                      </td>
-                      {canControl ? (
-                        <td data-label="Acciones">
-                          {availableActions.length === 0 ? (
-                            getListingActionsEmptyLabel(listing)
-                          ) : (
-                            <div className="user-actions-buttons">
-                              {availableActions.map((action) => (
-                                <button
-                                  className="table-action"
-                                  disabled={busy !== ''}
-                                  key={action}
-                                  onClick={() =>
-                                    void onSendCommand(
-                                      instance,
-                                      {
-                                        action,
-                                        key: listing.key,
-                                        type: 'LISTING_ACTION',
-                                      },
-                                      `Se encoló "${listingActionLabels[action]}" para ${listing.title}.`,
-                                    )
-                                  }
-                                  type="button"
-                                >
-                                  {listingActionLabels[action]}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                      ) : null}
+          <>
+            <div className="filter-bar bot-filters">
+              <label className="filter-field">
+                <span>Buscar anuncio</span>
+                <input
+                  onChange={(event) => setListingQuery(event.target.value)}
+                  placeholder="Título, cuenta o recomendación"
+                  type="search"
+                  value={listingQuery}
+                />
+              </label>
+              {listingAccounts.length > 1 ? (
+                <label className="filter-field">
+                  <span>Cuenta de anuncio</span>
+                  <select
+                    onChange={(event) => setListingAccount(event.target.value)}
+                    value={listingAccount}
+                  >
+                    <option value="">Todas las cuentas</option>
+                    {listingAccounts.map((account) => (
+                      <option key={account} value={account}>
+                        {account}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="filter-field">
+                <span>Mostrar anuncios</span>
+                <select
+                  onChange={(event) =>
+                    setListingView(event.target.value as ListingViewFilter)
+                  }
+                  value={listingView}
+                >
+                  <option value="all">Todos</option>
+                  <option value="actionable">Necesitan acción</option>
+                  <option value="in_stock">En stock</option>
+                  <option value="out_of_stock">Agotados</option>
+                </select>
+              </label>
+              <div className="bot-filters-meta">
+                <span>
+                  Mostrando {filteredListings.length} de {listings.items.length}
+                </span>
+                {listingFilterActive ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      setListingAccount('');
+                      setListingQuery('');
+                      setListingView('all');
+                    }}
+                    type="button"
+                  >
+                    Limpiar filtros
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {filteredListings.length === 0 ? (
+              <section className="work-panel">
+                <p>Ningún anuncio coincide con los filtros seleccionados.</p>
+              </section>
+            ) : (
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Anuncio</th>
+                      <th scope="col">Cuenta</th>
+                      <th scope="col">Días</th>
+                      <th scope="col">Clics (14d)</th>
+                      <th scope="col">Leads (14d)</th>
+                      <th scope="col">Recomendación</th>
+                      {canControl ? <th scope="col">Acciones</th> : null}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {filteredListings.map((listing) => {
+                      const availableActions =
+                        getAvailableListingActions(listing);
+                      const rowPending = inFlight.listingKeys.has(listing.key);
+                      const pendingActionId = listing.pendingActionId ?? null;
+                      const cancelQueued =
+                        pendingActionId !== null &&
+                        inFlight.cancelListingActionIds.has(pendingActionId);
+                      return (
+                        <tr key={listing.key}>
+                          <td data-label="Anuncio">
+                            <strong>{listing.title}</strong>
+                            <span>
+                              Estado:{' '}
+                              {listing.status === 'unknown'
+                                ? 'desconocido'
+                                : listing.status}
+                              {listing.listedOn ? ` · ${listing.listedOn}` : ''}
+                            </span>
+                          </td>
+                          <td data-label="Cuenta">{listing.account}</td>
+                          <td data-label="Días" data-numeric="true">
+                            {listing.ageDays ?? '—'}
+                          </td>
+                          <td data-label="Clics (14d)" data-numeric="true">
+                            {listing.clicks14d ?? 0}
+                          </td>
+                          <td data-label="Leads (14d)" data-numeric="true">
+                            {listing.leads14d ?? 0}
+                          </td>
+                          <td data-label="Recomendación">
+                            <span
+                              className="status-badge"
+                              data-tone={
+                                listing.recommendation === 'keep'
+                                  ? 'completed'
+                                  : 'warning'
+                              }
+                            >
+                              {listing.recommendationLabel ||
+                                listing.recommendation}
+                            </span>
+                            {listing.recommendationReason ? (
+                              <span>{listing.recommendationReason}</span>
+                            ) : null}
+                            {listing.pendingAction ? (
+                              <span>
+                                Acción en cola:{' '}
+                                <strong>{listing.pendingAction}</strong>
+                              </span>
+                            ) : null}
+                          </td>
+                          {canControl ? (
+                            <td data-label="Acciones">
+                              {rowPending ? (
+                                'Orden en cola'
+                              ) : listing.pendingAction &&
+                                pendingActionId !== null ? (
+                                cancelQueued ? (
+                                  'Cancelación en cola'
+                                ) : (
+                                  <button
+                                    className="table-action"
+                                    disabled={busy !== ''}
+                                    onClick={() =>
+                                      void onSendCommand(
+                                        instance,
+                                        {
+                                          id: pendingActionId,
+                                          type: 'CANCEL_LISTING_ACTION',
+                                        },
+                                        `Se solicitó cancelar la acción en cola para ${listing.title}.`,
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    Cancelar acción
+                                  </button>
+                                )
+                              ) : availableActions.length === 0 ? (
+                                getListingActionsEmptyLabel(listing)
+                              ) : (
+                                <div className="user-actions-buttons">
+                                  {availableActions.map((action) => (
+                                    <button
+                                      className="table-action"
+                                      disabled={busy !== ''}
+                                      key={action}
+                                      onClick={() =>
+                                        void onSendCommand(
+                                          instance,
+                                          {
+                                            action,
+                                            key: listing.key,
+                                            type: 'LISTING_ACTION',
+                                          },
+                                          `Se encoló "${listingActionLabels[action]}" para ${listing.title}.`,
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      {listingActionLabels[action]}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </section>
 

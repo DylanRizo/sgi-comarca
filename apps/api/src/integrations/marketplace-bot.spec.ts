@@ -234,10 +234,26 @@ describe('MarketplaceBot snapshot sanitization and command validation', () => {
       scheduledAt: '2026-11-20T15:30',
       type: 'QUEUE_ITEM_ACTION',
     });
+    expect(
+      parseMarketplaceBotCommandPayload({
+        action: 'move',
+        id: 'queue-1',
+        scheduledAt: '2028-02-29T15:30',
+        type: 'QUEUE_ITEM_ACTION',
+      }),
+    ).toEqual({
+      action: 'move',
+      id: 'queue-1',
+      scheduledAt: '2028-02-29T15:30',
+      type: 'QUEUE_ITEM_ACTION',
+    });
     for (const scheduledAt of [
       undefined,
       '2026-11-20',
       '2026-13-01T10:00',
+      '2026-02-29T10:00',
+      '2026-02-31T10:00',
+      '2026-04-31T10:00',
       '2026-11-20T15:30Z',
     ]) {
       expect(() =>
@@ -288,6 +304,51 @@ describe('MarketplaceBot snapshot sanitization and command validation', () => {
         schedule: { activeDays: [0], endTime: '25:00', startTime: '09:00' },
       }).schedule,
     ).toBeNull();
+    expect(
+      sanitizeMarketplaceBotSnapshot({
+        schedule: {
+          activeDays: [0],
+          botTime: '2026-02-31T09:15',
+          endTime: '18:00',
+          intervalMinutes: 180,
+          maxPerDay: 3,
+          startTime: '09:00',
+        },
+      }).schedule?.botTime,
+    ).toBeNull();
+
+    const listingsSnap = sanitizeMarketplaceBotSnapshot({
+      listings: {
+        items: [
+          {
+            key: 'with-id',
+            pendingAction: 'renew',
+            pendingActionId: 42,
+            status: 'in_stock',
+            title: 'Anuncio con accion',
+          },
+          {
+            key: 'no-action',
+            pendingAction: null,
+            pendingActionId: 99,
+            status: 'in_stock',
+            title: 'Sin accion pendiente',
+          },
+          {
+            key: 'invalid-id',
+            pendingAction: 'delete',
+            pendingActionId: -5,
+            status: 'in_stock',
+            title: 'Id invalido',
+          },
+        ],
+      },
+    });
+    expect(listingsSnap.listings.items).toMatchObject([
+      { key: 'with-id', pendingAction: 'renew', pendingActionId: 42 },
+      { key: 'no-action', pendingAction: null, pendingActionId: null },
+      { key: 'invalid-id', pendingAction: 'delete', pendingActionId: null },
+    ]);
   });
 
   it('protects read routes with integrations.manage or sales.read, and command routes with integrations.manage only', () => {

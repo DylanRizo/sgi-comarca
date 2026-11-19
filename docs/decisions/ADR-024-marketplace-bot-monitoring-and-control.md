@@ -129,9 +129,13 @@ admite texto de hasta 40 caracteres.
   las publicaciones futuras y genera la semana con el nuevo horario; las nuevas
   quedan por aprobar en modo semiautomático.
 - `QUEUE_ITEM_ACTION` admite `move` (con `scheduledAt` en hora local del bot,
-  `YYYY-MM-DDTHH:mm`, solo en el futuro) y `publish_now` (aprueba y adelanta la
-  publicación; el trabajador sigue aplicando horario y límites de seguridad).
-  Solo se mueven publicaciones `planned`, `queued` o `retry`.
+  `YYYY-MM-DDTHH:mm`, fecha real de calendario y solo en el futuro) y
+  `publish_now` (aprueba y adelanta la publicación; el trabajador sigue
+  aplicando horario y límites de seguridad). Solo se mueven publicaciones
+  `planned`, `queued` o `retry`.
+- Cada anuncio puede incluir `pendingActionId` junto a `pendingAction`; cuando
+  llega informado, el panel permite encolar `CANCEL_LISTING_ACTION` desde la
+  propia fila (si se omite, el panel conserva el estado `En cola` sin botón).
 - Los nombres de cuenta de `PAUSE_ACCOUNT`, `RESUME_ACCOUNT` y `REQUEST_SCAN`
   aceptan letras con tilde y espacios internos ("Dylan Steven"), como el bot.
 - El snapshot añade `schedule` (o `null` para clientes anteriores) y el bot

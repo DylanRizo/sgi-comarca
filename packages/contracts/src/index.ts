@@ -33,6 +33,7 @@ export {
   type IntegrationPriceIssue,
 } from './integrations.js';
 export {
+  isValidMarketplaceBotLocalDateTime,
   marketplaceBotClockPattern,
   marketplaceBotCommandTypes,
   marketplaceBotListingActions,
