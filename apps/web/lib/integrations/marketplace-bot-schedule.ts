@@ -1,6 +1,6 @@
 import {
+  isValidMarketplaceBotLocalDateTime,
   marketplaceBotClockPattern,
-  marketplaceBotLocalDateTimePattern,
   marketplaceBotScheduleLimits,
   type MarketplaceBotCommandPayload,
   type MarketplaceBotQueueItem,
@@ -45,7 +45,9 @@ const botTimeFormatter = new Intl.DateTimeFormat('es-NI', {
  */
 export function formatBotLocalTime(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/u.exec(value);
-  if (!match) return value || '—';
+  if (!match || !isValidMarketplaceBotLocalDateTime(match[0])) {
+    return value || '—';
+  }
   const [, year, month, day, hour, minute] = match.map(Number) as [
     number,
     number,
@@ -172,5 +174,5 @@ export function buildScheduleCommand(
 }
 
 export function isValidMoveValue(value: string): boolean {
-  return marketplaceBotLocalDateTimePattern.test(value);
+  return isValidMarketplaceBotLocalDateTime(value);
 }

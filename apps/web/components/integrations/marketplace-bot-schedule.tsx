@@ -21,7 +21,7 @@ import {
 type Send = (
   command: MarketplaceBotCommandPayload,
   successMessage: string,
-) => Promise<void>;
+) => Promise<boolean>;
 
 function draftFrom(schedule: MarketplaceBotSchedule): ScheduleDraft {
   return {
@@ -41,11 +41,13 @@ function draftFrom(schedule: MarketplaceBotSchedule): ScheduleDraft {
 export function BotSchedulePanel({
   busy,
   canControl,
+  pendingSchedule = false,
   schedule,
   onSend,
 }: {
   busy: boolean;
   canControl: boolean;
+  pendingSchedule?: boolean;
   schedule: MarketplaceBotSchedule | null;
   onSend: Send;
 }) {
@@ -89,13 +91,15 @@ export function BotSchedulePanel({
       return;
     }
     setFormError('');
-    await onSend(
+    const queued = await onSend(
       result.command,
       draft.regenerate
         ? 'Se envió el nuevo horario; el bot rehará el calendario.'
         : 'Se envió el nuevo horario al bot.',
     );
-    setDraft(null);
+    if (queued) {
+      setDraft(null);
+    }
   }
 
   function toggleDay(day: number) {
@@ -118,7 +122,7 @@ export function BotSchedulePanel({
         {canControl && !editing ? (
           <button
             className="secondary-button"
-            disabled={busy}
+            disabled={busy || pendingSchedule}
             onClick={() => setDraft(draftFrom(schedule))}
             type="button"
           >
@@ -126,6 +130,13 @@ export function BotSchedulePanel({
           </button>
         ) : null}
       </div>
+
+      {pendingSchedule && !editing ? (
+        <p className="form-feedback" data-tone="info" role="status">
+          Hay un cambio de horario en cola; se reflejará aquí en el próximo
+          pulso del bot.
+        </p>
+      ) : null}
 
       {!draft ? (
         <dl className="schedule-summary">
@@ -341,8 +352,9 @@ export function QueueItemTimeControls({
               type: 'QUEUE_ITEM_ACTION',
             },
             `Se pidió mover «${item.name}» al ${formatBotLocalTime(value)}.`,
-          );
-          setOpen(false);
+          ).then((queued) => {
+            if (queued) setOpen(false);
+          });
         }}
         type="button"
       >

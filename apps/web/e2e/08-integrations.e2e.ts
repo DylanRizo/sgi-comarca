@@ -122,6 +122,14 @@ test.describe('Integration keys', () => {
                   status: 'in_stock',
                   isExactTwin: false,
                 },
+                {
+                  key: 'queued-action',
+                  title: 'Producto con acción en cola',
+                  status: 'in_stock',
+                  isExactTwin: false,
+                  pendingAction: 'renew',
+                  pendingActionId: 77,
+                },
               ],
             },
             queue: {
@@ -169,11 +177,20 @@ test.describe('Integration keys', () => {
     const available = page
       .getByRole('row')
       .filter({ hasText: 'Producto disponible' });
+    const queuedAction = page
+      .getByRole('row')
+      .filter({ hasText: 'Producto con acción en cola' });
     for (const row of [twin, unknown, legacy]) {
       await expect(row).toBeVisible();
       await expect(row.getByRole('button')).toHaveCount(0);
     }
     await expect(unknown).toContainText('Estado: desconocido');
+    await expect(queuedAction).toBeVisible();
+    await page.getByLabel('Buscar anuncio').fill('disponible');
+    await expect(available).toBeVisible();
+    await expect(twin).toHaveCount(0);
+    await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+    await expect(twin).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Horario de publicación' }),
     ).toBeVisible();
@@ -201,11 +218,15 @@ test.describe('Integration keys', () => {
       await expect(
         available.getByRole('button', { name: 'Marcar agotado' }),
       ).toBeVisible();
+      await expect(
+        queuedAction.getByRole('button', { name: 'Cancelar acción' }),
+      ).toBeVisible();
     } else {
       await expect(
         page.getByRole('button', { name: 'Cambiar horario' }),
       ).toHaveCount(0);
       await expect(queued.getByRole('button')).toHaveCount(0);
+      await expect(queuedAction.getByRole('button')).toHaveCount(0);
       await expect(
         page.getByRole('heading', { name: 'Control remoto deshabilitado' }),
       ).toBeVisible();

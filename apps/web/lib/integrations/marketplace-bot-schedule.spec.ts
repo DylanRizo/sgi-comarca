@@ -65,6 +65,7 @@ describe('Marketplace bot schedule helpers', () => {
   it('shows the bot wall clock as written, without shifting time zones', () => {
     expect(formatBotLocalTime('2026-11-20T15:30:00')).toMatch(/3:30\s*p/u);
     expect(formatBotLocalTime('2026-11-20T15:30:00')).toContain('20');
+    expect(formatBotLocalTime('2026-02-31T10:00')).toBe('2026-02-31T10:00');
     expect(formatBotLocalTime('')).toBe('—');
   });
 
@@ -110,6 +111,10 @@ describe('Marketplace bot schedule helpers', () => {
     expect(canMoveQueueItem(item('running'))).toBe(false);
     expect(canMoveQueueItem(item('published'))).toBe(false);
     expect(isValidMoveValue('2026-11-20T15:30')).toBe(true);
+    expect(isValidMoveValue('2028-02-29T15:30')).toBe(true);
+    expect(isValidMoveValue('2026-02-29T15:30')).toBe(false);
+    expect(isValidMoveValue('2026-02-31T15:30')).toBe(false);
+    expect(isValidMoveValue('2026-04-31T15:30')).toBe(false);
     expect(isValidMoveValue('2026-11-20')).toBe(false);
   });
 });
